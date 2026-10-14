@@ -174,6 +174,11 @@
         border-bottom: none;
     }
 
+    .cell-registered {
+        white-space: nowrap !important;
+        min-width: 115px;
+    }
+
     /* Account Details Cell */
     .account-meta {
         display: flex;
@@ -546,7 +551,7 @@
                 <th style="width: 110px;">Status</th>
                 <th>Certificates</th>
                 <th>Order Requests</th>
-                <th>Registered</th>
+                <th class="cell-registered">Registered</th>
                 <th style="text-align: right;">Actions</th>
             </tr>
         </thead>
@@ -608,8 +613,8 @@
                         </div>
                     </div>
                 </td>
-                <td>
-                    <span style="font-family: ui-monospace, monospace; font-size: 0.85rem; color: var(--text-muted);">
+                <td class="cell-registered">
+                    <span style="font-family: ui-monospace, monospace; font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">
                         {% if acc.created_at %}
                         {{ acc.created_at.strftime('%Y-%m-%d') }}
                         {% else %}
