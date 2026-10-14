@@ -23,8 +23,11 @@ from pydantic import ValidationError
 async def lifespan(_: FastAPI):
     await db.connect()
     await db.migrations.run()
+    if settings.web.enabled:
+        await web.auth.auto_provision_admin_if_needed()
     await ca.init()
-    await acme.start_cronjobs()
+    if ca.is_initialized:
+        await acme.start_cronjobs()
     yield
     await db.disconnect()
 
@@ -42,9 +45,12 @@ app.add_middleware(
     content_security_policy={
         '/acme/': "base-uri 'self'; default-src 'none';",
         '/endpoints': "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'none'; img-src 'self' data:;",
-        '/': "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'none'; img-src 'self' data:;",
+        '/': "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'none'; img-src 'self' data:;",
     },
 )
+if settings.web.enabled:
+    app.add_middleware(web.middleware.CaSetupRedirectMiddleware)  # type: ignore[arg-type]
+    app.add_middleware(web.middleware.WebAuthMiddleware)  # type: ignore[arg-type]
 
 if settings.web.enabled:
 
@@ -88,5 +94,8 @@ app.include_router(ca.router)
 if settings.web.enabled:
     app.include_router(web.router)
 
-    if Path('/app/web/www').exists():
-        app.mount('/', StaticFiles(directory='/app/web/www'), name='static')
+    www_dir = Path(__file__).parent / 'web' / 'www'
+    if not www_dir.exists() and Path('/app/web/www').exists():
+        www_dir = Path('/app/web/www')
+    if www_dir.exists():
+        app.mount('/', StaticFiles(directory=str(www_dir)), name='static')

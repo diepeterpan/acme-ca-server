@@ -1,9 +1,6 @@
-# this file can be overwritten to provide a custom ca implementation
-# the methods sign_csr() and revoke_cert() must be implemented with matching function signatures
-# set env var CA_ENABLED=False when providing a custom ca implementation
-
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import db
 from acme.certificate.service import SerialNumberConverter
@@ -11,6 +8,7 @@ from config import settings
 from cryptography import x509
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 
 from .model import SignedCertInfo
@@ -127,3 +125,237 @@ def build_crl_sync(*, ca_key: PrivateKeyTypes, ca_cert: x509.Certificate, revoca
     crl = builder.sign(private_key=ca_key, algorithm=hashes.SHA512())  # type: ignore[arg-type]
     crl_pem = crl.public_bytes(encoding=serialization.Encoding.PEM).decode()
     return crl, crl_pem
+
+
+def generate_root_ca_sync(
+    *,
+    common_name: str,
+    organization: str | None = None,
+    organizational_unit: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    locality: str | None = None,
+    key_type: str = 'RSA',
+    key_size_or_curve: str = '4096',
+    digest_algorithm: str = 'SHA-384',
+    validity_years: int = 10,
+):
+    key_type = (key_type or 'RSA').strip().upper()
+    if key_type == 'RSA':
+        key_size = int(key_size_or_curve or 4096)
+        if key_size not in (2048, 3072, 4096):
+            raise ValueError(f'Unsupported RSA key size: {key_size}')
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
+    elif key_type == 'ECDSA':
+        curve_name = (key_size_or_curve or 'P-384').strip().upper()
+        if curve_name in ('P-256', 'SECP256R1'):
+            curve = ec.SECP256R1()
+        elif curve_name in ('P-384', 'SECP384R1'):
+            curve = ec.SECP384R1()
+        elif curve_name in ('P-521', 'SECP521R1'):
+            curve = ec.SECP521R1()
+        else:
+            raise ValueError(f'Unsupported ECDSA curve: {key_size_or_curve}')
+        private_key = ec.generate_private_key(curve)
+    else:
+        raise ValueError(f'Unsupported key type: {key_type}')
+
+    digest_name = (digest_algorithm or 'SHA-384').strip().upper()
+    if digest_name == 'SHA-256':
+        hash_algo = hashes.SHA256()
+    elif digest_name == 'SHA-384':
+        hash_algo = hashes.SHA384()
+    elif digest_name == 'SHA-512':
+        hash_algo = hashes.SHA512()
+    else:
+        raise ValueError(f'Unsupported digest algorithm: {digest_algorithm}')
+
+    name_attributes = [x509.NameAttribute(x509.NameOID.COMMON_NAME, common_name.strip())]
+    if organization and organization.strip():
+        name_attributes.append(x509.NameAttribute(x509.NameOID.ORGANIZATION_NAME, organization.strip()))
+    if organizational_unit and organizational_unit.strip():
+        name_attributes.append(x509.NameAttribute(x509.NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit.strip()))
+    if country and country.strip():
+        c_code = country.strip().upper()
+        if len(c_code) != 2 or not c_code.isalpha():
+            raise ValueError(f'Country must be a 2-letter ISO code, not: {country}')
+        name_attributes.append(x509.NameAttribute(x509.NameOID.COUNTRY_NAME, c_code))
+    if state and state.strip():
+        name_attributes.append(x509.NameAttribute(x509.NameOID.STATE_OR_PROVINCE_NAME, state.strip()))
+    if locality and locality.strip():
+        name_attributes.append(x509.NameAttribute(x509.NameOID.LOCALITY_NAME, locality.strip()))
+
+    subject = x509.Name(name_attributes)
+    issuer = subject
+
+    now = datetime.now(timezone.utc)
+    not_valid_before = now
+    not_valid_after = now + timedelta(days=int(validity_years) * 365)
+
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(not_valid_before)
+        .not_valid_after(not_valid_after)
+        .add_extension(
+            x509.BasicConstraints(ca=True, path_length=None),
+            critical=True,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
+            critical=False,
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(private_key.public_key()),
+            critical=False,
+        )
+    )
+
+    cert = builder.sign(private_key=private_key, algorithm=hash_algo)
+    cert_pem_bytes = cert.public_bytes(serialization.Encoding.PEM)
+    key_pem_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    _, crl_pem = build_crl_sync(ca_key=private_key, ca_cert=cert, revocations=set())
+
+    return cert, cert_pem_bytes, key_pem_bytes, crl_pem
+
+
+async def create_root_ca(
+    *,
+    common_name: str,
+    organization: str | None = None,
+    organizational_unit: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    locality: str | None = None,
+    key_type: str = 'RSA',
+    key_size_or_curve: str = '4096',
+    digest_algorithm: str = 'SHA-384',
+    validity_years: int = 10,
+) -> str:
+    import acme
+    import ca
+    from logger import logger
+
+    cert, cert_pem_bytes, key_pem_bytes, crl_pem = await asyncio.to_thread(
+        generate_root_ca_sync,
+        common_name=common_name,
+        organization=organization,
+        organizational_unit=organizational_unit,
+        country=country,
+        state=state,
+        locality=locality,
+        key_type=key_type,
+        key_size_or_curve=key_size_or_curve,
+        digest_algorithm=digest_algorithm,
+        validity_years=validity_years,
+    )
+
+    f = Fernet(settings.ca.encryption_key.get_secret_value())
+    key_pem_enc = f.encrypt(key_pem_bytes)
+    serial_number = SerialNumberConverter.int2hex(cert.serial_number)
+    cert_pem = cert_pem_bytes.decode()
+
+    async with db.transaction() as sql:
+        await sql.exec('update cas set active = false')
+        await sql.exec(
+            """
+            insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem)
+                values ($1, $2, $3, true, $4)
+            on conflict (serial_number) do update set active = true, crl_pem = $4
+            """,
+            serial_number,
+            cert_pem,
+            key_pem_enc,
+            crl_pem,
+        )
+
+    # Persist to disk import folder if writable
+    try:
+        import_dir = Path(settings.ca.import_dir)
+        import_dir.mkdir(parents=True, exist_ok=True)
+        (import_dir / 'ca.pem').write_bytes(cert_pem_bytes)
+        (import_dir / 'ca.key').write_bytes(key_pem_bytes)
+        logger.info('Saved newly generated CA certificate and key to %s', import_dir)
+    except Exception as e:
+        logger.warning('Could not save CA to import_dir %s: %s', settings.ca.import_dir, e)
+
+    ca.is_initialized = True
+    await ca.cronjob.start()
+    await acme.start_cronjobs()
+
+    return serial_number
+
+
+def get_cert_dates(cert: x509.Certificate) -> tuple[datetime, datetime]:
+    if hasattr(cert, 'not_valid_before_utc'):
+        return cert.not_valid_before_utc, cert.not_valid_after_utc
+    return cert.not_valid_before.replace(tzinfo=timezone.utc), cert.not_valid_after.replace(tzinfo=timezone.utc)
+
+
+async def get_active_ca_details() -> dict | None:
+    if not settings.ca.enabled:
+        return None
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record('select serial_number, cert_pem, crl_pem from cas where active = true')
+    if not record:
+        return None
+
+    serial_number = record['serial_number']
+    cert_pem = record['cert_pem']
+    crl_pem = record['crl_pem']
+
+    cert = await asyncio.to_thread(x509.load_pem_x509_certificate, cert_pem.encode(), None)
+    nvb, nva = get_cert_dates(cert)
+    now = datetime.now(timezone.utc)
+    is_valid = nvb <= now <= nva
+    days_remaining = max(0, (nva - now).days)
+
+    fp_bytes = cert.fingerprint(hashes.SHA256())
+    fingerprint = ':'.join(f'{b:02X}' for b in fp_bytes)
+
+    pub_key = cert.public_key()
+    if isinstance(pub_key, rsa.RSAPublicKey):
+        key_info = f'RSA {pub_key.key_size}-bit'
+    elif isinstance(pub_key, ec.EllipticCurvePublicKey):
+        key_info = f'ECDSA {pub_key.curve.name}'
+    else:
+        key_info = 'Public Key'
+
+    sig_algo = cert.signature_hash_algorithm.name.upper() if cert.signature_hash_algorithm else 'SHA'
+
+    return {
+        'serial_number': serial_number,
+        'cert_pem': cert_pem,
+        'crl_pem': crl_pem,
+        'subject': cert.subject.rfc4514_string(),
+        'issuer': cert.issuer.rfc4514_string(),
+        'not_valid_before': nvb.strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'not_valid_after': nva.strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'is_valid': is_valid,
+        'days_remaining': days_remaining,
+        'fingerprint_sha256': fingerprint,
+        'key_info': f'{key_info} / {sig_algo}',
+        'signature_algorithm': cert.signature_algorithm_oid._name,
+    }

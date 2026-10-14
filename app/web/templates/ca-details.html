@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}Root CA Certificate{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .ca-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 2.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .ca-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-card);
+        margin-bottom: 1.75rem;
+    }
+
+    .ca-title-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .ca-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+    }
+
+    .badge-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.85rem;
+        font-weight: 700;
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .badge-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: var(--status-valid-text);
+    }
+
+    /* Actions Bar */
+    .actions-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+    }
+
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.4rem;
+        background-color: var(--primary);
+        color: #ffffff;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+    }
+
+    .btn-primary svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+    }
+
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.4rem;
+        background-color: #ffffff;
+        color: var(--primary);
+        border: 1px solid var(--primary-border);
+        font-size: 0.95rem;
+        font-weight: 600;
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary);
+    }
+
+    .btn-secondary svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+    }
+
+    /* Details Grid */
+    .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .detail-item {
+        background: #fbf9ff;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        padding: 1.15rem 1.25rem;
+    }
+
+    .detail-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .detail-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-heading);
+        word-break: break-all;
+    }
+
+    .mono-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.88rem;
+        color: #334155;
+        background: #f1f5f9;
+        padding: 0.25rem 0.55rem;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .copy-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 2px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+    }
+
+    .copy-btn:hover {
+        color: var(--primary);
+    }
+
+    .copy-btn svg {
+        width: 15px;
+        height: 15px;
+        fill: currentColor;
+    }
+
+    /* PEM Viewer Box */
+    .pem-section {
+        background: #f8fafc;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        margin-top: 1.5rem;
+    }
+
+    .pem-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+
+    .pem-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-heading);
+    }
+
+    .pem-content {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.82rem;
+        color: #1e293b;
+        background: #ffffff;
+        border: 1px solid var(--border-card);
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-x: auto;
+        white-space: pre;
+        line-height: 1.45;
+        max-height: 280px;
+        user-select: all;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if status_msg == 'ca_created' %}
+<div class="alert-banner">
+    <span>✓ Root Certificate Authority created and initialized successfully!</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+<div class="ca-card">
+    <div class="ca-header">
+        <div class="ca-title-group">
+            <h1 class="ca-title">Root Certificate Authority</h1>
+            <span class="badge-status">
+                <span class="badge-dot"></span>
+                Active
+            </span>
+        </div>
+        <div class="actions-bar" style="margin-bottom: 0;">
+            <a href="/ca/download" class="btn-primary">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                </svg>
+                Download Certificate (.crt)
+            </a>
+            <a href="/ca/download/crl" class="btn-secondary">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+                Download CRL (.crl)
+            </a>
+        </div>
+    </div>
+
+    <!-- Details Grid -->
+    <div class="details-grid">
+        <div class="detail-item">
+            <div class="detail-label">Serial Number</div>
+            <div class="detail-value">
+                <span class="mono-code">
+                    <span>{{ ca.serial_number }}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('{{ ca.serial_number }}', this)" title="Copy Serial Number">
+                        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <div class="detail-item">
+            <div class="detail-label">Subject Distinguished Name</div>
+            <div class="detail-value">{{ ca.subject }}</div>
+        </div>
+
+        <div class="detail-item">
+            <div class="detail-label">Cryptographic Key &amp; Digest</div>
+            <div class="detail-value">{{ ca.key_info }}</div>
+        </div>
+
+        <div class="detail-item">
+            <div class="detail-label">Validity Period</div>
+            <div class="detail-value">
+                <span>{{ ca.not_valid_before }} &mdash; {{ ca.not_valid_after }}</span>
+                <span style="margin-left: 0.5rem; font-size: 0.82rem; color: var(--status-valid-text); font-weight: 700;">({{ ca.days_remaining }} days left)</span>
+            </div>
+        </div>
+
+        <div class="detail-item" style="grid-column: 1 / -1;">
+            <div class="detail-label">SHA-256 Fingerprint</div>
+            <div class="detail-value">
+                <span class="mono-code" style="font-size: 0.82rem;">
+                    <span>{{ ca.fingerprint_sha256 }}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('{{ ca.fingerprint_sha256 }}', this)" title="Copy Fingerprint">
+                        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                    </button>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PEM Viewer -->
+    <div class="pem-section">
+        <div class="pem-header">
+            <span class="pem-title">PEM Encoded CA Certificate</span>
+            <button class="btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.84rem;" onclick="copyToClipboard(document.getElementById('pemCode').textContent, this)">
+                <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                Copy PEM
+            </button>
+        </div>
+        <pre class="pem-content" id="pemCode">{{ ca.cert_pem }}</pre>
+    </div>
+</div>
+
+<script>
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '✓ Copied!';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+            }, 2000);
+        });
+    }
+</script>
+{% endblock %}

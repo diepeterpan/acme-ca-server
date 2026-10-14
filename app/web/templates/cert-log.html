@@ -3,112 +3,567 @@
 {% block head %}
 {{ super() }}
 <style type="text/css">
-    td {
-        padding-top: .5rem;
-        padding-bottom: .5rem;
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
 
-    form {
-        border: 1px solid #ccc;
-        padding: 2rem;
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
     }
 
-    ul {
-        display: inline;
-        list-style: disc;
+    /* Filter & Search Bar */
+    .filter-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
 
-    li {
-        display: inline list-item;
-        margin-left: 1rem;
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 260px;
+        max-width: 420px;
     }
 
-    .valid {
-        background-color: #22c55e;
+    .search-input {
+        width: 100%;
+        padding: 0.65rem 1rem 0.65rem 2.6rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-pill);
+        font-size: 0.95rem;
+        background-color: #ffffff;
+        color: var(--text-body);
+        outline: none;
+        transition: all 0.2s ease;
     }
 
-    .invalid {
-        background-color: #dc2626;
+    .search-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
     }
 
-    tbody tr:hover {
-        background-color: #eee;
+    .search-icon {
+        position: absolute;
+        left: 0.9rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        fill: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .filter-tabs {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--bg-page);
+        padding: 0.3rem;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--border-card);
+    }
+
+    .filter-tab {
+        padding: 0.45rem 1.1rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--text-muted);
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .filter-tab:hover {
+        color: var(--primary);
+    }
+
+    .filter-tab.active {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Table Design */
+    .table-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow-x: auto;
+    }
+
+    table.cert-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.92rem;
+    }
+
+    table.cert-table th {
+        background-color: #faf5ff;
+        color: var(--text-heading);
+        font-weight: 600;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        white-space: nowrap;
+    }
+
+    table.cert-table td {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: middle;
+    }
+
+    table.cert-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    table.cert-table tbody tr:hover {
+        background-color: #fbf9ff;
+    }
+
+    table.cert-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .badge-valid {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .badge-expiring {
+        background-color: var(--status-expiring-bg);
+        color: var(--status-expiring-text);
+        border-color: var(--status-expiring-border);
+    }
+
+    .badge-revoked {
+        background-color: var(--status-revoked-bg);
+        color: var(--status-revoked-text);
+        border-color: var(--status-revoked-border);
+    }
+
+    .badge-expired {
+        background-color: var(--status-expired-bg);
+        color: var(--status-expired-text);
+        border-color: var(--status-expired-border);
+    }
+
+    .badge-subtle {
+        background-color: var(--primary-light);
+        color: var(--primary);
+        border-color: var(--primary-subtle);
+    }
+
+    .badge-san {
+        background-color: #f3e8ff;
+        color: #6b21a8;
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--radius-pill);
+        margin-left: 0.4rem;
+        cursor: help;
+    }
+
+    /* Domain & Monospace Elements */
+    .domain-link {
+        font-weight: 600;
+        color: var(--text-heading);
+        text-decoration: none;
+        transition: color 0.15s ease;
+    }
+
+    .domain-link:hover {
+        color: var(--primary);
+        text-decoration: underline;
+    }
+
+    .serial-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.85rem;
+        color: #475569;
+        background: #f1f5f9;
+        padding: 0.2rem 0.45rem;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .copy-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 2px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 4px;
+    }
+
+    .copy-btn:hover {
+        color: var(--primary);
+    }
+
+    .copy-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+    }
+
+    /* Action Buttons */
+    .actions-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.85rem;
+        border-radius: 8px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        line-height: 1;
+    }
+
+    .btn-download {
+        background-color: #ffffff;
+        color: var(--primary);
+        border-color: var(--primary-border);
+    }
+
+    .btn-download:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .btn-download svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+    }
+
+    .btn-revoke {
+        background-color: #fdf2f8;
+        color: #be185d;
+        border-color: #fbcfe8;
+    }
+
+    .btn-revoke:hover {
+        background-color: #fce7f3;
+        border-color: #f472b6;
+        color: #9d174d;
+    }
+
+    .btn-revoked {
+        background-color: #f1f5f9;
+        color: #94a3b8;
+        border-color: #e2e8f0;
+        cursor: not-allowed;
+    }
+
+    .empty-state {
+        padding: 4rem 2rem;
+        text-align: center;
+        color: var(--text-muted);
+    }
+
+    .empty-state svg {
+        width: 48px;
+        height: 48px;
+        fill: var(--primary-subtle);
+        margin-bottom: 1rem;
+    }
+
+    /* Modal Dialog */
+    dialog.revoke-modal {
+        margin: auto;
+        border: none;
+        border-radius: var(--radius-lg);
+        padding: 0;
+        background: #ffffff;
+        box-shadow: 0 20px 25px -5px rgba(124, 58, 237, 0.2), 0 10px 10px -5px rgba(124, 58, 237, 0.1);
+        max-width: 500px;
+        width: 90vw;
+        border-top: 4px solid var(--primary);
+    }
+
+    dialog.revoke-modal::backdrop {
+        background: rgba(30, 27, 75, 0.4);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+        padding: 1.75rem 2rem;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .modal-icon-badge {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #faf5ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary);
+    }
+
+    .modal-icon-badge svg {
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-heading);
+    }
+
+    .modal-body {
+        color: var(--text-body);
+        font-size: 0.95rem;
+        margin-bottom: 1.75rem;
+        line-height: 1.6;
+    }
+
+    .modal-body strong {
+        color: var(--text-heading);
+    }
+
+    .modal-body code {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        background: #f1f5f9;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.88rem;
+    }
+
+    .modal-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    .btn-secondary {
+        background-color: #ffffff;
+        color: var(--text-body);
+        border: 1px solid #cbd5e1;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: #f8fafc;
+        border-color: #94a3b8;
+    }
+
+    .btn-primary-danger {
+        background-color: var(--primary);
+        color: #ffffff;
+        border: none;
+        padding: 0.6rem 1.4rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.35);
+    }
+
+    .btn-primary-danger:hover {
+        background-color: var(--primary-hover);
     }
 </style>
 {% endblock %}
-{% block content %}
-<h2>Certificates</h2>
 
-<form method="get" action="">
-    <fieldset>
-        <legend>
-            <h3>filter certificate status</h3>
-        </legend>
-        <div class="row">
-            <label>
-                <input type="radio" name="certstatus" value="all" {{ "checked" if certstatus=="all" }}> all
-            </label>
-            <label>
-                <input type="radio" name="certstatus" value="valid" {{ "checked" if certstatus=="valid" }}> valid
-            </label>
-            <label>
-                <input type="radio" name="certstatus" value="invalid" {{ "checked" if certstatus=="invalid" }}> invalid
-            </label>
-        </div>
-    </fieldset>
-    <label>
-        <h3>filter domain name</h3>
-        <input type="text" name="domainfilter" value="{{domainfilter}}" placeholder="searchtext">
-    </label>
-    <button type="submit">filter</button>
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Certificates</h1>
+</div>
+
+{% if status_msg == 'revoked_success' %}
+<div class="alert-banner" id="alert-banner">
+    <span>Certificate was revoked successfully and added to the CA Revocation List.</span>
+    <button type="button" class="close-btn" id="close-alert">&times;</button>
+</div>
+{% endif %}
+
+<form method="get" action="/certificates" class="filter-card">
+    <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search for domain...">
+    </div>
+
+    <div class="filter-tabs">
+        <a href="?domainfilter={{domainfilter}}&certstatus=all" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=valid" class="filter-tab {% if certstatus == 'valid' %}active{% endif %}">Valid</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=expiring" class="filter-tab {% if certstatus == 'expiring' %}active{% endif %}">Expiring</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=revoked" class="filter-tab {% if certstatus == 'revoked' %}active{% endif %}">Revoked</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=expired" class="filter-tab {% if certstatus == 'expired' %}active{% endif %}">Expired</a>
+    </div>
 </form>
 
-<table>
-    <thead>
-        <tr>
-            <th></th>
-            <th>Serial Number</th>
-            <th>Created At</th>
-            <th>Valid Until</th>
-            <th>Age (Days)</th>
-            <th>Revoked At</th>
-            <th>Domains</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for cert in certs %}
-        <tr>
-            <td class="{{'valid' if cert.is_valid else 'invalid' }}">&nbsp;</td>
-            <td><a href="certificates/{{cert.serial_number}}"><code>{{cert.serial_number}}</code></a></td>
-            <td>{{cert.not_valid_before.strftime('%Y-%m-%d')}}</td>
-            <td>{{cert.not_valid_after.strftime('%Y-%m-%d')}}</td>
-            <td>
-                {% if cert.is_valid %}
-                {{cert.age.days}} / {{cert.lifetime.days}}
-                {% else %}
-                -
-                {% endif %}
-            </td>
-            <td>
-                {% if cert.revoked_at %}
-                {{cert.revoked_at.strftime('%Y-%m-%d')}}
-                {% else %}
-                -
-                {% endif %}
-            </td>
-            <td>
-                <ul>
-                    {% for domain in cert.domains %}
-                    <li>
-                        <a href="https://{{domain}}" target="_blank" rel="noopener noreferrer">{{domain}}</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="table-container">
+    <table class="cert-table">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Primary FQDN</th>
+                <th>Serial Number</th>
+                <th>Issue Date</th>
+                <th>Expiry Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="cert-table-body">
+            {% for cert in certs %}
+            <tr data-domain="{{cert.domains[0]}}" data-serial="{{cert.serial_number}}">
+                <td>
+                    {% if cert.is_revoked %}
+                    <span class="badge badge-revoked">Revoked</span>
+                    {% elif cert.is_expiring %}
+                    <span class="badge badge-expiring">Expiring</span>
+                    {% elif cert.is_valid %}
+                    <span class="badge badge-valid">Valid</span>
+                    {% else %}
+                    <span class="badge badge-expired">Expired</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="https://{{cert.domains[0]}}" target="_blank" rel="noopener noreferrer" class="domain-link">{{cert.domains[0]}}</a>
+                    {% if cert.domains|length > 1 %}
+                    <span class="badge-san" title="SANs: {{ cert.domains|join(', ') }}">+{{ cert.domains|length - 1 }} SANs</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="serial-code">
+                        <span>{{cert.serial_number[:12]}}...{{cert.serial_number[-4:]}}</span>
+                        <button type="button" class="copy-btn copy-serial" data-serial="{{cert.serial_number}}" title="Copy Full Serial">
+                            <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        </button>
+                    </span>
+                </td>
+                <td>{{cert.not_valid_before.strftime('%Y-%m-%d')}}</td>
+                <td>
+                    <div>{{cert.not_valid_after.strftime('%Y-%m-%d')}}</div>
+                    {% if cert.is_revoked and cert.revoked_at %}
+                    <span class="badge badge-revoked">revoked {{cert.revoked_at.strftime('%Y-%m-%d')}}</span>
+                    {% elif cert.is_expiring %}
+                    <span class="badge badge-expiring">in {{cert.remaining.days}} days</span>
+                    {% elif cert.is_valid %}
+                    <span class="badge badge-subtle">in {{cert.remaining.days}} days</span>
+                    {% else %}
+                    <span class="badge badge-expired">expired</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="/certificates/{{cert.serial_number}}" class="btn-action btn-download" title="Download PEM Chain">
+                            <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                            Download
+                        </a>
+                        {% if cert.is_revoked %}
+                        <button type="button" class="btn-action btn-revoked" disabled title="Certificate already revoked">Revoked</button>
+                        {% else %}
+                        <button type="button" class="btn-action btn-revoke open-revoke-modal" data-serial="{{cert.serial_number}}" data-domain="{{cert.domains[0]}}" title="Revoke Certificate">Revoke</button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                        <h3>No certificates found</h3>
+                        <p>No certificates match your selected status or filter.</p>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-<p>Output is limited to the first 1000 results.</p>
+<!-- Revoke Confirmation Modal Dialog -->
+<dialog id="revoke-dialog" class="revoke-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-icon-badge">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </div>
+            <h3 class="modal-title">Revoke Certificate</h3>
+        </div>
+        <p class="modal-body">
+            Are you sure you want to revoke the certificate for <strong id="modal-domain"></strong> (Serial: <code id="modal-serial"></code>)? This will add the certificate to the CRL and cannot be undone.
+        </p>
+        <form method="post" id="revoke-form" action="">
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="modal-cancel-btn">Cancel</button>
+                <button type="submit" class="btn-primary-danger">Revoke Certificate</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script src="/certificates.js" defer></script>
 {% endblock %}

@@ -3,28 +3,295 @@
 
 <head>
     {% block head %}
-    <link rel="stylesheet" href="libs/milligram.min.css"
-        integrity="sha512-xiunq9hpKsIcz42zt0o2vCo34xV0j6Ny8hgEylN3XBglZDtTZ2nwnqF/Z/TTCc18sGdvCjbFInNd++6q3J0N6g=="
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-    <title>{% block title %}{% endblock %}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <title>{% block title %}{% endblock %} - {{app_title}}</title>
     <style>
-        .container {
-            margin-top: 2rem;
+        :root {
+            --primary: #7c3aed;
+            --primary-hover: #6d28d9;
+            --primary-light: #f5f3ff;
+            --primary-border: #ede9fe;
+            --primary-subtle: #ddd6fe;
+            --text-heading: #1e1b4b;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border-card: #ede9fe;
+            --status-valid-bg: #ecfdf5;
+            --status-valid-text: #059669;
+            --status-valid-border: #a7f3d0;
+            --status-expiring-bg: #fffbeb;
+            --status-expiring-text: #d97706;
+            --status-expiring-border: #fde68a;
+            --status-revoked-bg: #faf5ff;
+            --status-revoked-text: #7c3aed;
+            --status-revoked-border: #e9d5ff;
+            --status-expired-bg: #fef2f2;
+            --status-expired-text: #dc2626;
+            --status-expired-border: #fecaca;
+            --shadow-sm: 0 1px 2px 0 rgba(124, 58, 237, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(124, 58, 237, 0.08), 0 2px 4px -2px rgba(124, 58, 237, 0.04);
+            --shadow-lg: 0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -4px rgba(124, 58, 237, 0.05);
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-pill: 9999px;
         }
 
-        h1 {
-            border-bottom: 1px solid gray;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-body);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .navbar {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-card);
+            padding: 0.85rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .navbar-container {
+            max-width: 1240px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-heading);
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: -0.02em;
+        }
+
+        .navbar-brand svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--primary);
+        }
+
+        .navbar-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            list-style: none;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 0.45rem 1rem;
+            border-radius: var(--radius-pill);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .nav-link:hover {
+            color: var(--primary);
+            background-color: var(--primary-light);
+        }
+
+        .nav-link.active {
+            color: #ffffff;
+            background-color: var(--primary);
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+        }
+
+        .container {
+            max-width: 1240px;
+            margin: 2rem auto;
+            padding: 0 1.5rem 3rem 1.5rem;
+        }
+
+        /* Flash message banner */
+        .alert-banner {
+            background-color: var(--primary-light);
+            border: 1px solid var(--primary-subtle);
+            color: var(--primary);
+            padding: 0.85rem 1.25rem;
+            border-radius: var(--radius-md);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 500;
+            font-size: 0.95rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .alert-banner .close-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            background: var(--primary-light);
+            border: 1px solid var(--primary-border);
+            padding: 0.3rem 0.65rem 0.3rem 0.4rem;
+            border-radius: var(--radius-pill);
+        }
+
+        .user-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: #ffffff;
+            font-size: 0.78rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+            box-shadow: 0 1px 3px rgba(124, 58, 237, 0.3);
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+            text-align: left;
+        }
+
+        .user-name {
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: var(--text-heading);
+        }
+
+        .user-status {
+            font-size: 0.68rem;
+            color: var(--status-valid-text);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--status-valid-text);
+        }
+
+        .btn-logout {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.32rem 0.75rem;
+            border-radius: var(--radius-pill);
+            background-color: #ffffff;
+            border: 1px solid var(--border-card);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            margin-left: 0.25rem;
+        }
+
+        .btn-logout:hover {
+            color: var(--status-expired-text);
+            border-color: var(--status-expired-border);
+            background-color: var(--status-expired-bg);
         }
     </style>
     {% endblock %}
 </head>
 
-<body class="container">
-    <a href=".">
-        <h1>{{app_title}}</h1>
-    </a>
-    <main>{% block content %}{% endblock %}</main>
+<body>
+    {% block navbar %}
+    <header class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-brand">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                </svg>
+                <span>{{app_title}}</span>
+            </a>
+            <nav style="display: flex; align-items: center; gap: 1.5rem;">
+                <ul class="navbar-nav">
+                    <li><a href="/certificates" class="nav-link {% if request is defined and request.url.path.startswith('/certificates') or '/certificates' in request.url.path|default('') %}active{% endif %}">Certificates</a></li>
+                    <li><a href="/domains" class="nav-link {% if request is defined and request.url.path.startswith('/domains') %}active{% endif %}">Domains</a></li>
+                    <li><a href="/ca" class="nav-link {% if request is defined and (request.url.path == '/ca' or request.url.path.startswith('/ca/')) and not request.url.path.startswith('/ca/setup') %}active{% endif %}">CA Certificate</a></li>
+                    <li>
+                        <a href="/endpoints" class="nav-link" target="_blank" rel="noopener noreferrer">
+                            Endpoints
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7; margin-left: 2px;">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                        </a>
+                    </li>
+                </ul>
+
+                {% if request is defined and request.state.user is defined %}
+                <div class="navbar-user">
+                    <div class="user-badge" title="Logged in as {{ request.state.user.username }}">
+                        <div class="user-avatar">{{ request.state.user.username[:2] | upper }}</div>
+                        <div class="user-info">
+                            <span class="user-name">{{ request.state.user.username }}</span>
+                            <span class="user-status"><span class="status-dot"></span>Online</span>
+                        </div>
+                        <a href="/logout" class="btn-logout" title="Sign out">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            Sign out
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+    {% endblock %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
 </body>
 
 </html>

@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+{% block title %}Create Root Certificate Authority{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .setup-wrapper {
+        max-width: 840px;
+        margin: 1.5rem auto;
+    }
+
+    .setup-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 2.25rem;
+    }
+
+    .setup-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .setup-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .setup-title svg {
+        width: 32px;
+        height: 32px;
+        fill: var(--primary);
+    }
+
+    .setup-desc {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+    }
+
+    .section-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 1.75rem 0 1rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title:first-of-type {
+        margin-top: 0;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .form-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-body);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .form-label .required {
+        color: var(--status-expired-text);
+        margin-left: 0.2rem;
+    }
+
+    .form-label .hint {
+        font-size: 0.78rem;
+        font-weight: normal;
+        color: var(--text-muted);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.65rem 0.95rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        font-size: 0.95rem;
+        background-color: #ffffff;
+        color: var(--text-body);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .badge-critical {
+        background-color: #fee2e2;
+        color: #991b1b;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        letter-spacing: 0.04em;
+    }
+
+    .badge-noncritical {
+        background-color: #f1f5f9;
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+    }
+
+    .compliance-box {
+        background: #faf5ff;
+        border: 1px solid var(--primary-subtle);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .compliance-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        font-size: 0.9rem;
+        color: var(--text-body);
+    }
+
+    .compliance-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px dashed rgba(124, 58, 237, 0.2);
+    }
+
+    .compliance-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .compliance-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+
+    .compliance-check {
+        width: 16px;
+        height: 16px;
+        fill: var(--status-valid-text);
+    }
+
+    .btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        width: 100%;
+        padding: 0.9rem 1.5rem;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+        color: #ffffff;
+        font-size: 1.05rem;
+        font-weight: 700;
+        border: none;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+    }
+
+    .btn-submit:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .error-banner {
+        background-color: var(--status-expired-bg);
+        border: 1px solid var(--status-expired-border);
+        color: var(--status-expired-text);
+        padding: 0.9rem 1.25rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .error-banner svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-wrapper">
+    <div class="setup-card">
+        <div class="setup-header">
+            <h1 class="setup-title">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                </svg>
+                Create Root Certificate Authority (CA)
+            </h1>
+            <p class="setup-desc">No active CA certificate was detected. Configure and generate your strict X.509 RFC 5280 compliant Root CA to start issuing certificates.</p>
+        </div>
+
+        {% if error %}
+        <div class="error-banner">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/ca/setup" id="caSetupForm">
+            <!-- 1. Subject Distinguished Name -->
+            <h2 class="section-title">1. Subject Distinguished Name</h2>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label class="form-label" for="common_name">
+                        <span>Common Name (CN)<span class="required">*</span></span>
+                        <span class="hint">Max 64 chars</span>
+                    </label>
+                    <input type="text" id="common_name" name="common_name" class="form-control" required maxlength="64" value="{{ form_data.common_name | default('ACME Root CA') }}" placeholder="e.g. ACME Internal Root CA">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="organization">
+                        <span>Organization (O)</span>
+                        <span class="hint">Optional</span>
+                    </label>
+                    <input type="text" id="organization" name="organization" class="form-control" maxlength="64" value="{{ form_data.organization | default('') }}" placeholder="e.g. Example Corp">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="organizational_unit">
+                        <span>Organizational Unit (OU)</span>
+                        <span class="hint">Optional</span>
+                    </label>
+                    <input type="text" id="organizational_unit" name="organizational_unit" class="form-control" maxlength="64" value="{{ form_data.organizational_unit | default('') }}" placeholder="e.g. IT Security">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="country">
+                        <span>Country Code (C)</span>
+                        <span class="hint">2-letter ISO (e.g. US, DE)</span>
+                    </label>
+                    <input type="text" id="country" name="country" class="form-control" maxlength="2" pattern="[A-Za-z]{2}" style="text-transform: uppercase;" value="{{ form_data.country | default('') }}" placeholder="US">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="state">
+                        <span>State / Province (ST)</span>
+                        <span class="hint">Optional</span>
+                    </label>
+                    <input type="text" id="state" name="state" class="form-control" maxlength="128" value="{{ form_data.state | default('') }}" placeholder="e.g. California">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="locality">
+                        <span>Locality / City (L)</span>
+                        <span class="hint">Optional</span>
+                    </label>
+                    <input type="text" id="locality" name="locality" class="form-control" maxlength="128" value="{{ form_data.locality | default('') }}" placeholder="e.g. San Francisco">
+                </div>
+            </div>
+
+            <!-- 2. Cryptographic Parameters -->
+            <h2 class="section-title">2. Cryptographic Key Parameters</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="key_type">Key Algorithm</label>
+                    <select id="key_type" name="key_type" class="form-control" onchange="updateKeyOptions()">
+                        <option value="RSA" {% if form_data.key_type == 'RSA' %}selected{% endif %}>RSA (Recommended)</option>
+                        <option value="ECDSA" {% if form_data.key_type == 'ECDSA' %}selected{% endif %}>ECDSA</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="key_size_or_curve">Key Size / Elliptic Curve</label>
+                    <select id="key_size_or_curve" name="key_size_or_curve" class="form-control">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="digest_algorithm">Digest Algorithm</label>
+                    <select id="digest_algorithm" name="digest_algorithm" class="form-control">
+                        <option value="SHA-384" {% if form_data.digest_algorithm == 'SHA-384' %}selected{% endif %}>SHA-384 (Recommended)</option>
+                        <option value="SHA-256" {% if form_data.digest_algorithm == 'SHA-256' %}selected{% endif %}>SHA-256</option>
+                        <option value="SHA-512" {% if form_data.digest_algorithm == 'SHA-512' %}selected{% endif %}>SHA-512</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="validity_years">
+                        <span>Validity Period</span>
+                        <span class="hint">1 to 30 Years</span>
+                    </label>
+                    <input type="number" id="validity_years" name="validity_years" class="form-control" min="1" max="30" value="{{ form_data.validity_years | default(10) }}">
+                </div>
+            </div>
+
+            <!-- 3. Strict RFC 5280 Compliance Parameters -->
+            <h2 class="section-title">3. Strict X.509 RFC 5280 Compliance Rules</h2>
+            <div class="compliance-box">
+                <ul class="compliance-list">
+                    <li class="compliance-item">
+                        <span class="compliance-label">
+                            <svg class="compliance-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Basic Constraints: CA:TRUE (pathlen: none)
+                        </span>
+                        <span class="badge-critical">Critical</span>
+                    </li>
+                    <li class="compliance-item">
+                        <span class="compliance-label">
+                            <svg class="compliance-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Key Usage: Digital Signature, Certificate Sign, CRL Sign
+                        </span>
+                        <span class="badge-critical">Critical</span>
+                    </li>
+                    <li class="compliance-item">
+                        <span class="compliance-label">
+                            <svg class="compliance-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Subject Key Identifier (SKI) derived from Public Key
+                        </span>
+                        <span class="badge-noncritical">Non-Critical</span>
+                    </li>
+                    <li class="compliance-item">
+                        <span class="compliance-label">
+                            <svg class="compliance-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Authority Key Identifier (AKI) matching Subject Key Identifier
+                        </span>
+                        <span class="badge-noncritical">Non-Critical</span>
+                    </li>
+                    <li class="compliance-item">
+                        <span class="compliance-label">
+                            <svg class="compliance-check" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                            Strict UTC Timezone Datetimes (Python 3.14 compatible)
+                        </span>
+                        <span class="badge-noncritical">RFC 5280 Compliant</span>
+                    </li>
+                </ul>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                Generate &amp; Initialize Root CA
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const currentKeyType = "{{ form_data.key_type | default('RSA') }}";
+    const currentKeySize = "{{ form_data.key_size_or_curve | default('4096') }}";
+
+    function updateKeyOptions() {
+        const typeSelect = document.getElementById('key_type');
+        const sizeSelect = document.getElementById('key_size_or_curve');
+        const selectedType = typeSelect.value;
+
+        sizeSelect.innerHTML = '';
+        if (selectedType === 'RSA') {
+            const options = [
+                { value: '4096', label: '4096-bit (Recommended)' },
+                { value: '3072', label: '3072-bit' },
+                { value: '2048', label: '2048-bit' }
+            ];
+            options.forEach(opt => {
+                const el = document.createElement('option');
+                el.value = opt.value;
+                el.textContent = opt.label;
+                if (opt.value === currentKeySize || (!currentKeySize && opt.value === '4096')) {
+                    el.selected = true;
+                }
+                sizeSelect.appendChild(el);
+            });
+        } else {
+            const options = [
+                { value: 'P-384', label: 'P-384 / SECP384R1 (Recommended)' },
+                { value: 'P-256', label: 'P-256 / SECP256R1' },
+                { value: 'P-521', label: 'P-521 / SECP521R1' }
+            ];
+            options.forEach(opt => {
+                const el = document.createElement('option');
+                el.value = opt.value;
+                el.textContent = opt.label;
+                if (opt.value === currentKeySize || (!currentKeySize && opt.value === 'P-384')) {
+                    el.selected = true;
+                }
+                sizeSelect.appendChild(el);
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateKeyOptions();
+        const form = document.getElementById('caSetupForm');
+        form.addEventListener('submit', () => {
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = 'Generating Keys &amp; Certificate... Please wait';
+        });
+    });
+</script>
+{% endblock %}

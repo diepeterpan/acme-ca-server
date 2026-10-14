@@ -11,6 +11,8 @@ from pydantic import constr
 
 router = APIRouter(prefix='/ca', tags=['ca'])
 
+is_initialized: bool = False
+
 if settings.ca.enabled:
     from cryptography.fernet import Fernet  # pylint: disable=ungrouped-imports
 
@@ -27,6 +29,7 @@ if settings.ca.enabled:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown CA')
 
     async def init():
+        global is_initialized
         if (settings.ca.import_dir / 'ca.pem').is_file() and (settings.ca.import_dir / 'ca.key').is_file():
             with open(settings.ca.import_dir / 'ca.key', 'rb') as f:  # noqa: ASYNC230
                 ca_key_bytes = f.read()
@@ -57,14 +60,19 @@ if settings.ca.enabled:
                     crl_pem,
                 )
             logger.info('Successfully imported CA provided in "%s" folder', settings.ca.import_dir)
+            is_initialized = True
+            await cronjob.start()
         else:
             async with db.transaction() as sql:
                 ok = await sql.value("""select count(serial_number)=1 from cas where active=true""")
-            if not ok:
-                raise ValueError('internal ca is enabled but no CA certificate is registered and active. Please import one first.')
-
-        await cronjob.start()
+            if ok:
+                is_initialized = True
+                await cronjob.start()
+            else:
+                is_initialized = False
+                logger.warning('Internal CA is enabled, but no CA certificate is active. Waiting for initial CA creation.')
 else:
+    is_initialized = True
 
     async def init():
         logger.info('Builtin CA is disabled, relying on custom CA implementation')

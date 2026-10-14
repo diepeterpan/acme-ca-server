@@ -17,6 +17,8 @@ def testclient() -> Generator[TestClient, None, None]:
     os.environ['external_url'] = 'http://localhost:8000/'
     os.environ['acme_mail_required'] = 'False'
     os.environ['WEB_ENABLE_PUBLIC_LOG'] = 'True'
+    os.environ['web_admin_username'] = 'admin'
+    os.environ['web_admin_password'] = 'adminpassword123'
 
     ca_dir = Path(__file__).parent / 'import-ca'
     os.environ['ca_import_dir'] = str(ca_dir)
@@ -35,6 +37,8 @@ def testclient() -> Generator[TestClient, None, None]:
     main.acme.start_cronjobs = noop
 
     with TestClient(main.app) as tc:
+        # Authenticate web testclient
+        tc.post('/login', data={'username': 'admin', 'password': 'adminpassword123'})
         yield tc
 
 

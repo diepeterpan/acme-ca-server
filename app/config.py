@@ -14,6 +14,9 @@ class WebSettings(BaseSettings):
     enable_public_log: bool = False
     app_title: str = 'ACME CA Server'
     app_description: str = 'Self-hosted ACME CA Server'
+    admin_username: str | None = None
+    admin_password: SecretStr | None = None
+    session_secret: SecretStr | None = None
     model_config = SettingsConfigDict(env_prefix='web_', secrets_dir='/run/secrets')
 
 
