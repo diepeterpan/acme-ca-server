@@ -58,7 +58,7 @@
         .navbar {
             background-color: var(--bg-card);
             border-bottom: 1px solid var(--border-card);
-            padding: 0.85rem 1.5rem;
+            padding: 0.65rem 1.25rem;
             position: sticky;
             top: 0;
             z-index: 50;
@@ -71,7 +71,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 1rem;
+            gap: 0.75rem;
         }
 
         .navbar-brand {
@@ -94,21 +94,21 @@
         .navbar-nav {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.25rem;
             list-style: none;
         }
 
         .nav-link {
             text-decoration: none;
             color: var(--text-muted);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-weight: 500;
-            padding: 0.45rem 1rem;
+            padding: 0.3rem 0.65rem;
             border-radius: var(--radius-pill);
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.3rem;
         }
 
         .nav-link:hover {
@@ -352,11 +352,12 @@
                 </svg>
                 <span>{{app_title}}</span>
             </a>
-            <nav style="display: flex; align-items: center; gap: 1.5rem;">
+            <nav style="display: flex; align-items: center; gap: 0.85rem;">
                 <ul class="navbar-nav">
                     <li><a href="/certificates" class="nav-link {% if request is defined and (request.url.path.startswith('/certificates') or '/certificates' in request.url.path|default('')) %}active{% endif %}">Certificates</a></li>
                     <li><a href="/domains" class="nav-link {% if request is defined and request.url.path.startswith('/domains') %}active{% endif %}">Domains</a></li>
                     <li><a href="/accounts" class="nav-link {% if request is defined and request.url.path.startswith('/accounts') %}active{% endif %}">Accounts</a></li>
+                    <li><a href="/mail" class="nav-link {% if request is defined and request.url.path.startswith('/mail') %}active{% endif %}">Mail Settings</a></li>
                     <li><a href="/ca" class="nav-link {% if request is defined and (request.url.path == '/ca' or request.url.path.startswith('/ca/')) and not request.url.path.startswith('/ca/setup') %}active{% endif %}">CA Certificate</a></li>
                     <li>
                         <a href="/endpoints" class="nav-link" target="_blank" rel="noopener noreferrer">

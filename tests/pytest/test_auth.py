@@ -84,6 +84,11 @@ def test_ca_download_is_public(testclient: TC):
         assert 'ca_' in resp.headers['Content-Disposition']
         assert '-----BEGIN CERTIFICATE-----' in resp.text
 
+        resp_pem = anon_client.get('/ca/download/pem')
+        assert resp_pem.status_code == 200, resp_pem.text
+        assert 'Content-Disposition' in resp_pem.headers
+        assert '-----BEGIN CERTIFICATE-----' in resp_pem.text
+
         resp_crl = anon_client.get('/ca/download/crl')
         assert resp_crl.status_code == 200, resp_crl.text
         assert 'Content-Disposition' in resp_crl.headers
@@ -94,8 +99,11 @@ def test_ca_download_is_public(testclient: TC):
         assert login_resp.status_code == 200
         assert '/ca/download' in login_resp.text
         assert 'Download CA Certificate (.crt)' in login_resp.text
+        assert '/ca/download/pem' in login_resp.text
+        assert 'Download CA Certificate (.pem)' in login_resp.text
         assert '/ca/download-crl' in login_resp.text
         assert 'Download Revocation List (.crl)' in login_resp.text
+        assert 'Root CA &amp; CRL' not in login_resp.text
 
 
 def test_login_flow(testclient: TC):

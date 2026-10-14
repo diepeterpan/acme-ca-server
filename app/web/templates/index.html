@@ -58,6 +58,16 @@
         color: var(--text-heading);
         letter-spacing: -0.025em;
         margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .hero-title svg {
+        width: 32px;
+        height: 32px;
+        fill: var(--primary);
+        flex-shrink: 0;
     }
 
     .hero-desc {
@@ -342,7 +352,12 @@
         <div class="hero-header">
             <span class="hero-badge">RFC 8555 Ready</span>
         </div>
-        <h1 class="hero-title">ACME Directory Entrypoint</h1>
+        <h1 class="hero-title">
+            <svg viewBox="0 0 24 24">
+                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+            </svg>
+            ACME Directory Entrypoint
+        </h1>
         <p class="hero-desc">
             Connect standard ACME clients such as Certbot, Traefik, Caddy, Lego, or uacme directly to this CA server to automate SSL/TLS certificate issuance, renewal, and revocation.
         </p>

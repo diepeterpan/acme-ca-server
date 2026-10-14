@@ -8,6 +8,8 @@ from config import settings
 from jinja2 import Environment, FileSystemLoader
 from logger import logger
 
+from . import service
+
 template_engine = Environment(loader=FileSystemLoader(Path(__file__).parent / 'templates'), enable_async=True, autoescape=True)  # pylint: disable=duplicate-code
 default_params = {  # pylint: disable=duplicate-code
     'app_title': settings.web.app_title,
@@ -20,6 +22,7 @@ Templates = Literal['cert-expired-info', 'cert-expires-warning', 'new-account-in
 
 
 async def send_mail(receiver: str, template: Templates, subject_vars: dict | None = None, body_vars: dict | None = None):
+    mail_cfg = await service.get_mail_settings()
     subject_vars = subject_vars or {}
     subject_vars.update(**default_params)
     body_vars = body_vars or {}
@@ -27,27 +30,27 @@ async def send_mail(receiver: str, template: Templates, subject_vars: dict | Non
     subject_job = template_engine.get_template(template + '/subject.txt').render_async(subject_vars)
     body_job = template_engine.get_template(template + '/body.html').render_async(body_vars)
     message = MIMEText(await body_job, 'html', 'utf-8')
-    message['From'] = settings.mail.sender or ''
+    message['From'] = mail_cfg.sender or ''
     message['To'] = receiver
     message['Subject'] = await subject_job
-    if settings.mail.enabled:
+    if mail_cfg.enabled:
         auth = {}
-        if settings.mail.username and settings.mail.password:
-            auth = {'username': settings.mail.username, 'password': settings.mail.password.get_secret_value()}
+        if mail_cfg.username and mail_cfg.password:
+            auth = {'username': mail_cfg.username, 'password': mail_cfg.password}
 
         ctx = None
-        if settings.mail.encryption != 'plain' and settings.mail.tls_non_strict:
+        if mail_cfg.encryption != 'plain' and mail_cfg.tls_non_strict:
             import ssl  # pylint: disable=import-outside-toplevel
 
             ctx = ssl.create_default_context()
             ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
 
         async with SMTP(
-            hostname=settings.mail.host,
-            port=settings.mail.port,
+            hostname=mail_cfg.host,
+            port=mail_cfg.effective_port,
             **auth,  # type: ignore[arg-type]
-            use_tls=settings.mail.encryption.startswith('tls'),
-            start_tls=settings.mail.encryption.startswith('starttls'),
+            use_tls=mail_cfg.encryption.startswith('tls'),
+            start_tls=mail_cfg.encryption.startswith('starttls'),
             tls_context=ctx,
         ) as client:
             await client.send_message(message)
@@ -56,6 +59,10 @@ async def send_mail(receiver: str, template: Templates, subject_vars: dict | Non
 
 
 async def send_new_account_info_mail(receiver: str):
+    mail_cfg = await service.get_mail_settings()
+    if not mail_cfg.notify_on_account_creation:
+        logger.debug('notify_on_account_creation is disabled, skipping welcome mail for: %s', receiver)
+        return
     await send_mail(receiver, 'new-account-info')
 
 

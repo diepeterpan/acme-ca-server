@@ -21,13 +21,14 @@ To re-generate or update these captures at any time, run:
    - [07. Domains Registry](#07-domains-registry)
    - [08. Accounts Management](#08-accounts-management)
    - [09. Account Orders & Error Details Modal](#09-account-orders--error-details-modal)
+   - [10. Mail Settings & Delivery Diagnostics](#10-mail-settings--delivery-diagnostics)
 
 ---
 
 ## 1. Authentication & Onboarding
 
 ### 01. Login Screen
-The entry authentication gateway features a branded purple shield icon, floating credential inputs, persistent "Remember Me" session support, and styled feedback alerts.
+The entry authentication gateway features a branded purple shield icon, floating credential inputs, persistent "Remember Me" session support, styled feedback alerts, and public one-click downloads for the active Root CA Certificate (in both `.crt` and `.pem` formats) alongside the Certificate Revocation List (`.crl`).
 
 ![Login Screen](screenshots/01_login_screen.png)
 
@@ -121,3 +122,15 @@ Triggered by clicking on the order error pill or the **Orders** button for any a
 - **Detailed Error Box**: Pinpoints validation failures (e.g., DNS NXDOMAIN, connection refused, unauthorized) directly from the underlying ACME challenges.
 
 ![Account Orders & Error Details Modal](screenshots/09_account_orders_modal.png)
+
+---
+
+### 10. Mail Settings & Delivery Diagnostics
+Dedicated management interface for outbound email delivery and automated notification policies:
+- **SMTP Server Configuration**: Full control over outbound delivery with toggle switch, Host, Port, Encryption protocol (`STARTTLS`, `SSL/TLS`, `Plain`, and non-strict certificate modes with automatic port suggestions), Sender Address (`From:`), and credentials.
+- **Secure Password Handling**: Masked password field with show/hide eye toggle that safely preserves existing credentials if left blank during updates.
+- **Alert & Notification Rules**: Configurable advance expiration warning threshold (in days, set to 0 to disable), toggle for certificate expiration alerts, and toggle for account registration notifications.
+- **Live Connection & Delivery Test**: Interactive "Send Test Email" test suite that runs via AJAX against current form inputs before saving, displaying immediate real-time diagnostics (success confirmation, connection refusal, authentication rejection, or SSL/TLS handshake errors).
+
+![Mail Settings & Delivery Diagnostics](screenshots/10_mail_settings.png)
+

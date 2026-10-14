@@ -1,0 +1,757 @@
+{% extends "base.html" %}
+{% block title %}Mail Settings{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .settings-wrapper {
+        max-width: 1100px;
+        margin: 1.5rem auto;
+    }
+
+    .settings-header {
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title svg {
+        width: 32px;
+        height: 32px;
+        fill: var(--primary);
+    }
+
+    .page-desc {
+        color: var(--text-muted);
+        font-size: 0.96rem;
+    }
+
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.75rem;
+        align-items: start;
+    }
+
+    @media (max-width: 900px) {
+        .settings-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .settings-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .card-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-title svg {
+        width: 20px;
+        height: 20px;
+        color: var(--primary);
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 2.2fr 1fr;
+        gap: 1rem;
+    }
+
+    .form-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-body);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .form-label .required {
+        color: var(--status-expired-text);
+        margin-left: 0.2rem;
+    }
+
+    .form-label .hint {
+        font-size: 0.78rem;
+        font-weight: normal;
+        color: var(--text-muted);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.65rem 0.95rem;
+        font-size: 0.95rem;
+        line-height: 1.4;
+        color: var(--text-heading);
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: var(--radius-md);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .form-control:disabled {
+        background-color: #f1f5f9;
+        color: #94a3b8;
+        cursor: not-allowed;
+    }
+
+    /* Toggle Switch */
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 0;
+    }
+
+    .toggle-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .toggle-title {
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--text-heading);
+    }
+
+    .toggle-subtitle {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 46px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: .25s ease;
+        border-radius: 24px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .25s ease;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    input:checked + .slider {
+        background-color: var(--primary);
+    }
+
+    input:focus + .slider {
+        box-shadow: 0 0 1px var(--primary);
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(22px);
+    }
+
+    /* Input with action (Password) */
+    .input-with-button {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .input-with-button .form-control {
+        padding-right: 2.75rem;
+    }
+
+    .input-action-btn {
+        position: absolute;
+        right: 0.5rem;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-pill);
+        transition: color 0.15s ease;
+    }
+
+    .input-action-btn:hover {
+        color: var(--primary);
+    }
+
+    /* Buttons */
+    .btn-primary {
+        background-color: var(--primary);
+        color: #ffffff;
+        font-weight: 600;
+        padding: 0.75rem 1.6rem;
+        border-radius: var(--radius-pill);
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--primary-hover);
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+        transform: translateY(-1px);
+    }
+
+    .btn-outline {
+        background-color: #ffffff;
+        color: var(--text-body);
+        font-weight: 600;
+        padding: 0.75rem 1.4rem;
+        border-radius: var(--radius-pill);
+        border: 1px solid #cbd5e1;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        text-decoration: none;
+    }
+
+    .btn-outline:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary-subtle);
+        color: var(--primary);
+    }
+
+    .btn-test {
+        background-color: #ffffff;
+        color: var(--primary);
+        font-weight: 600;
+        padding: 0.65rem 1.3rem;
+        border-radius: var(--radius-pill);
+        border: 1.5px solid var(--primary-subtle);
+        cursor: pointer;
+        font-size: 0.92rem;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .btn-test:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary);
+    }
+
+    .btn-test:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(124, 58, 237, 0.2);
+        border-radius: 50%;
+        border-top-color: var(--primary);
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Status Result Banners */
+    .test-result-box {
+        border-radius: var(--radius-md);
+        padding: 0.9rem 1.15rem;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        display: none;
+        animation: fadeIn 0.25s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .test-result-box.success {
+        display: flex;
+        background-color: var(--status-valid-bg);
+        border: 1px solid var(--status-valid-border);
+        color: var(--status-valid-text);
+        gap: 0.6rem;
+        align-items: flex-start;
+    }
+
+    .test-result-box.error {
+        display: flex;
+        background-color: var(--status-expired-bg);
+        border: 1px solid var(--status-expired-border);
+        color: var(--status-expired-text);
+        gap: 0.6rem;
+        align-items: flex-start;
+    }
+
+    .actions-bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .smtp-disabled-overlay {
+        opacity: 0.45;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-wrapper">
+    <!-- Header -->
+    <div class="settings-header">
+        <div class="header-info">
+            <h1 class="page-title">
+                <svg viewBox="0 0 24 24">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                Mail Settings
+            </h1>
+            <p class="page-desc">
+                Configure outbound SMTP delivery parameters and automated alerts for certificate expiration and account activities.
+            </p>
+        </div>
+    </div>
+
+    <!-- Flash Status / Error Messages -->
+    {% if status_msg %}
+    <div class="alert-banner" style="background-color: var(--status-valid-bg); border-color: var(--status-valid-border); color: var(--status-valid-text);">
+        <span>✓ {{ status_msg }}</span>
+        <button type="button" class="close-btn" onclick="this.parentElement.remove()" style="color: var(--status-valid-text);">&times;</button>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert-banner" style="background-color: var(--status-expired-bg); border-color: var(--status-expired-border); color: var(--status-expired-text);">
+        <span>⚠ {{ error }}</span>
+        <button type="button" class="close-btn" onclick="this.parentElement.remove()" style="color: var(--status-expired-text);">&times;</button>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/mail" id="mailSettingsForm">
+        <div class="settings-layout">
+            <!-- Left Column: SMTP Server Configuration -->
+            <div class="settings-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        SMTP Server Configuration
+                    </h2>
+                    <label class="switch" title="Toggle Outgoing Email Delivery">
+                        <input type="checkbox" name="enabled" id="enabledSwitch" {% if mail_cfg.enabled %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div id="smtpFieldsContainer" class="{% if not mail_cfg.enabled %}smtp-disabled-overlay{% endif %}" style="display: flex; flex-direction: column; gap: 1.15rem;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="hostInput">
+                                <span>SMTP Host <span class="required">*</span></span>
+                            </label>
+                            <input type="text" id="hostInput" name="host" class="form-control" placeholder="smtp.example.org" value="{{ mail_cfg.host or '' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="portInput">
+                                <span>Port</span>
+                            </label>
+                            <input type="number" id="portInput" name="port" class="form-control" placeholder="587" value="{{ mail_cfg.port or '' }}" min="1" max="65535">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="encryptionSelect">
+                            <span>Encryption Protocol</span>
+                        </label>
+                        <select id="encryptionSelect" name="encryption" class="form-control">
+                            <option value="starttls" {% if mail_cfg.encryption == 'starttls' %}selected{% endif %}>STARTTLS (port 587 - recommended)</option>
+                            <option value="tls" {% if mail_cfg.encryption == 'tls' %}selected{% endif %}>SSL / TLS (port 465)</option>
+                            <option value="plain" {% if mail_cfg.encryption == 'plain' %}selected{% endif %}>Plain / Unencrypted (port 25)</option>
+                            <option value="starttls-nonstrict" {% if mail_cfg.encryption == 'starttls-nonstrict' %}selected{% endif %}>STARTTLS (non-strict cert check)</option>
+                            <option value="tls-nonstrict" {% if mail_cfg.encryption == 'tls-nonstrict' %}selected{% endif %}>SSL / TLS (non-strict cert check)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="senderInput">
+                            <span>Sender Email Address (From:) <span class="required">*</span></span>
+                        </label>
+                        <input type="email" id="senderInput" name="sender" class="form-control" placeholder="acme-notifications@example.org" value="{{ mail_cfg.sender or '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="usernameInput">
+                            <span>SMTP Username</span>
+                            <span class="hint">Optional if host allows unauthenticated</span>
+                        </label>
+                        <input type="text" id="usernameInput" name="username" class="form-control" placeholder="smtp-user or api-key" value="{{ mail_cfg.username or '' }}" autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="passwordInput">
+                            <span>SMTP Password</span>
+                            {% if mail_cfg.password %}
+                            <span class="hint" style="color: var(--status-valid-text);">✓ Stored (leave blank to keep)</span>
+                            {% endif %}
+                        </label>
+                        <div class="input-with-button">
+                            <input type="password" id="passwordInput" name="password" class="form-control" placeholder="{% if mail_cfg.password %}••••••••••••{% else %}Enter SMTP password or API token{% endif %}" autocomplete="new-password">
+                            <button type="button" class="input-action-btn" id="togglePasswordBtn" title="Show / Hide Password">
+                                <svg id="eyeIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Notifications & Connection Test -->
+            <div style="display: flex; flex-direction: column; gap: 1.75rem;">
+                <!-- Card: Alert & Notification Rules -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+                            Alert & Notification Rules
+                        </h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="warnDaysInput">
+                            <span>Expiration Warning Threshold (days)</span>
+                            <span class="hint">0 to disable warnings</span>
+                        </label>
+                        <input type="number" id="warnDaysInput" name="warn_before_cert_expires_days" class="form-control" value="{{ mail_cfg.warn_before_cert_expires_days }}" min="0" max="365">
+                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            Issues advance notification to certificate owners prior to expiration.
+                        </span>
+                    </div>
+
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <span class="toggle-title">Certificate Expired Alert</span>
+                            <span class="toggle-subtitle">Send notification immediately when a certificate expires</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" name="notify_when_cert_expired" {% if mail_cfg.notify_when_cert_expired %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="toggle-row" style="border-top: 1px solid var(--border-card); padding-top: 0.9rem;">
+                        <div class="toggle-info">
+                            <span class="toggle-title">Account Creation Notification</span>
+                            <span class="toggle-subtitle">Send welcome email when an ACME client registers a new account</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" name="notify_on_account_creation" {% if mail_cfg.notify_on_account_creation %}checked{% endif %}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Card: Test Email Delivery -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                            Test Email Delivery
+                        </h2>
+                    </div>
+
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
+                        Validate SMTP connectivity, credentials, and message receipt. Tests will execute against the inputs currently entered in this form.
+                    </p>
+
+                    <div class="form-group">
+                        <label class="form-label" for="testRecipientInput">
+                            <span>Test Recipient Address</span>
+                        </label>
+                        <input type="email" id="testRecipientInput" class="form-control" placeholder="admin@example.org" value="{{ mail_cfg.sender or '' }}">
+                    </div>
+
+                    <div>
+                        <button type="button" class="btn-test" id="sendTestEmailBtn">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                            <span id="testBtnText">Send Test Email</span>
+                        </button>
+                    </div>
+
+                    <!-- Live Test Diagnostic Result Box -->
+                    <div id="testResultBox" class="test-result-box">
+                        <span id="testResultIcon"></span>
+                        <div style="flex: 1;">
+                            <strong id="testResultTitle" style="display: block; margin-bottom: 0.2rem;"></strong>
+                            <span id="testResultDetail"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Action Bar -->
+        <div class="actions-bar">
+            <button type="submit" class="btn-primary">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Save Settings
+            </button>
+            <a href="/mail" class="btn-outline">Discard Changes</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // 1. Toggle disabled styling on SMTP fields when disabled
+    const enabledSwitch = document.getElementById('enabledSwitch');
+    const smtpFieldsContainer = document.getElementById('smtpFieldsContainer');
+
+    enabledSwitch.addEventListener('change', () => {
+        if (enabledSwitch.checked) {
+            smtpFieldsContainer.classList.remove('smtp-disabled-overlay');
+        } else {
+            smtpFieldsContainer.classList.add('smtp-disabled-overlay');
+        }
+    });
+
+    // 2. Encryption protocol port suggestion
+    const encryptionSelect = document.getElementById('encryptionSelect');
+    const portInput = document.getElementById('portInput');
+
+    const defaultPorts = {
+        'starttls': 587,
+        'tls': 465,
+        'plain': 25,
+        'starttls-nonstrict': 587,
+        'tls-nonstrict': 465
+    };
+
+    let previousEncryption = encryptionSelect.value;
+    encryptionSelect.addEventListener('change', () => {
+        const currentPort = parseInt(portInput.value, 10);
+        // Only update if port is empty or matched the old default
+        if (!portInput.value || currentPort === defaultPorts[previousEncryption]) {
+            portInput.value = defaultPorts[encryptionSelect.value] || '';
+        }
+        previousEncryption = encryptionSelect.value;
+    });
+
+    // 3. Show / Hide Password toggle
+    const passwordInput = document.getElementById('passwordInput');
+    const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+
+    togglePasswordBtn.addEventListener('click', () => {
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            togglePasswordBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>`;
+        } else {
+            passwordInput.type = 'password';
+            togglePasswordBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>`;
+        }
+    });
+
+    // 4. Send Test Email via AJAX
+    const sendTestEmailBtn = document.getElementById('sendTestEmailBtn');
+    const testBtnText = document.getElementById('testBtnText');
+    const testRecipientInput = document.getElementById('testRecipientInput');
+    const testResultBox = document.getElementById('testResultBox');
+    const testResultIcon = document.getElementById('testResultIcon');
+    const testResultTitle = document.getElementById('testResultTitle');
+    const testResultDetail = document.getElementById('testResultDetail');
+
+    sendTestEmailBtn.addEventListener('click', async () => {
+        const recipient = testRecipientInput.value.trim();
+        const host = document.getElementById('hostInput').value.trim();
+        const sender = document.getElementById('senderInput').value.trim();
+        const port = document.getElementById('portInput').value ? parseInt(document.getElementById('portInput').value, 10) : null;
+        const encryption = encryptionSelect.value;
+        const username = document.getElementById('usernameInput').value.trim();
+        const password = passwordInput.value;
+
+        if (!host) {
+            alert('Please provide an SMTP Host before testing.');
+            document.getElementById('hostInput').focus();
+            return;
+        }
+        if (!sender) {
+            alert('Please provide a Sender Email Address before testing.');
+            document.getElementById('senderInput').focus();
+            return;
+        }
+        if (!recipient) {
+            alert('Please specify a Test Recipient Address.');
+            testRecipientInput.focus();
+            return;
+        }
+
+        // Show loading state
+        sendTestEmailBtn.disabled = true;
+        testBtnText.innerHTML = '<span class="spinner"></span> Testing connection...';
+        testResultBox.style.display = 'none';
+        testResultBox.className = 'test-result-box';
+
+        try {
+            const resp = await fetch('/mail/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    host: host,
+                    port: port,
+                    encryption: encryption,
+                    sender: sender,
+                    recipient: recipient,
+                    username: username,
+                    password: password
+                })
+            });
+
+            const data = await resp.json();
+
+            if (data.ok) {
+                testResultBox.className = 'test-result-box success';
+                testResultIcon.textContent = '✓';
+                testResultTitle.textContent = 'Success!';
+                testResultDetail.textContent = data.message;
+            } else {
+                testResultBox.className = 'test-result-box error';
+                testResultIcon.textContent = '⚠';
+                testResultTitle.textContent = 'Connection or Delivery Failed';
+                testResultDetail.textContent = data.error || 'An unexpected error occurred while communicating with the SMTP server.';
+            }
+            testResultBox.style.display = 'flex';
+        } catch (err) {
+            testResultBox.className = 'test-result-box error';
+            testResultIcon.textContent = '⚠';
+            testResultTitle.textContent = 'Request Error';
+            testResultDetail.textContent = 'Failed to submit test request: ' + err.message;
+            testResultBox.style.display = 'flex';
+        } finally {
+            sendTestEmailBtn.disabled = false;
+            testBtnText.textContent = 'Send Test Email';
+        }
+    });
+</script>
+{% endblock %}

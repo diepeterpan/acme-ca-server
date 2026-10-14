@@ -180,6 +180,11 @@ async def login_get(request: Request, next: str = '/', error: str = ''):
         return RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
 
     ca_ready = bool(settings.ca.enabled and ca.is_initialized)
+    ca_pem = None
+    if ca_ready:
+        ca_details = await ca_service.get_active_ca_details()
+        if ca_details:
+            ca_pem = ca_details.get('cert_pem')
 
     return await template_engine.get_template('login.html').render_async(
         **default_params,
@@ -187,6 +192,7 @@ async def login_get(request: Request, next: str = '/', error: str = ''):
         next=next,
         error=error,
         ca_ready=ca_ready,
+        ca_pem=ca_pem,
     )
 
 
@@ -202,12 +208,20 @@ async def login_post(
 
     user = await web.auth.authenticate_user(username, password)
     if not user:
+        ca_ready = bool(settings.ca.enabled and ca.is_initialized)
+        ca_pem = None
+        if ca_ready:
+            ca_details = await ca_service.get_active_ca_details()
+            if ca_details:
+                ca_pem = ca_details.get('cert_pem')
         html_content = await template_engine.get_template('login.html').render_async(
             **default_params,
             request=request,
             next=next,
             username=username,
             error='Invalid username or password.',
+            ca_ready=ca_ready,
+            ca_pem=ca_pem,
         )
         return HTMLResponse(content=html_content)
 
@@ -379,6 +393,8 @@ async def ca_view(request: Request, status_msg: str = ''):
 
 
 @api.get('/ca/download', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
+@api.get('/ca/download/crt', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
+@api.get('/ca/download-crt', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
 async def ca_download():
     import ca
 
@@ -391,6 +407,24 @@ async def ca_download():
     return Response(
         content=ca_details['cert_pem'],
         media_type='application/x-x509-ca-cert',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@api.get('/ca/download/pem', response_class=Response, responses={200: {'content': {'application/x-pem-file': {}}}})
+@api.get('/ca/download-pem', response_class=Response, responses={200: {'content': {'application/x-pem-file': {}}}})
+async def ca_download_pem():
+    import ca
+
+    if not settings.ca.enabled or not ca.is_initialized:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
+    ca_details = await ca_service.get_active_ca_details()
+    if not ca_details or not ca_details.get('cert_pem'):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No active CA certificate found')
+    filename = f"ca_{ca_details['serial_number'][:8]}.pem"
+    return Response(
+        content=ca_details['cert_pem'],
+        media_type='application/x-pem-file',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
 
@@ -682,3 +716,137 @@ async def update_account_status(
         )
     msg = 'account_activated' if action == 'activate' else 'account_deactivated'
     return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.get('/mail', response_class=HTMLResponse)
+async def mail_settings_get(request: Request, status_msg: str = '', error: str = ''):
+    import mail.service
+
+    mail_cfg = await mail.service.get_mail_settings()
+    return await template_engine.get_template('mail-settings.html').render_async(
+        **default_params,
+        request=request,
+        mail_cfg=mail_cfg,
+        status_msg=status_msg,
+        error=error,
+    )
+
+
+@api.post('/mail', response_class=HTMLResponse)
+async def mail_settings_post(
+    request: Request,
+    enabled: str = Form(None),
+    host: str = Form(''),
+    port: str = Form(''),
+    encryption: str = Form('tls'),
+    sender: str = Form(''),
+    username: str = Form(''),
+    password: str = Form(''),
+    warn_before_cert_expires_days: int = Form(20),
+    notify_when_cert_expired: str = Form(None),
+    notify_on_account_creation: str = Form(None),
+):
+    import mail.service
+
+    is_enabled = enabled in ('on', 'true', '1')
+    has_expired_notify = notify_when_cert_expired in ('on', 'true', '1')
+    has_account_notify = notify_on_account_creation in ('on', 'true', '1')
+
+    clean_host = host.strip() or None
+    clean_sender = sender.strip() or None
+    clean_user = username.strip() or None
+    clean_port = int(port.strip()) if port and port.strip().isdigit() else None
+
+    # Validation
+    if is_enabled:
+        if not clean_host:
+            mail_cfg = await mail.service.get_mail_settings()
+            return await template_engine.get_template('mail-settings.html').render_async(
+                **default_params,
+                request=request,
+                mail_cfg=mail_cfg,
+                error='SMTP Host is required when outgoing mail is enabled.',
+            )
+        if not clean_sender:
+            mail_cfg = await mail.service.get_mail_settings()
+            return await template_engine.get_template('mail-settings.html').render_async(
+                **default_params,
+                request=request,
+                mail_cfg=mail_cfg,
+                error='Sender Email Address is required when outgoing mail is enabled.',
+            )
+
+    update_password = bool(password and password.strip())
+
+    try:
+        updated_cfg = await mail.service.save_mail_settings(
+            enabled=is_enabled,
+            host=clean_host,
+            port=clean_port,
+            username=clean_user,
+            password=password.strip() if update_password else None,
+            encryption=encryption,
+            sender=clean_sender,
+            notify_on_account_creation=has_account_notify,
+            warn_before_cert_expires_days=max(0, warn_before_cert_expires_days),
+            notify_when_cert_expired=has_expired_notify,
+            update_password=update_password,
+        )
+    except Exception as e:
+        mail_cfg = await mail.service.get_mail_settings()
+        return await template_engine.get_template('mail-settings.html').render_async(
+            **default_params,
+            request=request,
+            mail_cfg=mail_cfg,
+            error=f'Failed to save mail settings: {e}',
+        )
+
+    return await template_engine.get_template('mail-settings.html').render_async(
+        **default_params,
+        request=request,
+        mail_cfg=updated_cfg,
+        status_msg='Mail settings saved successfully.',
+    )
+
+
+@api.post('/mail/test')
+async def mail_test_post(request: Request):
+    import mail.service
+
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    host = data.get('host')
+    port = data.get('port')
+    encryption = data.get('encryption') or 'tls'
+    sender = data.get('sender')
+    recipient = data.get('recipient')
+    username = data.get('username')
+    password = data.get('password')
+
+    current_cfg = await mail.service.get_mail_settings()
+
+    host = host or current_cfg.host
+    sender = sender or current_cfg.sender
+    port = port or current_cfg.port
+    username = username if username is not None else current_cfg.username
+    if not password and current_cfg.password:
+        password = current_cfg.password
+
+    ok, msg = await mail.service.test_smtp_connection(
+        host=host,
+        port=port,
+        encryption=encryption,
+        sender=sender,
+        recipient=recipient,
+        username=username,
+        password=password,
+    )
+
+    return JSONResponse(
+        status_code=200 if ok else 400,
+        content={'ok': ok, 'message' if ok else 'error': msg},
+    )
+

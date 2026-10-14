@@ -34,6 +34,16 @@
         font-weight: 700;
         color: var(--text-heading);
         letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .ca-title svg {
+        width: 32px;
+        height: 32px;
+        fill: var(--primary);
+        flex-shrink: 0;
     }
 
     .badge-status {
@@ -245,7 +255,12 @@
 <div class="ca-card">
     <div class="ca-header">
         <div class="ca-title-group">
-            <h1 class="ca-title">Root Certificate Authority</h1>
+            <h1 class="ca-title">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                </svg>
+                Root Certificate Authority
+            </h1>
             <span class="badge-status">
                 <span class="badge-dot"></span>
                 Active

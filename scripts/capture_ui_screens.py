@@ -328,6 +328,39 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         except Exception as e:
             print(f"    Warning: Could not capture orders modal: {e}")
 
+        # 10: Mail Settings (in-memory mock preview to prevent database pollution)
+        print("--> Capturing 10_mail_settings.png...")
+        try:
+            mail_template = env.get_template('mail-settings.html')
+            sample_cfg = {
+                'enabled': True,
+                'host': 'smtp.example.org',
+                'port': 587,
+                'username': 'smtp-operator',
+                'password': '••••••••••••',
+                'encryption': 'starttls',
+                'sender': 'acme-notifications@example.org',
+                'notify_on_account_creation': True,
+                'warn_before_cert_expires_days': 20,
+                'notify_when_cert_expired': True,
+            }
+            mail_params = dict(default_params)
+            mail_params.update({
+                'is_authenticated': True,
+                'current_user': admin_user,
+                'request': MockRequest('/mail', admin_user),
+                'mail_cfg': sample_cfg,
+                'error': '',
+                'status_msg': '',
+            })
+            mail_html = await mail_template.render_async(**mail_params)
+            await page_auth.set_content(mail_html, wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "10_mail_settings.png"), full_page=False)
+        except Exception as e:
+            print(f"    Warning: Could not capture mail settings: {e}")
+
         await context_auth.close()
         await browser.close()
         print(f"Done! All screenshots saved to: {output_dir}")

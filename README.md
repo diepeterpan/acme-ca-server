@@ -14,6 +14,7 @@ A self-hosted ACME server with a built-in CA and optional web interface.
   * 🏛️ **Root CA Management**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, and PEM viewer.
   * 📜 **Certificates & Domains**: Searchable audit logs with status tabs (Valid, Revoked, Expired) and direct downloads.
   * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with descending expiration sorting.
+  * ✉️ **Mail Settings & Delivery Test**: Dedicated UI screen to configure outbound SMTP parameters, warning policies, and run live connection tests before saving.
   * 🔒 **Session Authentication**: Secure PBKDF2-hashed login, Remember Me sessions, and guided first-boot onboarding.
 
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
@@ -142,6 +143,27 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | WEB_ADMIN_USERNAME        | `None` | optional username to pre-provision an initial web administrator account on startup (e.g. `admin`). If unset, credentials can be initialized via `/setup`. |
 | WEB_ADMIN_PASSWORD        | `None` | optional initial password for the pre-provisioned administrator account. Supports Docker Secrets (`/run/secrets/web_admin_password`). |
 | WEB_SESSION_SECRET        | `None` | optional HMAC secret key for signing session cookies (`acme_session`). Defaults to `CA_ENCRYPTION_KEY` if unset. |
+
+### Configuration Precedence: Seed Variables vs. Authoritative Variables
+
+The server distinguishes between **Seed Variables** (which initialize the database once) and **Authoritative Runtime Variables** (which always take precedence on every restart):
+
+#### 1. Seed Values (Database Overrides on Future Starts)
+These environment variables serve solely as **initial bootstrap defaults**. Once written to PostgreSQL, the database becomes the single source of truth:
+* **Mail Settings (`MAIL_*`)**: `MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_ENCRYPTION`, `MAIL_SENDER`, `MAIL_NOTIFY_ON_ACCOUNT_CREATION`, `MAIL_WARN_BEFORE_CERT_EXPIRES`, `MAIL_NOTIFY_WHEN_CERT_EXPIRED`.
+  * *Behavior*: On clean database installations, these seed the initial row in `mail_settings`. After initialization or after changes are saved via the Web UI (**Mail Settings** screen), the database values take precedence. Changing `MAIL_*` environment variables afterwards will **not** override stored database settings. To update mail settings, use the Web UI or update the `mail_settings` table directly.
+* **Initial Admin Credentials (`WEB_ADMIN_*`)**: `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD`.
+  * *Behavior*: Pre-provisions an initial administrator account on startup only if the username does not already exist in the database. If the user already exists, changing `WEB_ADMIN_PASSWORD` in the environment will **not** alter the existing password hash stored in the database.
+* **CA Import Files (`CA_IMPORT_DIR`)**:
+  * *Behavior*: Imports `ca.pem` and `ca.key` into the database if present. If omitted, the database's existing active CA certificate is utilized.
+
+#### 2. Authoritative Runtime Variables (Always Override / Never in DB)
+These variables are read directly from the environment on every startup and request; they are **never** overridden by database state:
+* **Core & Infrastructure**: `DB_DSN`, `EXTERNAL_URL`, `LOG_LEVEL`.
+* **Security & Encryption**: `CA_ENCRYPTION_KEY` (required to decrypt CA private keys stored at rest), `WEB_SESSION_SECRET` (session cookie signing).
+* **CA Issuance Policies**: `CA_ENABLED`, `CA_CERT_LIFETIME`, `CA_CRL_LIFETIME`, `CA_CERT_CDP_ENABLED`.
+* **ACME Restrictions & Policies**: `ACME_TERMS_OF_SERVICE_URL`, `ACME_MAIL_REQUIRED`, `ACME_MAIL_TARGET_REGEX`, `ACME_TARGET_DOMAIN_REGEX`.
+* **Web UI Configuration**: `WEB_ENABLED`, `WEB_APP_TITLE`, `WEB_APP_DESCRIPTION`.
 
 ### Customize templates
 

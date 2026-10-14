@@ -10,6 +10,13 @@ async def start():
     async def run():
         while True:
             try:
+                mail_cfg = await mail.service.get_mail_settings()
+                if not mail_cfg.enabled or (not mail_cfg.notify_when_cert_expired and mail_cfg.warn_before_cert_expires_days <= 0):
+                    await asyncio.sleep(1 * 60 * 60)
+                    continue
+
+                warn_interval = mail_cfg.warn_before_cert_expires_interval
+
                 async with db.transaction(readonly=True) as sql:
                     results = [
                         record
@@ -41,11 +48,11 @@ async def start():
                             group by expd.mail, expd.serial_number, expd.not_valid_after
                                 having array_length(array_agg(expd.domain), 1) > 0 and expd.mail is not null
                             """,
-                            settings.mail.warn_before_cert_expires,
+                            warn_interval,
                         )
                     ]
                 for mail_addr, serial_number, expires_at, is_expired, domains in results:
-                    if not is_expired and settings.mail.warn_before_cert_expires:
+                    if not is_expired and mail_cfg.warn_before_cert_expires_days > 0:
                         try:
                             await mail.send_certs_will_expire_warn_mail(receiver=mail_addr, domains=domains, expires_at=expires_at, serial_number=serial_number)
                             ok = True
@@ -55,7 +62,7 @@ async def start():
                         if ok:
                             async with db.transaction() as sql:
                                 await sql.exec("""update certificates set user_informed_cert_will_expire=true where serial_number=$1""", serial_number)
-                    if is_expired and settings.mail.notify_when_cert_expired:
+                    if is_expired and mail_cfg.notify_when_cert_expired:
                         try:
                             await mail.send_certs_expired_info_mail(receiver=mail_addr, domains=domains, expires_at=expires_at, serial_number=serial_number)
                             ok = True
@@ -70,5 +77,4 @@ async def start():
             finally:
                 await asyncio.sleep(1 * 60 * 60)
 
-    if settings.mail.notify_when_cert_expired or settings.mail.warn_before_cert_expires:
-        asyncio.create_task(run())
+    asyncio.create_task(run())
