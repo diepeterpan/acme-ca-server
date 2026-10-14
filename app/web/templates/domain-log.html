@@ -3,85 +3,367 @@
 {% block head %}
 {{ super() }}
 <style type="text/css">
-    td {
-        padding-top: .5rem;
-        padding-bottom: .5rem;
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
 
-    form {
-        border: 1px solid #ccc;
-        padding: 2rem;
+    .page-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
     }
 
-    ul {
-        display: inline;
-        list-style: disc;
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
     }
 
-    li {
-        display: inline list-item;
-        margin-left: 1rem;
+    .page-subtitle {
+        font-size: 0.92rem;
+        color: var(--text-muted);
     }
 
-    .valid {
-        background-color: #22c55e;
+    /* Filter & Search Bar */
+    .filter-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
 
-    .invalid {
-        background-color: #dc2626;
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 260px;
+        max-width: 420px;
     }
 
-    tbody tr:hover {
-        background-color: #eee;
+    .search-input {
+        width: 100%;
+        padding: 0.65rem 1rem 0.65rem 2.6rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-pill);
+        font-size: 0.95rem;
+        background-color: #ffffff;
+        color: var(--text-body);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 0.9rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        fill: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .filter-tabs {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--bg-page);
+        padding: 0.3rem;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--border-card);
+    }
+
+    .filter-tab {
+        padding: 0.45rem 1.1rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--text-muted);
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .filter-tab:hover {
+        color: var(--primary);
+    }
+
+    .filter-tab.active {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Table Design */
+    .table-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow-x: auto;
+    }
+
+    table.domain-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.92rem;
+    }
+
+    table.domain-table th {
+        background-color: #faf5ff;
+        color: var(--text-heading);
+        font-weight: 600;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        white-space: nowrap;
+    }
+
+    table.domain-table td {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: middle;
+    }
+
+    table.domain-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    table.domain-table tbody tr:hover {
+        background-color: #fbf9ff;
+    }
+
+    table.domain-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .badge-valid {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .badge-invalid {
+        background-color: var(--status-expired-bg);
+        color: var(--status-expired-text);
+        border-color: var(--status-expired-border);
+    }
+
+    .domain-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .domain-globe {
+        width: 18px;
+        height: 18px;
+        fill: var(--text-muted);
+        flex-shrink: 0;
+    }
+
+    .domain-link {
+        font-weight: 600;
+        color: var(--text-heading);
+        text-decoration: none;
+        transition: color 0.15s ease;
+    }
+
+    .domain-link:hover {
+        color: var(--primary);
+        text-decoration: underline;
+    }
+
+    .date-text {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.86rem;
+        color: var(--text-body);
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 0.85rem;
+        border-radius: var(--radius-md);
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-decoration: none;
+        background-color: var(--primary-light);
+        color: var(--primary);
+        border: 1px solid var(--primary-border);
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .btn-action:hover {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-1px);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3.5rem 1.5rem;
+        color: var(--text-muted);
+    }
+
+    .empty-icon {
+        width: 52px;
+        height: 52px;
+        fill: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+
+    .empty-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-subtitle {
+        font-size: 0.92rem;
+        color: var(--text-muted);
+        margin-bottom: 1.25rem;
     }
 </style>
 {% endblock %}
+
 {% block content %}
-<h2>Domains</h2>
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">Domains</h1>
+        <span class="page-subtitle">Tracked ACME domain authorizations and certificate timelines</span>
+    </div>
+</div>
 
-<form method="get" action="">
-    <fieldset>
-        <legend>
-            <h3>filter domain status</h3>
-        </legend>
-        <div class="row">
-            <label>
-                <input type="radio" name="domainstatus" value="all" {{ "checked" if domainstatus=="all" }}> all
-            </label>
-            <label>
-                <input type="radio" name="domainstatus" value="valid" {{ "checked" if domainstatus=="valid" }}> valid
-            </label>
-            <label>
-                <input type="radio" name="domainstatus" value="invalid" {{ "checked" if domainstatus=="invalid" }}> invalid
-            </label>
-        </div>
-    </fieldset>
-    <label>
-        <h3>filter domain name</h3>
-        <input type="text" name="domainfilter" value="{{domainfilter}}" placeholder="searchtext">
-    </label>
-    <button type="submit">filter</button>
-</form>
+<!-- Filter & Search Bar -->
+<div class="filter-card">
+    <form method="get" action="/domains" class="search-wrapper" id="searchForm">
+        <input type="hidden" name="domainstatus" value="{{domainstatus}}">
+        <svg class="search-icon" viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search domain name..." autocomplete="off">
+    </form>
 
-<table>
-    <thead>
-        <tr>
-            <th></th>
-            <th>Domain</th>
-            <th>First requested at</th>
-            <th>Newest certificate valid until</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for domain in domains %}
-        <tr>
-            <td class="{{'valid' if domain.is_valid else 'invalid' }}">&nbsp;</td>
-            <td><a href="https://{{domain.domain_name}}" target="_blank"
-                    rel="noopener noreferrer">{{domain.domain_name}}</a></td>
-            <td>{{domain.first_requested_at.strftime('%Y-%m-%d')}}</td>
-            <td>{{domain.expires_at.strftime('%Y-%m-%d')}}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <div class="filter-tabs">
+        <a href="/domains?domainstatus=all&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'all' else '' }}">All</a>
+        <a href="/domains?domainstatus=valid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'valid' else '' }}">Valid</a>
+        <a href="/domains?domainstatus=invalid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'invalid' else '' }}">Invalid</a>
+    </div>
+</div>
+
+<!-- Table View -->
+<div class="table-container">
+    {% if domains|length > 0 %}
+    <table class="domain-table">
+        <thead>
+            <tr>
+                <th style="width: 110px;">Status</th>
+                <th>Domain Name</th>
+                <th>First Requested</th>
+                <th>Certificate Valid Until</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for domain in domains %}
+            <tr>
+                <td>
+                    {% if domain.is_valid %}
+                    <span class="badge badge-valid">Valid</span>
+                    {% else %}
+                    <span class="badge badge-invalid">Invalid</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="domain-cell">
+                        <svg class="domain-globe" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                        <a href="https://{{domain.domain_name}}" target="_blank" rel="noopener noreferrer" class="domain-link">
+                            {{domain.domain_name}}
+                        </a>
+                    </div>
+                </td>
+                <td>
+                    <span class="date-text">
+                        {% if domain.first_requested_at %}
+                        {{ domain.first_requested_at.strftime('%Y-%m-%d') }}
+                        {% else %}
+                        &mdash;
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="date-text">
+                        {% if domain.expires_at %}
+                        {{ domain.expires_at.strftime('%Y-%m-%d') }}
+                        {% else %}
+                        &mdash;
+                        {% endif %}
+                    </span>
+                </td>
+                <td style="text-align: right;">
+                    <a href="/certificates?domainfilter={{domain.domain_name}}" class="btn-action">
+                        <span>View Certificates</span>
+                        <span>&rarr;</span>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        <h3 class="empty-title">No domains found</h3>
+        <p class="empty-subtitle">
+            {% if domainfilter or domainstatus != 'all' %}
+            No domains match your filter criteria.
+            {% else %}
+            No ACME domain authorizations have been issued yet.
+            {% endif %}
+        </p>
+        {% if domainfilter or domainstatus != 'all' %}
+        <a href="/domains" class="btn-action">Clear Filters</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

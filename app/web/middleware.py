@@ -63,6 +63,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
             '/acme/',
             '/.well-known/',
             '/favicon.png',
+            '/favicon.svg',
             '/libs/',
             '/static/',
         )
@@ -129,6 +130,7 @@ class CaSetupRedirectMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-
                 '/login',
                 '/logout',
                 '/favicon.png',
+                '/favicon.svg',
                 '/libs/',
                 '/static/',
             )

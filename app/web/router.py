@@ -24,7 +24,71 @@ api = APIRouter(tags=['web'])
 
 @api.get('/', response_class=HTMLResponse)
 async def index(request: Request):
-    return await template_engine.get_template('index.html').render_async(**default_params, request=request)
+    import ca
+
+    stats = {
+        'accounts_count': 0,
+        'total_domains': 0,
+        'active_domains': 0,
+        'certs_total': 0,
+        'certs_valid': 0,
+        'certs_expiring': 0,
+        'certs_revoked': 0,
+        'certs_expired': 0,
+    }
+
+    async with db.transaction(readonly=True) as sql:
+        accounts_count = await sql.value("select count(*) from accounts")
+        stats['accounts_count'] = accounts_count or 0
+
+        cert_stats = await sql.record(
+            """
+            select
+                count(*) as total,
+                count(*) filter (where not_valid_after > now() and revoked_at is null) as valid,
+                count(*) filter (where not_valid_after > now() and revoked_at is null and not_valid_after - now() <= interval '20 days') as expiring,
+                count(*) filter (where revoked_at is not null) as revoked,
+                count(*) filter (where not_valid_after <= now() and revoked_at is null) as expired
+            from certificates
+            """
+        )
+        if cert_stats:
+            stats['certs_total'] = cert_stats['total']
+            stats['certs_valid'] = cert_stats['valid']
+            stats['certs_expiring'] = cert_stats['expiring']
+            stats['certs_revoked'] = cert_stats['revoked']
+            stats['certs_expired'] = cert_stats['expired']
+
+        domain_stats = await sql.record(
+            """
+            with doms as (
+                select
+                    authz.domain,
+                    bool_or(cert.not_valid_after > now() and cert.revoked_at is null) as has_valid_cert
+                from authorizations authz
+                left join certificates cert on cert.order_id = authz.order_id
+                group by authz.domain
+            )
+            select
+                count(*) as total,
+                count(*) filter (where has_valid_cert is true) as active
+            from doms
+            """
+        )
+        if domain_stats:
+            stats['total_domains'] = domain_stats['total']
+            stats['active_domains'] = domain_stats['active']
+
+    ca_details = None
+    if settings.ca.enabled and ca.is_initialized:
+        ca_details = await ca_service.get_active_ca_details()
+
+    return await template_engine.get_template('index.html').render_async(
+        **default_params,
+        request=request,
+        stats=stats,
+        ca_details=ca_details,
+    )
 
 
 @api.get('/setup', response_class=HTMLResponse)
@@ -410,11 +474,11 @@ if settings.web.enable_public_log:
                 """,
                 serial_number,
             )
-        if not record or not record.chain_pem:
+        if not record or not record['chain_pem']:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
-        filename = f"{record.primary_domain}_{serial_number[:8]}.crt"
+        filename = f"{record['primary_domain']}_{serial_number[:8]}.crt"
         return Response(
-            content=record.chain_pem,
+            content=record['chain_pem'],
             media_type='application/pem-certificate-chain',
             headers={'Content-Disposition': f'attachment; filename="{filename}"'},
         )
@@ -428,7 +492,7 @@ if settings.web.enable_public_log:
             )
         if not cert_record:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
-        if cert_record.revoked_at is not None:
+        if cert_record['revoked_at'] is not None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='certificate is already revoked')
 
         async with db.transaction(readonly=True) as sql:
