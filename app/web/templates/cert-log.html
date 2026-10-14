@@ -133,6 +133,28 @@
         vertical-align: middle;
     }
 
+    .cell-issue-date {
+        white-space: nowrap !important;
+        min-width: 120px;
+    }
+
+    .cell-expiry-date {
+        white-space: nowrap !important;
+        min-width: 220px;
+    }
+
+    .expiry-date-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .date-text {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
     table.cert-table tbody tr {
         transition: background-color 0.15s ease;
     }
@@ -450,6 +472,7 @@
         </svg>
         <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search for domain...">
     </div>
+    <input type="hidden" name="certstatus" value="{{certstatus}}">
 
     <div class="filter-tabs">
         <a href="?domainfilter={{domainfilter}}&certstatus=all" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
@@ -467,8 +490,8 @@
                 <th>Status</th>
                 <th>Primary FQDN</th>
                 <th>Serial Number</th>
-                <th>Issue Date</th>
-                <th>Expiry Date</th>
+                <th class="cell-issue-date">Issue Date</th>
+                <th class="cell-expiry-date">Expiry Date</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -500,18 +523,22 @@
                         </button>
                     </span>
                 </td>
-                <td>{{cert.not_valid_before.strftime('%Y-%m-%d')}}</td>
-                <td>
-                    <div>{{cert.not_valid_after.strftime('%Y-%m-%d')}}</div>
-                    {% if cert.is_revoked and cert.revoked_at %}
-                    <span class="badge badge-revoked">revoked {{cert.revoked_at.strftime('%Y-%m-%d')}}</span>
-                    {% elif cert.is_expiring %}
-                    <span class="badge badge-expiring">in {{cert.remaining.days}} days</span>
-                    {% elif cert.is_valid %}
-                    <span class="badge badge-subtle">in {{cert.remaining.days}} days</span>
-                    {% else %}
-                    <span class="badge badge-expired">expired</span>
-                    {% endif %}
+                <td class="cell-issue-date">
+                    <span class="date-text">{{cert.not_valid_before.strftime('%Y-%m-%d')}}</span>
+                </td>
+                <td class="cell-expiry-date">
+                    <div class="expiry-date-cell">
+                        <span class="date-text">{{cert.not_valid_after.strftime('%Y-%m-%d')}}</span>
+                        {% if cert.is_revoked and cert.revoked_at %}
+                        <span class="badge badge-revoked">revoked {{cert.revoked_at.strftime('%Y-%m-%d')}}</span>
+                        {% elif cert.is_expiring %}
+                        <span class="badge badge-expiring">in {{cert.remaining.days}} days</span>
+                        {% elif cert.is_valid %}
+                        <span class="badge badge-subtle">in {{cert.remaining.days}} days</span>
+                        {% else %}
+                        <span class="badge badge-expired">expired</span>
+                        {% endif %}
+                    </div>
                 </td>
                 <td>
                     <div class="actions-cell">

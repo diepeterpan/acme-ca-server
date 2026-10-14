@@ -413,7 +413,7 @@ async def ca_download_crl():
 async def certificate_log(
     request: Request,
     domainfilter: str = '',
-    certstatus: Literal['all', 'valid', 'expiring', 'revoked', 'expired', 'invalid'] = 'all',
+    certstatus: Literal['all', 'valid', 'expiring', 'revoked', 'expired', 'invalid'] = 'expiring',
     status_msg: str = '',
 ):
     async with db.transaction(readonly=True) as sql:
@@ -440,13 +440,17 @@ async def certificate_log(
                 select * from data
                 where (
                     $2 = 'all' or
-                    ($2 = 'valid' and is_valid and not is_expiring) or
+                    ($2 = 'valid' and is_valid) or
                     ($2 = 'expiring' and is_expiring) or
                     ($2 = 'revoked' and is_revoked) or
                     ($2 = 'expired' and is_expired) or
                     ($2 = 'invalid' and not is_valid)
                 )
-                order by not_valid_after desc
+                order by
+                    case when is_valid then 0 else 1 end asc,
+                    case when is_valid then not_valid_after end asc,
+                    not_valid_after desc,
+                    serial_number asc
                 limit 1000
                 """,
                 domainfilter.replace('*', '%'),
@@ -521,7 +525,7 @@ async def revoke_certificate(request: Request, serial_number: constr(pattern='^[
 
 
 @api.get('/domains', response_class=HTMLResponse)
-async def domain_log(request: Request, domainfilter: str = '', domainstatus: Literal['all', 'valid', 'invalid'] = 'all'):
+async def domain_log(request: Request, domainfilter: str = '', domainstatus: Literal['all', 'valid', 'invalid'] = 'valid'):
     async with db.transaction(readonly=True) as sql:
         domains = [
             record
@@ -541,7 +545,7 @@ async def domain_log(request: Request, domainfilter: str = '', domainstatus: Lit
                 )
                 select * from data
                 where ($2 = 'all' or ($2 = 'valid' and is_valid) or ($2 = 'invalid' and not is_valid))
-                order by domain_name
+                order by first_requested_at desc nulls last, domain_name asc
                 """,
                 domainfilter.replace('*', '%'),
                 domainstatus,
@@ -554,7 +558,7 @@ async def domain_log(request: Request, domainfilter: str = '', domainstatus: Lit
 async def account_log(
     request: Request,
     accountfilter: str = '',
-    accountstatus: Literal['all', 'valid', 'deactivated', 'revoked'] = 'all',
+    accountstatus: Literal['all', 'valid', 'deactivated', 'revoked'] = 'valid',
     status_msg: str = '',
 ):
     accounts = []
@@ -625,7 +629,7 @@ async def account_log(
             where ($1::text = '' or acc.mail ilike '%' || $1::text || '%' or acc.id = $1::text)
               and ($2 = 'all' or acc.status::text = $2)
             group by acc.id, acc.mail, acc.status, acc.created_at, acc.jwk
-            order by acc.created_at desc
+            order by acc.created_at desc nulls last, acc.id desc
             """,
             accountfilter.replace('*', '%'),
             accountstatus,
