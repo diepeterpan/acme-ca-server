@@ -185,7 +185,7 @@ async def login_get(request: Request, next: str = '/', error: str = ''):
     )
 
 
-@api.post('/login')
+@api.post('/login', response_class=HTMLResponse)
 async def login_post(
     request: Request,
     username: str = Form(''),
@@ -197,13 +197,14 @@ async def login_post(
 
     user = await web.auth.authenticate_user(username, password)
     if not user:
-        return await template_engine.get_template('login.html').render_async(
+        html_content = await template_engine.get_template('login.html').render_async(
             **default_params,
             request=request,
             next=next,
             username=username,
             error='Invalid username or password.',
         )
+        return HTMLResponse(content=html_content)
 
     cookie_val, max_age = web.auth.create_session_cookie(user['username'], remember_me=remember_me)
 
