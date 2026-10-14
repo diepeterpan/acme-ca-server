@@ -8,8 +8,13 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 
 * ✅ **ACME Server** implementation (supports `http-01` challenge)
 * 🔐 **Built-in CA** to sign/revoke certificates (can be replaced with an external CA), CA rollover is supported
-* ✉️ **Mail notifications**  (for account creation, expiring and expired certificates) with customizable templates
-* 🌐 **Web UI** (certificate and domain log) with customizable templates
+* ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
+* 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
+  * 📊 **Operational Dashboard**: Live KPI metrics (certificates, domains, accounts, orders) and ACME Entrypoint hero card with 1-click clipboard copy.
+  * 🏛️ **Root CA Management**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, and PEM viewer.
+  * 📜 **Certificates & Domains**: Searchable audit logs with status tabs (Valid, Revoked, Expired) and direct downloads.
+  * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with descending expiration sorting.
+  * 🔒 **Session Authentication**: Secure PBKDF2-hashed login, Remember Me sessions, and guided first-boot onboarding.
 
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
 
@@ -135,6 +140,9 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | WEB_ENABLE_PUBLIC_LOG        | `False` | whether to show a transparency log of all certificates generated via ACME  |
 | WEB_APP_TITLE        | `ACME CA Server` | title shown in web and mails  |
 | WEB_APP_DESCRIPTION        | `Self-hosted ACME CA Server` | description shown in web and mails  |
+| WEB_ADMIN_USERNAME        | `None` | optional username to pre-provision an initial web administrator account on startup (e.g. `admin`). If unset, credentials can be initialized via `/setup`. |
+| WEB_ADMIN_PASSWORD        | `None` | optional initial password for the pre-provisioned administrator account. Supports Docker Secrets (`/run/secrets/web_admin_password`). |
+| WEB_SESSION_SECRET        | `None` | optional HMAC secret key for signing session cookies (`acme_session`). Defaults to `CA_ENCRYPTION_KEY` if unset. |
 
 ### Customize templates
 
@@ -160,9 +168,14 @@ Template parameters:
 Custom files to be served by the http server can be placed in `/app/web/www`.
 
 Overwrite templates (see [here](./app/web/templates)):
+* /app/web/templates/index.html (Startpage / Dashboard)
+* /app/web/templates/ca-details.html (Root CA Certificate & CRL Details)
+* /app/web/templates/ca-setup.html (Root CA Setup & Onboarding)
 * /app/web/templates/cert-log.html (Certificate Listing)
 * /app/web/templates/domain-log.html (Domain Listing)
-* /app/web/templates/index.html (Startpage)
+* /app/web/templates/account-log.html (Account Management & Error Modal)
+* /app/web/templates/login.html (Sign-in Authentication Screen)
+* /app/web/templates/setup.html (Initial Admin Account Setup)
 
 Template parameters:
 * `app_title`: `str`  application title from `WEB_APP_TITLE`
@@ -236,3 +249,76 @@ cd ../pytest
 cd coverage
 python3 -m http.server  # coverage report at localhost:8000
 ```
+
+## Useful Scripts
+
+The repository includes several standalone utility scripts to simplify development, testing, and documentation:
+
+### 1. `acme_client.sh` &mdash; Pure Bash ACME Test Harness & Client
+
+A zero-dependency, pure Bash client implementing the RFC 8555 ACME protocol using standard CLI tools (`curl`, `openssl`, `jq`). It includes primitive API tests, certificate lifecycle flows (issuance, renewal, revocation, key change, ARI renewal info), and an integrated HTTP-01 challenge responder.
+
+**Key capabilities:**
+* Test Directory, New-Nonce, New-Account, New-Order, Challenge Validation, Finalize, Download, Revocation, Key Rollover, and Renewal Info (ARI).
+* Issue certificates with custom validity ranges (`--not-before` and `--not-after`).
+* Standalone built-in HTTP-01 challenge server (`./acme_client.sh server <port>`).
+
+**Usage:**
+```shell
+# Display help and available commands
+./acme_client.sh help
+
+# Run full end-to-end ACME test suite against local server
+./acme_client.sh test-all
+
+# Issue a certificate for a domain using the built-in HTTP-01 responder
+./acme_client.sh request-cert example.com
+
+# Start standalone HTTP-01 challenge responder on port 5002 (or 80)
+./acme_client.sh server 5002
+```
+
+*(Note: `acme_test_harness.sh` is provided as a convenient symlink to `acme_client.sh`)*
+
+---
+
+### 2. `run_local.sh` &mdash; Local Dev Server & Database Bootstrapper
+
+A one-command setup script to run the server locally for development without building Docker images manually.
+
+**Key capabilities:**
+* Automatically checks or creates a Python virtual environment (`.venv`).
+* Installs and verifies dependencies from `requirements.txt`.
+* Automatically provisions and starts a local PostgreSQL development container via Docker or Podman (`compose.dev.yml`).
+* Applies database migrations up to the current schema.
+* Starts `uvicorn` development server with auto-reload (`--reload`) on port 8080.
+
+**Usage:**
+```shell
+# Start local development environment (default: http://0.0.0.0:8080)
+./run_local.sh
+
+# Run on a custom port or host
+PORT=9000 HOST=127.0.0.1 ./run_local.sh
+```
+
+---
+
+### 3. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
+
+A Playwright-driven automation utility that captures high-resolution screenshots of all 9 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details, audit logs, and the account orders & error modal).
+
+**Key capabilities:**
+* Automatically generates signed session cookies to capture both guest and authenticated administrative screens.
+* Interacts with UI components (e.g. opens the Order Requests & Error modal with descending expiration sorting).
+* Automatically updates images in `Documentation/screenshots/` to keep [Documentation/UI_TOUR_SHOWCASE.md](./Documentation/UI_TOUR_SHOWCASE.md) fresh.
+
+**Usage:**
+```shell
+# Capture all UI screens and save to Documentation/screenshots/
+./scripts/capture_ui_screens.py
+
+# Custom target server or custom output folder
+./scripts/capture_ui_screens.py --base-url http://localhost:8080 --output-dir Documentation/screenshots
+```
+
