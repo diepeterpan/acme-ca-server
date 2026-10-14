@@ -79,7 +79,83 @@ class MockRequest:
         self.state = MockState(username)
 
 
-async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str = 'admin'):
+async def obfuscate_page(page):
+    """Obfuscate any real domain names, email addresses, and DN fields in the DOM."""
+    js_code = r"""() => {
+        const emailRegex = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g;
+        
+        function sanitizeText(str) {
+            if (!str) return str;
+            let res = str;
+            
+            // 1. Obfuscate domain names
+            res = res.replace(/andregaming\.galleon\.co\.za/gi, 'app.example.com');
+            res = res.replace(/[a-z0-9_.-]+\.galleon\.co\.za/gi, 'service.example.com');
+            res = res.replace(/galleon\.co\.za/gi, 'example.com');
+            res = res.replace(/galleon\s*beach/gi, 'Internal ACME Root CA');
+            res = res.replace(/galleon/gi, 'Example Security Corp');
+
+            // 2. Obfuscate Location & Subject Distinguished Name (DN) fields
+            res = res.replace(/Cape Town/gi, 'San Francisco');
+            res = res.replace(/Western Cape/gi, 'California');
+            res = res.replace(/\bZA\b/g, 'US');
+
+            // If Subject DN string contains sanitized terms, format cleanly
+            if (res.includes('San Francisco') && res.includes('California') && (res.includes('CN=') || res.includes('L='))) {
+                res = 'CN=Internal ACME Root CA, O=Example Security Corp, OU=Security Operations, L=San Francisco, ST=California, C=US';
+            }
+
+            // 3. Obfuscate any email addresses
+            res = res.replace(emailRegex, (match) => {
+                if (match.includes('example.com') || match.includes('example.org')) return match;
+                return 'admin@example.com';
+            });
+            
+            return res;
+        }
+
+        // Walk DOM nodes
+        function walk(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const updated = sanitizeText(node.nodeValue);
+                if (updated !== node.nodeValue) {
+                    node.nodeValue = updated;
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+                    if (node.value) node.value = sanitizeText(node.value);
+                }
+                if (node.hasAttribute('title')) {
+                    node.setAttribute('title', sanitizeText(node.getAttribute('title')));
+                }
+                for (let child of node.childNodes) {
+                    walk(child);
+                }
+            }
+        }
+        
+        walk(document.body);
+
+        // Sanitize PEM viewer block if present on CA details screen
+        const pemElem = document.getElementById('pemCode');
+        if (pemElem) {
+            pemElem.textContent = 
+`-----BEGIN CERTIFICATE-----
+MIIEczCCA1ugAwIBAgIUQ4hO7qB0h1P9Y7h8m0xX+R1a5qYwDQYJKoZIhvcNAQEL
+BQAwYjELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcT
+DVNhbiBGcmFuY2lzY28xHzAdBgNVBAoTFkV4YW1wbGUgU2VjdXJpdHkgQ29ycDEe
+... [SAMPLE BASE64 ENCODED ROOT CA CERTIFICATE] ...
+a1Z9L2N4m9O0P1qR2sT3uV4wX5yZ6a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q==
+-----END CERTIFICATE-----`;
+        }
+    }"""
+    try:
+        await page.evaluate(js_code)
+    except Exception as e:
+        print(f"    Notice: DOM obfuscation error: {e}")
+
+
+async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str = 'admin', obfuscate: bool = True):
     output_dir.mkdir(parents=True, exist_ok=True)
     token, _ = create_session_cookie(admin_user, remember_me=True)
 
@@ -109,6 +185,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 01_login_screen.png...")
         try:
             await page_guest.goto(f"{base_url}/login", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_guest)
             await page_guest.screenshot(path=str(output_dir / "01_login_screen.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not fetch {base_url}/login: {e}")
@@ -124,6 +202,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
                 status_msg=''
             )
             await page_guest.set_content(setup_html, wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_guest)
             await page_guest.screenshot(path=str(output_dir / "02_admin_setup_onboarding.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not render setup.html: {e}")
@@ -142,7 +222,7 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
                 'status_msg': '',
                 'form_data': {
                     'common_name': 'ACME Root CA',
-                    'organization': 'Acme Security Corp',
+                    'organization': 'Example Security Corp',
                     'organizational_unit': 'Security Operations',
                     'country': 'US',
                     'state': 'California',
@@ -155,6 +235,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             })
             ca_setup_html = await ca_setup_template.render_async(**ca_params)
             await page_guest.set_content(ca_setup_html, wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_guest)
             await page_guest.screenshot(path=str(output_dir / "03_ca_certificate_onboarding.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not render ca-setup.html: {e}")
@@ -183,6 +265,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 04_home_dashboard.png...")
         try:
             await page_auth.goto(f"{base_url}/", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "04_home_dashboard.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture dashboard: {e}")
@@ -191,6 +275,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 05_ca_certificate.png...")
         try:
             await page_auth.goto(f"{base_url}/ca", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "05_ca_certificate.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture CA details: {e}")
@@ -199,6 +285,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 06_certificates_log.png...")
         try:
             await page_auth.goto(f"{base_url}/certificates", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "06_certificates_log.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture certificates: {e}")
@@ -207,6 +295,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 07_domains_log.png...")
         try:
             await page_auth.goto(f"{base_url}/domains", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "07_domains_log.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture domains: {e}")
@@ -215,6 +305,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 08_accounts_log.png...")
         try:
             await page_auth.goto(f"{base_url}/accounts", wait_until='networkidle')
+            if obfuscate:
+                await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "08_accounts_log.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture accounts: {e}")
@@ -227,6 +319,8 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
                 await orders_btn.click()
                 await page_auth.wait_for_selector("#orderModal.open", timeout=3000)
                 await asyncio.sleep(0.5)  # Allow smooth fade-in
+                if obfuscate:
+                    await obfuscate_page(page_auth)
                 await page_auth.screenshot(path=str(output_dir / "09_account_orders_modal.png"), full_page=False)
                 print("    Modal captured successfully!")
             else:
@@ -257,9 +351,14 @@ def main():
         default='admin',
         help="Admin username for session authentication (default: %(default)s)"
     )
+    parser.add_argument(
+        '--no-obfuscate',
+        action='store_true',
+        help="Disable automatic obfuscation of domain names, emails, and DN fields"
+    )
     args = parser.parse_args()
 
-    asyncio.run(capture_all_screens(args.base_url, args.output_dir, args.admin_user))
+    asyncio.run(capture_all_screens(args.base_url, args.output_dir, args.admin_user, obfuscate=not args.no_obfuscate))
 
 
 if __name__ == '__main__':

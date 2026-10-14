@@ -310,6 +310,7 @@ A Playwright-driven automation utility that captures high-resolution screenshots
 
 **Key capabilities:**
 * Automatically generates signed session cookies to capture both guest and authenticated administrative screens.
+* **Automatic Privacy Obfuscation**: Sanitizes real personal email addresses (`admin@example.com`), domain names (`app.example.com`), and Subject DN location fields (e.g. Cape Town, Western Cape, custom organization names) with generic demonstration data (disable with `--no-obfuscate`).
 * Interacts with UI components (e.g. opens the Order Requests & Error modal with descending expiration sorting).
 * Automatically updates images in `Documentation/screenshots/` to keep [Documentation/UI_TOUR_SHOWCASE.md](./Documentation/UI_TOUR_SHOWCASE.md) fresh.
 
