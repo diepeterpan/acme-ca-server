@@ -170,6 +170,7 @@ async def setup_post(
 
 @api.get('/login', response_class=HTMLResponse)
 async def login_get(request: Request, next: str = '/', error: str = ''):
+    import ca
     import web.auth
 
     # If user is already authenticated, redirect to next or /
@@ -178,11 +179,14 @@ async def login_get(request: Request, next: str = '/', error: str = ''):
         target = next if next.startswith('/') and not next.startswith('//') and next != '/login' else '/'
         return RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
 
+    ca_ready = bool(settings.ca.enabled and ca.is_initialized)
+
     return await template_engine.get_template('login.html').render_async(
         **default_params,
         request=request,
         next=next,
         error=error,
+        ca_ready=ca_ready,
     )
 
 
@@ -413,29 +417,36 @@ async def ca_download_crl():
 async def certificate_log(
     request: Request,
     domainfilter: str = '',
+    account_id: str = '',
     certstatus: Literal['all', 'valid', 'expiring', 'revoked', 'expired', 'invalid'] = 'expiring',
     status_msg: str = '',
 ):
+    account_email = None
     async with db.transaction(readonly=True) as sql:
+        if account_id:
+            account_email = await sql.value("select mail from accounts where id = $1", account_id)
+
         certs = [
             record
             async for record in sql(
                 """
                 with data as (
                     select
-                        serial_number, not_valid_before, not_valid_after, revoked_at,
-                        (not_valid_after > now() and revoked_at is null) as is_valid,
-                        (not_valid_after <= now() and revoked_at is null) as is_expired,
-                        (revoked_at is not null) as is_revoked,
-                        ((not_valid_after > now() and revoked_at is null) and (not_valid_after - now() <= interval '20 days')) as is_expiring,
-                        (not_valid_after - not_valid_before) as lifetime,
-                        (now() - not_valid_before) as age,
-                        (not_valid_after - now()) as remaining,
-                        array_agg(domain order by domain) as domains
+                        cert.serial_number, cert.not_valid_before, cert.not_valid_after, cert.revoked_at,
+                        (cert.not_valid_after > now() and cert.revoked_at is null) as is_valid,
+                        (cert.not_valid_after <= now() and cert.revoked_at is null) as is_expired,
+                        (cert.revoked_at is not null) as is_revoked,
+                        ((cert.not_valid_after > now() and cert.revoked_at is null) and (cert.not_valid_after - now() <= interval '20 days')) as is_expiring,
+                        (cert.not_valid_after - cert.not_valid_before) as lifetime,
+                        (now() - cert.not_valid_before) as age,
+                        (cert.not_valid_after - now()) as remaining,
+                        array_agg(distinct authz.domain order by authz.domain) as domains
                     from certificates cert
+                    join orders ord on ord.id = cert.order_id
                     join authorizations authz on authz.order_id = cert.order_id
                     where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
-                    group by serial_number
+                      and ($3::text = '' or ord.account_id = $3::text)
+                    group by cert.serial_number, cert.not_valid_before, cert.not_valid_after, cert.revoked_at
                 )
                 select * from data
                 where (
@@ -455,6 +466,7 @@ async def certificate_log(
                 """,
                 domainfilter.replace('*', '%'),
                 certstatus,
+                account_id,
             )
         ]
     return await template_engine.get_template('cert-log.html').render_async(
@@ -463,6 +475,8 @@ async def certificate_log(
         certs=certs,
         certstatus=certstatus,
         domainfilter=domainfilter,
+        account_id=account_id,
+        account_email=account_email,
         status_msg=status_msg,
     )
 

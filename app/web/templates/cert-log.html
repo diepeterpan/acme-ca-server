@@ -461,6 +461,40 @@
     .btn-primary-danger:hover {
         background-color: var(--primary-hover);
     }
+
+    .active-filter-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--primary-light, #f5f3ff);
+        border: 1px solid #ddd6fe;
+        color: var(--primary);
+        padding: 0.4rem 0.85rem;
+        border-radius: var(--radius-full, 9999px);
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 1.25rem;
+    }
+
+    .filter-badge-val {
+        font-weight: 600;
+        color: var(--text-heading);
+    }
+
+    .filter-badge-clear {
+        margin-left: 0.35rem;
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+    }
+
+    .filter-badge-clear:hover {
+        background: #ede9fe;
+        color: var(--primary-hover);
+    }
 </style>
 {% endblock %}
 
@@ -484,15 +518,29 @@
         <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search for domain...">
     </div>
     <input type="hidden" name="certstatus" value="{{certstatus}}">
+    {% if account_id %}
+    <input type="hidden" name="account_id" value="{{account_id}}">
+    {% endif %}
 
     <div class="filter-tabs">
-        <a href="?domainfilter={{domainfilter}}&certstatus=all" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=valid" class="filter-tab {% if certstatus == 'valid' %}active{% endif %}">Valid</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=expiring" class="filter-tab {% if certstatus == 'expiring' %}active{% endif %}">Expiring</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=revoked" class="filter-tab {% if certstatus == 'revoked' %}active{% endif %}">Revoked</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=expired" class="filter-tab {% if certstatus == 'expired' %}active{% endif %}">Expired</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=all{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=valid{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'valid' %}active{% endif %}">Valid</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=expiring{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expiring' %}active{% endif %}">Expiring</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=revoked{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'revoked' %}active{% endif %}">Revoked</a>
+        <a href="?domainfilter={{domainfilter}}&certstatus=expired{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expired' %}active{% endif %}">Expired</a>
     </div>
 </form>
+
+{% if account_id %}
+<div class="active-filter-badge">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+    </svg>
+    <span>Filtered by Account:</span>
+    <span class="filter-badge-val">{{ account_email or account_id }}</span>
+    <a href="/certificates{% if certstatus != 'expiring' %}?certstatus={{certstatus}}{% endif %}" class="filter-badge-clear" title="Clear Account Filter">&times; Clear</a>
+</div>
+{% endif %}
 
 <div class="table-container">
     <table class="cert-table">

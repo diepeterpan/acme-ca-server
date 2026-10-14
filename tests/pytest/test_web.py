@@ -17,6 +17,14 @@ def test_get_certificates_page(testclient: TestClient):
     assert 'filter-tabs' in response.text
 
 
+def test_get_certificates_page_with_account_filter(testclient: TestClient):
+    response = testclient.get('/certificates?account_id=nonexistent&certstatus=all')
+    assert response.status_code == 200, response.text
+    assert 'Filtered by Account:' in response.text
+    assert 'nonexistent' in response.text
+    assert 'No certificates found' in response.text
+
+
 def test_get_domains_page(testclient: TestClient):
     response = testclient.get('/domains')
     assert response.status_code == 200, response.text

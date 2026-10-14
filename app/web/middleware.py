@@ -58,7 +58,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
 
         path = request.url.path
 
-        # 1. Exempt public machine ACME endpoints and static assets
+        # 1. Exempt public machine ACME endpoints, static assets, and CA cert/CRL downloads
         public_prefixes = (
             '/acme/',
             '/.well-known/',
@@ -66,6 +66,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
             '/favicon.svg',
             '/libs/',
             '/static/',
+            '/ca/download',
         )
         if path == '/directory' or any(path.startswith(prefix) for prefix in public_prefixes):
             return await call_next(request)

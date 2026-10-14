@@ -75,6 +75,29 @@ def test_acme_directory_is_public(testclient: TC):
         assert resp_acme.status_code == 200
 
 
+def test_ca_download_is_public(testclient: TC):
+    # CA Certificate and CRL downloads must be publicly accessible without authentication
+    with TestClient(main.app) as anon_client:
+        resp = anon_client.get('/ca/download')
+        assert resp.status_code == 200, resp.text
+        assert 'Content-Disposition' in resp.headers
+        assert 'ca_' in resp.headers['Content-Disposition']
+        assert '-----BEGIN CERTIFICATE-----' in resp.text
+
+        resp_crl = anon_client.get('/ca/download/crl')
+        assert resp_crl.status_code == 200, resp_crl.text
+        assert 'Content-Disposition' in resp_crl.headers
+        assert '-----BEGIN X509 CRL-----' in resp_crl.text
+
+        # Verify login page displays CA and CRL download options
+        login_resp = anon_client.get('/login')
+        assert login_resp.status_code == 200
+        assert '/ca/download' in login_resp.text
+        assert 'Download CA Certificate (.crt)' in login_resp.text
+        assert '/ca/download-crl' in login_resp.text
+        assert 'Download Revocation List (.crl)' in login_resp.text
+
+
 def test_login_flow(testclient: TC):
     with TestClient(main.app) as client:
         # 1. Invalid credentials
