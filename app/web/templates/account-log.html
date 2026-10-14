@@ -1,0 +1,831 @@
+{% extends "base.html" %}
+{% block title %}ACME Accounts{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+    }
+
+    .page-subtitle {
+        font-size: 0.92rem;
+        color: var(--text-muted);
+    }
+
+    /* Notification Banner */
+    .status-banner {
+        padding: 0.85rem 1.25rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .status-banner.success {
+        background-color: var(--status-valid-bg);
+        border: 1px solid var(--status-valid-border);
+        color: var(--status-valid-text);
+    }
+
+    /* Filter & Search Bar */
+    .filter-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        min-width: 260px;
+        max-width: 440px;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.65rem 1rem 0.65rem 2.6rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-pill);
+        font-size: 0.95rem;
+        background-color: #ffffff;
+        color: var(--text-body);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 0.9rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        fill: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .filter-tabs {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--bg-page);
+        padding: 0.3rem;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--border-card);
+    }
+
+    .filter-tab {
+        padding: 0.45rem 1.1rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--text-muted);
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .filter-tab:hover {
+        color: var(--primary);
+    }
+
+    .filter-tab.active {
+        background-color: var(--primary);
+        color: #ffffff;
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Table Design */
+    .table-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow-x: auto;
+    }
+
+    table.account-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.92rem;
+    }
+
+    table.account-table th {
+        background-color: #faf5ff;
+        color: var(--text-heading);
+        font-weight: 600;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        white-space: nowrap;
+    }
+
+    table.account-table td {
+        padding: 1.1rem 1.25rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: middle;
+    }
+
+    table.account-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    table.account-table tbody tr:hover {
+        background-color: #fbf9ff;
+    }
+
+    table.account-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Account Details Cell */
+    .account-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .account-email {
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.96rem;
+    }
+
+    .account-email svg {
+        width: 16px;
+        height: 16px;
+        fill: var(--text-muted);
+    }
+
+    .account-id-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .account-id-badge {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.78rem;
+        background-color: #f1f5f9;
+        color: var(--text-muted);
+        padding: 0.15rem 0.5rem;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .key-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--primary);
+        background-color: var(--primary-light);
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        border: 1px solid var(--primary-border);
+    }
+
+    .btn-copy-mini {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 4px;
+        color: var(--text-muted);
+        display: inline-flex;
+        align-items: center;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+    }
+
+    .btn-copy-mini:hover {
+        color: var(--primary);
+    }
+
+    /* Status Badges */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .badge-valid {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .badge-deactivated {
+        background-color: #f1f5f9;
+        color: #64748b;
+        border-color: #cbd5e1;
+    }
+
+    .badge-revoked {
+        background-color: var(--status-expired-bg);
+        color: var(--status-expired-text);
+        border-color: var(--status-expired-border);
+    }
+
+    /* Breakdown Grouping */
+    .breakdown-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .pill-counter {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.2rem 0.55rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.2;
+        width: fit-content;
+    }
+
+    .pill-cert-valid {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .pill-cert-revoked {
+        background-color: var(--status-revoked-bg);
+        color: var(--status-revoked-text);
+        border: 1px solid var(--status-revoked-border);
+    }
+
+    .pill-cert-expired {
+        background-color: var(--status-expired-bg);
+        color: var(--status-expired-text);
+        border: 1px solid var(--status-expired-border);
+    }
+
+    .pill-order-valid {
+        background-color: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+
+    .pill-order-pending {
+        background-color: var(--status-expiring-bg);
+        color: var(--status-expiring-text);
+        border: 1px solid var(--status-expiring-border);
+    }
+
+    .pill-order-processing {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .pill-order-error {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+        cursor: pointer;
+        transition: transform 0.15s ease;
+    }
+
+    .pill-order-error:hover {
+        transform: scale(1.04);
+        box-shadow: 0 1px 3px rgba(220, 38, 38, 0.2);
+    }
+
+    /* Action Buttons */
+    .action-group {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action-outline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.45rem 0.75rem;
+        border-radius: var(--radius-md);
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-decoration: none;
+        background-color: #ffffff;
+        color: var(--text-body);
+        border: 1px solid var(--border-card);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .btn-action-outline:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+        background-color: var(--primary-light);
+    }
+
+    .btn-action-danger {
+        border-color: #fca5a5;
+        color: #dc2626;
+    }
+
+    .btn-action-danger:hover {
+        background-color: #fef2f2;
+        border-color: #dc2626;
+        color: #b91c1c;
+    }
+
+    .btn-action-success {
+        border-color: #86efac;
+        color: #15803d;
+    }
+
+    .btn-action-success:hover {
+        background-color: #f0fdf4;
+        border-color: #16a34a;
+        color: #15803d;
+    }
+
+    /* Modal Overlay & Card */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+    }
+
+    .modal-overlay.open {
+        display: flex;
+    }
+
+    .modal-card {
+        background-color: #ffffff;
+        border-radius: var(--radius-lg);
+        width: 100%;
+        max-width: 680px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--border-card);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-card);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-heading);
+    }
+
+    .btn-close-modal {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0 0.5rem;
+        line-height: 1;
+    }
+
+    .btn-close-modal:hover {
+        color: var(--text-heading);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .order-item-card {
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        background-color: var(--bg-page);
+    }
+
+    .order-item-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .order-error-box {
+        margin-top: 0.5rem;
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        color: #991b1b;
+        font-size: 0.85rem;
+    }
+
+    .order-error-type {
+        font-weight: 700;
+        font-family: ui-monospace, monospace;
+        margin-bottom: 0.25rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3.5rem 1.5rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">ACME Accounts</h1>
+        <span class="page-subtitle">Registered ACME client accounts, order request statuses, and certificate breakdowns</span>
+    </div>
+</div>
+
+{% if status_msg == 'account_deactivated' %}
+<div class="status-banner success">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <span>Account has been successfully deactivated.</span>
+</div>
+{% elif status_msg == 'account_activated' %}
+<div class="status-banner success">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <span>Account has been activated and marked valid.</span>
+</div>
+{% endif %}
+
+<!-- Search & Status Filter Bar -->
+<div class="filter-card">
+    <form method="get" action="/accounts" class="search-wrapper">
+        <input type="hidden" name="accountstatus" value="{{accountstatus}}">
+        <svg class="search-icon" viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input type="text" name="accountfilter" class="search-input" value="{{accountfilter}}" placeholder="Search by email or Account ID..." autocomplete="off">
+    </form>
+
+    <div class="filter-tabs">
+        <a href="/accounts?accountstatus=all&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'all' else '' }}">All</a>
+        <a href="/accounts?accountstatus=valid&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'valid' else '' }}">Valid</a>
+        <a href="/accounts?accountstatus=deactivated&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'deactivated' else '' }}">Deactivated</a>
+    </div>
+</div>
+
+<!-- Table View -->
+<div class="table-container">
+    {% if accounts|length > 0 %}
+    <table class="account-table">
+        <thead>
+            <tr>
+                <th>Account &amp; Key</th>
+                <th style="width: 110px;">Status</th>
+                <th>Certificates</th>
+                <th>Order Requests</th>
+                <th>Registered</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for acc in accounts %}
+            <tr>
+                <td>
+                    <div class="account-meta">
+                        <div class="account-email">
+                            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                            <span>{{ acc.email }}</span>
+                        </div>
+                        <div class="account-id-row">
+                            <span class="account-id-badge" title="Account ID (kid)">{{ acc.account_id }}</span>
+                            <button class="btn-copy-mini" onclick="copyText('{{ acc.account_id }}', this)" title="Copy Account ID">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                </svg>
+                            </button>
+                            <span class="key-badge">{{ acc.key_info }}</span>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    {% if acc.account_status == 'valid' %}
+                    <span class="badge badge-valid">Valid</span>
+                    {% elif acc.account_status == 'deactivated' %}
+                    <span class="badge badge-deactivated">Deactivated</span>
+                    {% else %}
+                    <span class="badge badge-revoked">{{ acc.account_status|capitalize }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="breakdown-group">
+                        <span class="pill-counter pill-cert-valid">{{ acc.certs_valid }} Valid</span>
+                        {% if acc.certs_revoked > 0 %}
+                        <span class="pill-counter pill-cert-revoked">{{ acc.certs_revoked }} Revoked</span>
+                        {% endif %}
+                        {% if acc.certs_expired > 0 %}
+                        <span class="pill-counter pill-cert-expired">{{ acc.certs_expired }} Expired</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    <div class="breakdown-group">
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                            <span class="pill-counter pill-order-valid">{{ acc.orders_valid }} Valid</span>
+                            {% if acc.orders_pending > 0 %}
+                            <span class="pill-counter pill-order-pending">{{ acc.orders_pending }} Pending</span>
+                            {% endif %}
+                            {% if acc.orders_processing > 0 %}
+                            <span class="pill-counter pill-order-processing">{{ acc.orders_processing }} Processing</span>
+                            {% endif %}
+                            {% if acc.orders_invalid > 0 %}
+                            <span class="pill-counter pill-order-error" onclick="openOrderModal('{{ acc.account_id }}', '{{ acc.email }}')" title="Click to view error details">
+                                {{ acc.orders_invalid }} Errors &bull;
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span style="font-family: ui-monospace, monospace; font-size: 0.85rem; color: var(--text-muted);">
+                        {% if acc.created_at %}
+                        {{ acc.created_at.strftime('%Y-%m-%d') }}
+                        {% else %}
+                        &mdash;
+                        {% endif %}
+                    </span>
+                </td>
+                <td>
+                    <div class="action-group">
+                        <!-- View Orders & Errors button -->
+                        <button type="button" class="btn-action-outline" onclick="openOrderModal('{{ acc.account_id }}', '{{ acc.email }}')" title="View Orders &amp; Errors">
+                            <span>Orders</span>
+                        </button>
+
+                        <!-- View Certificates button -->
+                        <a href="/certificates" class="btn-action-outline" title="Inspect Certificates">
+                            <span>Certificates &rarr;</span>
+                        </a>
+
+                        <!-- Activate / Deactivate Toggle -->
+                        <form method="post" action="/accounts/{{ acc.account_id }}/status" style="margin: 0;">
+                            {% if acc.account_status == 'valid' %}
+                            <input type="hidden" name="action" value="deactivate">
+                            <button type="submit" class="btn-action-outline btn-action-danger" onclick="return confirm('Are you sure you want to DEACTIVATE account {{ acc.email }}?')">
+                                Deactivate
+                            </button>
+                            {% else %}
+                            <input type="hidden" name="action" value="activate">
+                            <button type="submit" class="btn-action-outline btn-action-success" onclick="return confirm('Reactivate account {{ acc.email }} as valid?')">
+                                Activate
+                            </button>
+                            {% endif %}
+                        </form>
+                    </div>
+
+                    <!-- Hidden container storing orders JSON for modal -->
+                    <script id="orders-data-{{ acc.account_id }}" type="application/json">
+                        {{ acc.orders_info | tojson }}
+                    </script>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="#cbd5e1" style="margin-bottom: 1rem;">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-heading); margin-bottom: 0.5rem;">No accounts found</h3>
+        <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            {% if accountfilter or accountstatus != 'all' %}
+            No ACME accounts match the selected filter criteria.
+            {% else %}
+            No ACME accounts have been registered on this server yet.
+            {% endif %}
+        </p>
+        {% if accountfilter or accountstatus != 'all' %}
+        <a href="/accounts" class="btn-action-outline" style="display: inline-block;">Clear Filters</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Orders & Error Details Modal -->
+<div id="orderModal" class="modal-overlay" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">Account Orders &amp; Error Details</h3>
+                <span id="modalAccountSubtitle" style="font-size: 0.86rem; color: var(--text-muted);"></span>
+            </div>
+            <button type="button" class="btn-close-modal" onclick="closeOrderModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalOrdersBody">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+</div>
+
+<script>
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<span style="font-size:11px; color:#059669;">✓</span>';
+        setTimeout(() => { btn.innerHTML = original; }, 1500);
+    });
+}
+
+function openOrderModal(accountId, email) {
+    const subtitle = document.getElementById('modalAccountSubtitle');
+    subtitle.innerText = `${email} (ID: ${accountId})`;
+
+    const modalBody = document.getElementById('modalOrdersBody');
+    modalBody.innerHTML = '';
+
+    const scriptTag = document.getElementById(`orders-data-${accountId}`);
+    let orders = [];
+    if (scriptTag) {
+        try {
+            let raw = scriptTag.textContent.trim();
+            let parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') {
+                parsed = JSON.parse(parsed);
+            }
+            orders = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            console.error('Failed to parse orders json', e);
+        }
+    }
+
+    if (!orders || orders.length === 0) {
+        modalBody.innerHTML = '<div style="text-align:center; padding: 2.5rem; color: var(--text-muted); font-size: 0.95rem;">No orders recorded for this account.</div>';
+    } else {
+        // Sort orders by expires_at in descending order (latest expiry date first)
+        orders.sort((a, b) => {
+            const timeA = a.expires_at ? new Date(a.expires_at).getTime() : 0;
+            const timeB = b.expires_at ? new Date(b.expires_at).getTime() : 0;
+            if (timeB !== timeA) {
+                return timeB - timeA;
+            }
+            return (b.order_id || '').localeCompare(a.order_id || '');
+        });
+
+        orders.forEach(order => {
+            const card = document.createElement('div');
+            card.className = 'order-item-card';
+
+            const isFailed = (order.is_failed || order.status === 'invalid' || order.error_type || order.error_detail);
+            const statusColor = order.status === 'valid' ? '#16a34a' : (isFailed ? '#dc2626' : '#d97706');
+
+            if (isFailed) {
+                card.style.borderColor = '#fca5a5';
+                card.style.backgroundColor = '#fff8f8';
+            }
+
+            let expiryHtml = '';
+            if (order.expires_at) {
+                try {
+                    const expDate = new Date(order.expires_at);
+                    if (!isNaN(expDate.getTime())) {
+                        const pad = (n) => String(n).padStart(2, '0');
+                        const y = expDate.getFullYear();
+                        const m = pad(expDate.getMonth() + 1);
+                        const d = pad(expDate.getDate());
+                        const hh = pad(expDate.getHours());
+                        const mm = pad(expDate.getMinutes());
+                        const ss = pad(expDate.getSeconds());
+                        const formatted = `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+                        const isExpired = expDate.getTime() < Date.now();
+                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 0.72rem; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
+                        expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; font-family: ui-monospace, monospace; display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+                            <span>📅 <strong>Expires:</strong> ${formatted}</span>
+                            ${expBadge}
+                        </div>`;
+                    }
+                } catch (e) {
+                    expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">📅 <strong>Expires:</strong> ${escapeHtml(order.expires_at)}</div>`;
+                }
+            } else {
+                expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; font-style: italic;">📅 <strong>Expires:</strong> Not specified</div>`;
+            }
+
+            let domainsHtml = '';
+            if (order.domains && Array.isArray(order.domains) && order.domains.length > 0) {
+                domainsHtml = '<div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem;">' +
+                    order.domains.map(d => `<span style="font-size: 0.76rem; background:#ffffff; color:#334155; padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid #e2e8f0; font-family: ui-monospace, monospace;">🌐 ${escapeHtml(d)}</span>`).join('') +
+                    '</div>';
+            }
+
+            let errorHtml = '';
+            if (order.error_type || order.error_detail) {
+                errorHtml = `
+                    <div class="order-error-box">
+                        <div class="order-error-type">⚠️ ${escapeHtml(order.error_type || 'ACME Validation Error')}</div>
+                        <div style="line-height: 1.45; word-break: break-word;">${escapeHtml(order.error_detail || 'No detailed error message')}</div>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="order-item-header">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-family: ui-monospace, monospace; font-size: 0.88rem; font-weight: 700; color: var(--text-heading); word-break: break-all;">
+                            Order: ${escapeHtml(order.order_id)}
+                        </div>
+                        ${expiryHtml}
+                        ${domainsHtml}
+                    </div>
+                    <span class="badge" style="background-color: ${statusColor}18; color: ${statusColor}; border: 1px solid ${statusColor}40; font-weight: 700; text-transform: uppercase; align-self: flex-start;">
+                        ${escapeHtml(order.status || 'UNKNOWN')}
+                    </span>
+                </div>
+                ${errorHtml}
+            `;
+            modalBody.appendChild(card);
+        });
+    }
+
+    document.getElementById('orderModal').classList.add('open');
+}
+
+function closeOrderModal() {
+    document.getElementById('orderModal').classList.remove('open');
+}
+
+function closeModalOnBackdrop(e) {
+    if (e.target.id === 'orderModal') {
+        closeOrderModal();
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.toString().replace(/[&<>"']/g, m => map[m]);
+}
+</script>
+{% endblock %}

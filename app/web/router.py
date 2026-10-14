@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -391,6 +392,7 @@ async def ca_download():
 
 
 @api.get('/ca/download/crl', response_class=Response, responses={200: {'content': {'application/pkix-crl': {}}}})
+@api.get('/ca/download-crl', response_class=Response, responses={200: {'content': {'application/pkix-crl': {}}}})
 async def ca_download_crl():
     import ca
 
@@ -545,6 +547,120 @@ if settings.web.enable_public_log:
                 )
             ]
         return await template_engine.get_template('domain-log.html').render_async(**default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter)
+
+    @api.get('/accounts', response_class=HTMLResponse)
+    async def account_log(
+        request: Request,
+        accountfilter: str = '',
+        accountstatus: Literal['all', 'valid', 'deactivated', 'revoked'] = 'all',
+        status_msg: str = '',
+    ):
+        accounts = []
+        async with db.transaction(readonly=True) as sql:
+            async for record in sql(
+                """
+                with order_summary as (
+                    select
+                        ord.id as order_id,
+                        ord.account_id,
+                        ord.status as status,
+                        ord.expires_at,
+                        coalesce(
+                            (array_agg((chal.error).type::text) filter (where chal.error is not null))[1],
+                            (ord.error).type::text
+                        ) as error_type,
+                        coalesce(
+                            (array_agg((chal.error).detail) filter (where chal.error is not null))[1],
+                            (ord.error).detail
+                        ) as error_detail,
+                        array_agg(distinct authz.domain) filter (where authz.domain is not null) as domains
+                    from orders ord
+                    left join authorizations authz on authz.order_id = ord.id
+                    left join challenges chal on chal.authz_id = authz.id
+                    group by ord.id, ord.account_id, ord.status, ord.expires_at, ord.error
+                )
+                select
+                    acc.id as account_id,
+                    acc.mail as email,
+                    acc.status as account_status,
+                    acc.created_at,
+                    acc.jwk->>'kty' as key_type,
+                    case
+                        when acc.jwk->>'kty' = 'RSA' and acc.jwk ? 'n' then 'RSA ' || ((length(acc.jwk->>'n') * 3) / 4 * 8)::text
+                        when acc.jwk ? 'crv' then (acc.jwk->>'kty') || ' ' || (acc.jwk->>'crv')
+                        else coalesce(acc.jwk->>'kty', 'RSA')
+                    end as key_info,
+
+                    count(distinct cert.serial_number) as total_certs,
+                    count(distinct cert.serial_number) filter (where cert.not_valid_after > now() and cert.revoked_at is null) as certs_valid,
+                    count(distinct cert.serial_number) filter (where cert.revoked_at is not null) as certs_revoked,
+                    count(distinct cert.serial_number) filter (where cert.not_valid_after <= now() and cert.revoked_at is null) as certs_expired,
+
+                    count(distinct o.order_id) as total_orders,
+                    count(distinct o.order_id) filter (where o.status = 'pending') as orders_pending,
+                    count(distinct o.order_id) filter (where o.status in ('ready', 'processing')) as orders_processing,
+                    count(distinct o.order_id) filter (where o.status = 'valid') as orders_valid,
+                    count(distinct o.order_id) filter (where o.status = 'invalid') as orders_invalid,
+
+                    coalesce(
+                        json_agg(
+                            json_build_object(
+                                'order_id', o.order_id,
+                                'status', o.status,
+                                'error_type', o.error_type,
+                                'error_detail', o.error_detail,
+                                'domains', coalesce(to_json(o.domains), '[]'::json),
+                                'expires_at', o.expires_at,
+                                'is_failed', (o.status = 'invalid' or o.error_type is not null)
+                            ) order by o.expires_at desc nulls last
+                        ) filter (where o.order_id is not null),
+                        '[]'::json
+                    ) as orders_info
+
+                from accounts acc
+                left join order_summary o on o.account_id = acc.id
+                left join certificates cert on cert.order_id = o.order_id
+                where ($1::text = '' or acc.mail ilike '%' || $1::text || '%' or acc.id = $1::text)
+                  and ($2 = 'all' or acc.status::text = $2)
+                group by acc.id, acc.mail, acc.status, acc.created_at, acc.jwk
+                order by acc.created_at desc
+                """,
+                accountfilter.replace('*', '%'),
+                accountstatus,
+            ):
+                item = dict(record)
+                orders_raw = item.get('orders_info')
+                if isinstance(orders_raw, str):
+                    try:
+                        item['orders_info'] = json.loads(orders_raw)
+                    except Exception:
+                        item['orders_info'] = []
+                accounts.append(item)
+
+        return await template_engine.get_template('account-log.html').render_async(
+            **default_params,
+            request=request,
+            accounts=accounts,
+            accountfilter=accountfilter,
+            accountstatus=accountstatus,
+            status_msg=status_msg,
+        )
+
+    @api.post('/accounts/{account_id}/status')
+    async def update_account_status(
+        request: Request,
+        account_id: str,
+        action: Literal['activate', 'deactivate'] = Form(...),
+    ):
+        new_status = 'valid' if action == 'activate' else 'deactivated'
+        async with db.transaction() as sql:
+            await sql.exec(
+                "update accounts set status = $2 where id = $1",
+                account_id,
+                new_status,
+            )
+        msg = 'account_activated' if action == 'activate' else 'account_deactivated'
+        return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)
 else:
 
     @api.get('/certificates')
@@ -557,4 +673,12 @@ else:
 
     @api.get('/domains')
     async def domain_log_disabled():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+
+    @api.get('/accounts')
+    async def account_log_disabled():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+
+    @api.post('/accounts/{account_id}/status')
+    async def update_account_status_disabled():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')

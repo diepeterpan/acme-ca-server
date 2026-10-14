@@ -251,8 +251,9 @@
             </a>
             <nav style="display: flex; align-items: center; gap: 1.5rem;">
                 <ul class="navbar-nav">
-                    <li><a href="/certificates" class="nav-link {% if request is defined and request.url.path.startswith('/certificates') or '/certificates' in request.url.path|default('') %}active{% endif %}">Certificates</a></li>
+                    <li><a href="/certificates" class="nav-link {% if request is defined and (request.url.path.startswith('/certificates') or '/certificates' in request.url.path|default('')) %}active{% endif %}">Certificates</a></li>
                     <li><a href="/domains" class="nav-link {% if request is defined and request.url.path.startswith('/domains') %}active{% endif %}">Domains</a></li>
+                    <li><a href="/accounts" class="nav-link {% if request is defined and request.url.path.startswith('/accounts') %}active{% endif %}">Accounts</a></li>
                     <li><a href="/ca" class="nav-link {% if request is defined and (request.url.path == '/ca' or request.url.path.startswith('/ca/')) and not request.url.path.startswith('/ca/setup') %}active{% endif %}">CA Certificate</a></li>
                     <li>
                         <a href="/endpoints" class="nav-link" target="_blank" rel="noopener noreferrer">

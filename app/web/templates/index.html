@@ -402,7 +402,7 @@
         </div>
 
         <!-- Registered Accounts KPI -->
-        <div class="kpi-card">
+        <a href="/accounts" class="kpi-card" style="text-decoration: none; color: inherit; cursor: pointer;">
             <div class="kpi-top">
                 <span class="kpi-label">Registered Accounts</span>
                 <div class="kpi-icon-wrap">
@@ -410,10 +410,11 @@
                 </div>
             </div>
             <div class="kpi-value">{{stats.accounts_count}}</div>
-            <div class="kpi-sub">
+            <div class="kpi-sub" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>ACME accounts registered</span>
+                <span style="font-weight: 600; color: var(--primary); font-size: 0.8rem;">View &rarr;</span>
             </div>
-        </div>
+        </a>
 
         <!-- Root CA Health KPI -->
         <div class="kpi-card">

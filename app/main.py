@@ -87,13 +87,14 @@ async def acme_exception_handler(request: Request, exc: Exception):
             return JSONResponse({'detail': str(exc)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+if settings.web.enabled:
+    app.include_router(web.router)
+
 app.include_router(acme.router)
 app.include_router(acme.directory_router.api)  # serve acme directory under /acme/directory and /directory
 app.include_router(ca.router)
 
 if settings.web.enabled:
-    app.include_router(web.router)
-
     www_dir = Path(__file__).parent / 'web' / 'www'
     if not www_dir.exists() and Path('/app/web/www').exists():
         www_dir = Path('/app/web/www')
