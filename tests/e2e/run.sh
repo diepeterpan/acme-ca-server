@@ -32,7 +32,6 @@ function start_server() {
         -v "$PWD/ca.key:/import/ca.key:ro" -v "$PWD/ca.pem:/import/ca.pem:ro" \
         -e DB_DSN="postgresql://postgres:secret@test_db/postgres" \
         -e MAIL_ENABLED=true -e MAIL_HOST=test_mail -e MAIL_ENCRYPTION=plain -e MAIL_SENDER=acme@example.org \
-        -e web_enable_public_log=true \
         -e EXTERNAL_URL="http://acme.example.org:8080" \
         -e CA_ENCRYPTION_KEY="DaxNj1bTiCsk6aQiY43hz2jDqBZAU5kta1uNBzp_yqo=" \
         ${EXTRA_ARGS} \

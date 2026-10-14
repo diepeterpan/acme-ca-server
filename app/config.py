@@ -11,7 +11,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class WebSettings(BaseSettings):
     enabled: bool = True
-    enable_public_log: bool = False
     app_title: str = 'ACME CA Server'
     app_description: str = 'Self-hosted ACME CA Server'
     admin_username: str | None = None

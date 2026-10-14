@@ -16,7 +16,6 @@ def testclient() -> Generator[TestClient, None, None]:
     os.environ['ca_encryption_key'] = 'M8L6RSYPiHHr6GogXmkQIs7gVia_K5fDDJiNK7zUt0k='
     os.environ['external_url'] = 'http://localhost:8000/'
     os.environ['acme_mail_required'] = 'False'
-    os.environ['WEB_ENABLE_PUBLIC_LOG'] = 'True'
     os.environ['web_admin_username'] = 'admin'
     os.environ['web_admin_password'] = 'adminpassword123'
 

@@ -137,7 +137,6 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | MAIL_WARN_BEFORE_CERT_EXPIRES        | 20 days (`20d`)     | when to warn the user via mail that a certificate has not been renewed in time (can be disabled by providing `false` as value)  |
 | MAIL_NOTIFY_WHEN_CERT_EXPIRED        | `True`       | whether to inform the user that a certificate finally expired which has not been renewed in time  |
 | WEB_ENABLED        | `True` | whether to also provide UI endpoints or just the ACME functionality |
-| WEB_ENABLE_PUBLIC_LOG        | `False` | whether to show a transparency log of all certificates generated via ACME  |
 | WEB_APP_TITLE        | `ACME CA Server` | title shown in web and mails  |
 | WEB_APP_DESCRIPTION        | `Self-hosted ACME CA Server` | description shown in web and mails  |
 | WEB_ADMIN_USERNAME        | `None` | optional username to pre-provision an initial web administrator account on startup (e.g. `admin`). If unset, credentials can be initialized via `/setup`. |

@@ -409,276 +409,258 @@ async def ca_download_crl():
     )
 
 
-if settings.web.enable_public_log:
-
-    @api.get('/certificates', response_class=HTMLResponse)
-    async def certificate_log(
-        request: Request,
-        domainfilter: str = '',
-        certstatus: Literal['all', 'valid', 'expiring', 'revoked', 'expired', 'invalid'] = 'all',
-        status_msg: str = '',
-    ):
-        async with db.transaction(readonly=True) as sql:
-            certs = [
-                record
-                async for record in sql(
-                    """
-                    with data as (
-                        select
-                            serial_number, not_valid_before, not_valid_after, revoked_at,
-                            (not_valid_after > now() and revoked_at is null) as is_valid,
-                            (not_valid_after <= now() and revoked_at is null) as is_expired,
-                            (revoked_at is not null) as is_revoked,
-                            ((not_valid_after > now() and revoked_at is null) and (not_valid_after - now() <= interval '20 days')) as is_expiring,
-                            (not_valid_after - not_valid_before) as lifetime,
-                            (now() - not_valid_before) as age,
-                            (not_valid_after - now()) as remaining,
-                            array_agg(domain order by domain) as domains
-                        from certificates cert
-                        join authorizations authz on authz.order_id = cert.order_id
-                        where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
-                        group by serial_number
-                    )
-                    select * from data
-                    where (
-                        $2 = 'all' or
-                        ($2 = 'valid' and is_valid and not is_expiring) or
-                        ($2 = 'expiring' and is_expiring) or
-                        ($2 = 'revoked' and is_revoked) or
-                        ($2 = 'expired' and is_expired) or
-                        ($2 = 'invalid' and not is_valid)
-                    )
-                    order by not_valid_after desc
-                    limit 1000
-                    """,
-                    domainfilter.replace('*', '%'),
-                    certstatus,
-                )
-            ]
-        return await template_engine.get_template('cert-log.html').render_async(
-            **default_params,
-            request=request,
-            certs=certs,
-            certstatus=certstatus,
-            domainfilter=domainfilter,
-            status_msg=status_msg,
-        )
-
-    @api.get('/certificates/{serial_number}', response_class=Response, responses={200: {'content': {'application/pem-certificate-chain': {}}}})
-    async def download_certificate(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
-        async with db.transaction(readonly=True) as sql:
-            record = await sql.record(
-                """
-                select c.chain_pem, coalesce((array_agg(a.domain order by a.domain))[1], 'certificate') as primary_domain
-                from certificates c
-                left join authorizations a on a.order_id = c.order_id
-                where c.serial_number = $1
-                group by c.serial_number, c.chain_pem
-                """,
-                serial_number,
-            )
-        if not record or not record['chain_pem']:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
-        filename = f"{record['primary_domain']}_{serial_number[:8]}.crt"
-        return Response(
-            content=record['chain_pem'],
-            media_type='application/pem-certificate-chain',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'},
-        )
-
-    @api.post('/certificates/{serial_number}/revoke')
-    async def revoke_certificate(request: Request, serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
-        async with db.transaction(readonly=True) as sql:
-            cert_record = await sql.record(
-                """select serial_number, revoked_at from certificates where serial_number = $1""",
-                serial_number,
-            )
-        if not cert_record:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
-        if cert_record['revoked_at'] is not None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='certificate is already revoked')
-
-        async with db.transaction(readonly=True) as sql:
-            revocation_list = [(sn, rev_at) async for sn, rev_at in sql("""select serial_number, revoked_at from certificates where revoked_at is not null""")]
-            revoked_at = await sql.value("""select now()""")
-
-        if settings.ca.enabled:
-            revocations = set(revocation_list)
-            revocations.add((serial_number, revoked_at))
-            await ca_service.revoke_cert(serial_number=serial_number, revocations=revocations)
-
-        async with db.transaction() as sql:
-            await sql.exec(
-                """update certificates set revoked_at = $2 where serial_number = $1 and revoked_at is null""",
-                serial_number,
-                revoked_at,
-            )
-
-        if 'application/json' in request.headers.get('accept', ''):
-            return JSONResponse({'status': 'revoked', 'serial_number': serial_number})
-
-        return RedirectResponse(url='/certificates?status_msg=revoked_success', status_code=status.HTTP_303_SEE_OTHER)
-
-    @api.get('/domains', response_class=HTMLResponse)
-    async def domain_log(request: Request, domainfilter: str = '', domainstatus: Literal['all', 'valid', 'invalid'] = 'all'):
-        async with db.transaction(readonly=True) as sql:
-            domains = [
-                record
-                async for record in sql(
-                    """
-                    with data as (
-                        select
-                            authz.domain as domain_name,
-                            min(cert.not_valid_before) as first_requested_at,
-                            max(cert.not_valid_after) as expires_at,
-                            (max(cert.not_valid_after) FILTER (WHERE revoked_at is null)) > now() AS is_valid
-                        from orders ord
-                        join authorizations authz on authz.order_id = ord.id
-                        join certificates cert on cert.order_id = ord.id
-                        where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
-                        group by authz.domain
-                    )
-                    select * from data
-                    where ($2 = 'all' or ($2 = 'valid' and is_valid) or ($2 = 'invalid' and not is_valid))
-                    order by domain_name
-                    """,
-                    domainfilter.replace('*', '%'),
-                    domainstatus,
-                )
-            ]
-        return await template_engine.get_template('domain-log.html').render_async(**default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter)
-
-    @api.get('/accounts', response_class=HTMLResponse)
-    async def account_log(
-        request: Request,
-        accountfilter: str = '',
-        accountstatus: Literal['all', 'valid', 'deactivated', 'revoked'] = 'all',
-        status_msg: str = '',
-    ):
-        accounts = []
-        async with db.transaction(readonly=True) as sql:
+@api.get('/certificates', response_class=HTMLResponse)
+async def certificate_log(
+    request: Request,
+    domainfilter: str = '',
+    certstatus: Literal['all', 'valid', 'expiring', 'revoked', 'expired', 'invalid'] = 'all',
+    status_msg: str = '',
+):
+    async with db.transaction(readonly=True) as sql:
+        certs = [
+            record
             async for record in sql(
                 """
-                with order_summary as (
+                with data as (
                     select
-                        ord.id as order_id,
-                        ord.account_id,
-                        ord.status as status,
-                        ord.expires_at,
-                        coalesce(
-                            (array_agg((chal.error).type::text) filter (where chal.error is not null))[1],
-                            (ord.error).type::text
-                        ) as error_type,
-                        coalesce(
-                            (array_agg((chal.error).detail) filter (where chal.error is not null))[1],
-                            (ord.error).detail
-                        ) as error_detail,
-                        array_agg(distinct authz.domain) filter (where authz.domain is not null) as domains
-                    from orders ord
-                    left join authorizations authz on authz.order_id = ord.id
-                    left join challenges chal on chal.authz_id = authz.id
-                    group by ord.id, ord.account_id, ord.status, ord.expires_at, ord.error
+                        serial_number, not_valid_before, not_valid_after, revoked_at,
+                        (not_valid_after > now() and revoked_at is null) as is_valid,
+                        (not_valid_after <= now() and revoked_at is null) as is_expired,
+                        (revoked_at is not null) as is_revoked,
+                        ((not_valid_after > now() and revoked_at is null) and (not_valid_after - now() <= interval '20 days')) as is_expiring,
+                        (not_valid_after - not_valid_before) as lifetime,
+                        (now() - not_valid_before) as age,
+                        (not_valid_after - now()) as remaining,
+                        array_agg(domain order by domain) as domains
+                    from certificates cert
+                    join authorizations authz on authz.order_id = cert.order_id
+                    where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
+                    group by serial_number
                 )
-                select
-                    acc.id as account_id,
-                    acc.mail as email,
-                    acc.status as account_status,
-                    acc.created_at,
-                    acc.jwk->>'kty' as key_type,
-                    case
-                        when acc.jwk->>'kty' = 'RSA' and acc.jwk ? 'n' then 'RSA ' || ((length(acc.jwk->>'n') * 3) / 4 * 8)::text
-                        when acc.jwk ? 'crv' then (acc.jwk->>'kty') || ' ' || (acc.jwk->>'crv')
-                        else coalesce(acc.jwk->>'kty', 'RSA')
-                    end as key_info,
-
-                    count(distinct cert.serial_number) as total_certs,
-                    count(distinct cert.serial_number) filter (where cert.not_valid_after > now() and cert.revoked_at is null) as certs_valid,
-                    count(distinct cert.serial_number) filter (where cert.revoked_at is not null) as certs_revoked,
-                    count(distinct cert.serial_number) filter (where cert.not_valid_after <= now() and cert.revoked_at is null) as certs_expired,
-
-                    count(distinct o.order_id) as total_orders,
-                    count(distinct o.order_id) filter (where o.status = 'pending') as orders_pending,
-                    count(distinct o.order_id) filter (where o.status in ('ready', 'processing')) as orders_processing,
-                    count(distinct o.order_id) filter (where o.status = 'valid') as orders_valid,
-                    count(distinct o.order_id) filter (where o.status = 'invalid') as orders_invalid,
-
-                    coalesce(
-                        json_agg(
-                            json_build_object(
-                                'order_id', o.order_id,
-                                'status', o.status,
-                                'error_type', o.error_type,
-                                'error_detail', o.error_detail,
-                                'domains', coalesce(to_json(o.domains), '[]'::json),
-                                'expires_at', o.expires_at,
-                                'is_failed', (o.status = 'invalid' or o.error_type is not null)
-                            ) order by o.expires_at desc nulls last
-                        ) filter (where o.order_id is not null),
-                        '[]'::json
-                    ) as orders_info
-
-                from accounts acc
-                left join order_summary o on o.account_id = acc.id
-                left join certificates cert on cert.order_id = o.order_id
-                where ($1::text = '' or acc.mail ilike '%' || $1::text || '%' or acc.id = $1::text)
-                  and ($2 = 'all' or acc.status::text = $2)
-                group by acc.id, acc.mail, acc.status, acc.created_at, acc.jwk
-                order by acc.created_at desc
+                select * from data
+                where (
+                    $2 = 'all' or
+                    ($2 = 'valid' and is_valid and not is_expiring) or
+                    ($2 = 'expiring' and is_expiring) or
+                    ($2 = 'revoked' and is_revoked) or
+                    ($2 = 'expired' and is_expired) or
+                    ($2 = 'invalid' and not is_valid)
+                )
+                order by not_valid_after desc
+                limit 1000
                 """,
-                accountfilter.replace('*', '%'),
-                accountstatus,
-            ):
-                item = dict(record)
-                orders_raw = item.get('orders_info')
-                if isinstance(orders_raw, str):
-                    try:
-                        item['orders_info'] = json.loads(orders_raw)
-                    except Exception:
-                        item['orders_info'] = []
-                accounts.append(item)
+                domainfilter.replace('*', '%'),
+                certstatus,
+            )
+        ]
+    return await template_engine.get_template('cert-log.html').render_async(
+        **default_params,
+        request=request,
+        certs=certs,
+        certstatus=certstatus,
+        domainfilter=domainfilter,
+        status_msg=status_msg,
+    )
 
-        return await template_engine.get_template('account-log.html').render_async(
-            **default_params,
-            request=request,
-            accounts=accounts,
-            accountfilter=accountfilter,
-            accountstatus=accountstatus,
-            status_msg=status_msg,
+
+@api.get('/certificates/{serial_number}', response_class=Response, responses={200: {'content': {'application/pem-certificate-chain': {}}}})
+async def download_certificate(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            """
+            select c.chain_pem, coalesce((array_agg(a.domain order by a.domain))[1], 'certificate') as primary_domain
+            from certificates c
+            left join authorizations a on a.order_id = c.order_id
+            where c.serial_number = $1
+            group by c.serial_number, c.chain_pem
+            """,
+            serial_number,
+        )
+    if not record or not record['chain_pem']:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
+    filename = f"{record['primary_domain']}_{serial_number[:8]}.crt"
+    return Response(
+        content=record['chain_pem'],
+        media_type='application/pem-certificate-chain',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@api.post('/certificates/{serial_number}/revoke')
+async def revoke_certificate(request: Request, serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    async with db.transaction(readonly=True) as sql:
+        cert_record = await sql.record(
+            """select serial_number, revoked_at from certificates where serial_number = $1""",
+            serial_number,
+        )
+    if not cert_record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
+    if cert_record['revoked_at'] is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='certificate is already revoked')
+
+    async with db.transaction(readonly=True) as sql:
+        revocation_list = [(sn, rev_at) async for sn, rev_at in sql("""select serial_number, revoked_at from certificates where revoked_at is not null""")]
+        revoked_at = await sql.value("""select now()""")
+
+    if settings.ca.enabled:
+        revocations = set(revocation_list)
+        revocations.add((serial_number, revoked_at))
+        await ca_service.revoke_cert(serial_number=serial_number, revocations=revocations)
+
+    async with db.transaction() as sql:
+        await sql.exec(
+            """update certificates set revoked_at = $2 where serial_number = $1 and revoked_at is null""",
+            serial_number,
+            revoked_at,
         )
 
-    @api.post('/accounts/{account_id}/status')
-    async def update_account_status(
-        request: Request,
-        account_id: str,
-        action: Literal['activate', 'deactivate'] = Form(...),
-    ):
-        new_status = 'valid' if action == 'activate' else 'deactivated'
-        async with db.transaction() as sql:
-            await sql.exec(
-                "update accounts set status = $2 where id = $1",
-                account_id,
-                new_status,
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'revoked', 'serial_number': serial_number})
+
+    return RedirectResponse(url='/certificates?status_msg=revoked_success', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.get('/domains', response_class=HTMLResponse)
+async def domain_log(request: Request, domainfilter: str = '', domainstatus: Literal['all', 'valid', 'invalid'] = 'all'):
+    async with db.transaction(readonly=True) as sql:
+        domains = [
+            record
+            async for record in sql(
+                """
+                with data as (
+                    select
+                        authz.domain as domain_name,
+                        min(cert.not_valid_before) as first_requested_at,
+                        max(cert.not_valid_after) as expires_at,
+                        (max(cert.not_valid_after) FILTER (WHERE revoked_at is null)) > now() AS is_valid
+                    from orders ord
+                    join authorizations authz on authz.order_id = ord.id
+                    join certificates cert on cert.order_id = ord.id
+                    where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
+                    group by authz.domain
+                )
+                select * from data
+                where ($2 = 'all' or ($2 = 'valid' and is_valid) or ($2 = 'invalid' and not is_valid))
+                order by domain_name
+                """,
+                domainfilter.replace('*', '%'),
+                domainstatus,
             )
-        msg = 'account_activated' if action == 'activate' else 'account_deactivated'
-        return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)
-else:
+        ]
+    return await template_engine.get_template('domain-log.html').render_async(**default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter)
 
-    @api.get('/certificates')
-    async def certificate_log_disabled():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
 
-    @api.post('/certificates/{serial_number}/revoke')
-    async def revoke_certificate_disabled():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+@api.get('/accounts', response_class=HTMLResponse)
+async def account_log(
+    request: Request,
+    accountfilter: str = '',
+    accountstatus: Literal['all', 'valid', 'deactivated', 'revoked'] = 'all',
+    status_msg: str = '',
+):
+    accounts = []
+    async with db.transaction(readonly=True) as sql:
+        async for record in sql(
+            """
+            with order_summary as (
+                select
+                    ord.id as order_id,
+                    ord.account_id,
+                    ord.status as status,
+                    ord.expires_at,
+                    coalesce(
+                        (array_agg((chal.error).type::text) filter (where chal.error is not null))[1],
+                        (ord.error).type::text
+                    ) as error_type,
+                    coalesce(
+                        (array_agg((chal.error).detail) filter (where chal.error is not null))[1],
+                        (ord.error).detail
+                    ) as error_detail,
+                    array_agg(distinct authz.domain) filter (where authz.domain is not null) as domains
+                from orders ord
+                left join authorizations authz on authz.order_id = ord.id
+                left join challenges chal on chal.authz_id = authz.id
+                group by ord.id, ord.account_id, ord.status, ord.expires_at, ord.error
+            )
+            select
+                acc.id as account_id,
+                acc.mail as email,
+                acc.status as account_status,
+                acc.created_at,
+                acc.jwk->>'kty' as key_type,
+                case
+                    when acc.jwk->>'kty' = 'RSA' and acc.jwk ? 'n' then 'RSA ' || ((length(acc.jwk->>'n') * 3) / 4 * 8)::text
+                    when acc.jwk ? 'crv' then (acc.jwk->>'kty') || ' ' || (acc.jwk->>'crv')
+                    else coalesce(acc.jwk->>'kty', 'RSA')
+                end as key_info,
 
-    @api.get('/domains')
-    async def domain_log_disabled():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+                count(distinct cert.serial_number) as total_certs,
+                count(distinct cert.serial_number) filter (where cert.not_valid_after > now() and cert.revoked_at is null) as certs_valid,
+                count(distinct cert.serial_number) filter (where cert.revoked_at is not null) as certs_revoked,
+                count(distinct cert.serial_number) filter (where cert.not_valid_after <= now() and cert.revoked_at is null) as certs_expired,
 
-    @api.get('/accounts')
-    async def account_log_disabled():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+                count(distinct o.order_id) as total_orders,
+                count(distinct o.order_id) filter (where o.status = 'pending') as orders_pending,
+                count(distinct o.order_id) filter (where o.status in ('ready', 'processing')) as orders_processing,
+                count(distinct o.order_id) filter (where o.status = 'valid') as orders_valid,
+                count(distinct o.order_id) filter (where o.status = 'invalid') as orders_invalid,
 
-    @api.post('/accounts/{account_id}/status')
-    async def update_account_status_disabled():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='This page is disabled')
+                coalesce(
+                    json_agg(
+                        json_build_object(
+                            'order_id', o.order_id,
+                            'status', o.status,
+                            'error_type', o.error_type,
+                            'error_detail', o.error_detail,
+                            'domains', coalesce(to_json(o.domains), '[]'::json),
+                            'expires_at', o.expires_at,
+                            'is_failed', (o.status = 'invalid' or o.error_type is not null)
+                        ) order by o.expires_at desc nulls last
+                    ) filter (where o.order_id is not null),
+                    '[]'::json
+                ) as orders_info
+
+            from accounts acc
+            left join order_summary o on o.account_id = acc.id
+            left join certificates cert on cert.order_id = o.order_id
+            where ($1::text = '' or acc.mail ilike '%' || $1::text || '%' or acc.id = $1::text)
+              and ($2 = 'all' or acc.status::text = $2)
+            group by acc.id, acc.mail, acc.status, acc.created_at, acc.jwk
+            order by acc.created_at desc
+            """,
+            accountfilter.replace('*', '%'),
+            accountstatus,
+        ):
+            item = dict(record)
+            orders_raw = item.get('orders_info')
+            if isinstance(orders_raw, str):
+                try:
+                    item['orders_info'] = json.loads(orders_raw)
+                except Exception:
+                    item['orders_info'] = []
+            accounts.append(item)
+
+    return await template_engine.get_template('account-log.html').render_async(
+        **default_params,
+        request=request,
+        accounts=accounts,
+        accountfilter=accountfilter,
+        accountstatus=accountstatus,
+        status_msg=status_msg,
+    )
+
+
+@api.post('/accounts/{account_id}/status')
+async def update_account_status(
+    request: Request,
+    account_id: str,
+    action: Literal['activate', 'deactivate'] = Form(...),
+):
+    new_status = 'valid' if action == 'activate' else 'deactivated'
+    async with db.transaction() as sql:
+        await sql.exec(
+            "update accounts set status = $2 where id = $1",
+            account_id,
+            new_status,
+        )
+    msg = 'account_activated' if action == 'activate' else 'account_deactivated'
+    return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)

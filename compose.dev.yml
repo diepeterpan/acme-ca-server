@@ -20,7 +20,6 @@ services:
       EXTERNAL_URL: http://localhost:8080
       DB_DSN: postgresql://postgres:secret@db/postgres
       CA_ENCRYPTION_KEY: Ka7prX3ZqESxa79C3kqWOI1cV979B-x7A7NT5-nU2p0=
-      WEB_ENABLE_PUBLIC_LOG: 'True'
       ACME_MAIL_REQUIRED: 'False'
     depends_on:
       db:
