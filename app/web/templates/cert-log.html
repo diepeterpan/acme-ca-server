@@ -543,21 +543,30 @@
 {% endif %}
 
 <div class="table-container">
-    <table class="cert-table">
+    <table class="cert-table" data-table-id="certificates">
         <thead>
             <tr>
-                <th>Status</th>
-                <th>Primary FQDN</th>
-                <th>Serial Number</th>
-                <th class="cell-issue-date">Issue Date</th>
-                <th class="cell-expiry-date">Expiry Date</th>
-                <th>Actions</th>
+                <th data-col-key="status">Status</th>
+                <th data-col-key="fqdn">Primary FQDN</th>
+                <th data-col-key="serial">Serial Number</th>
+                <th class="cell-issue-date" data-col-key="issue_date">Issue Date</th>
+                <th class="cell-expiry-date" data-col-key="expiry_date">Expiry Date</th>
+                <th data-no-sort data-col-key="actions">Actions</th>
             </tr>
         </thead>
         <tbody id="cert-table-body">
             {% for cert in certs %}
             <tr data-domain="{{cert.domains[0]}}" data-serial="{{cert.serial_number}}">
-                <td>
+                {% if cert.is_revoked %}
+                {% set status_rank = 3 %}
+                {% elif cert.is_expiring %}
+                {% set status_rank = 2 %}
+                {% elif cert.is_valid %}
+                {% set status_rank = 1 %}
+                {% else %}
+                {% set status_rank = 4 %}
+                {% endif %}
+                <td data-sort-val="{{ status_rank }}">
                     {% if cert.is_revoked %}
                     <span class="badge badge-revoked">Revoked</span>
                     {% elif cert.is_expiring %}
@@ -568,13 +577,13 @@
                     <span class="badge badge-expired">Expired</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-sort-val="{{ cert.domains[0]|lower }}">
                     <a href="https://{{cert.domains[0]}}" target="_blank" rel="noopener noreferrer" class="domain-link">{{cert.domains[0]}}</a>
                     {% if cert.domains|length > 1 %}
                     <span class="badge-san" title="SANs: {{ cert.domains|join(', ') }}">+{{ cert.domains|length - 1 }} SANs</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-sort-val="{{ cert.serial_number }}">
                     <span class="serial-code">
                         <span>{{cert.serial_number[:12]}}...{{cert.serial_number[-4:]}}</span>
                         <button type="button" class="copy-btn copy-serial" data-serial="{{cert.serial_number}}" title="Copy Full Serial">
@@ -582,10 +591,10 @@
                         </button>
                     </span>
                 </td>
-                <td class="cell-issue-date">
+                <td class="cell-issue-date" data-sort-val="{{ cert.not_valid_before.isoformat() }}">
                     <span class="date-text">{{cert.not_valid_before.strftime('%Y-%m-%d')}}</span>
                 </td>
-                <td class="cell-expiry-date">
+                <td class="cell-expiry-date" data-sort-val="{{ cert.not_valid_after.isoformat() }}">
                     <div class="expiry-date-cell">
                         <span class="date-text">{{cert.not_valid_after.strftime('%Y-%m-%d')}}</span>
                         {% if cert.is_revoked and cert.revoked_at %}

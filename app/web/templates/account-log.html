@@ -431,13 +431,45 @@
         background-color: #ffffff;
         border-radius: var(--radius-lg);
         width: 100%;
-        max-width: 680px;
+        max-width: 980px;
         max-height: 85vh;
         display: flex;
         flex-direction: column;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
         border: 1px solid var(--border-card);
         overflow: hidden;
+    }
+
+    table.order-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+
+    table.order-table th {
+        background-color: #faf5ff;
+        color: var(--text-heading);
+        font-weight: 600;
+        padding: 0.55rem 0.65rem;
+        border-bottom: 1px solid var(--border-card);
+        white-space: nowrap;
+        font-size: 0.82rem;
+        text-align: left;
+    }
+
+    table.order-table td {
+        padding: 0.55rem 0.65rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: top;
+        text-align: left;
+    }
+
+    table.order-table tbody tr:hover {
+        background-color: #fbf9ff;
+    }
+
+    table.order-table tbody tr:last-child td {
+        border-bottom: none;
     }
 
     .modal-header {
@@ -555,21 +587,21 @@
 <!-- Table View -->
 <div class="table-container">
     {% if accounts|length > 0 %}
-    <table class="account-table">
+    <table class="account-table" data-table-id="accounts">
         <thead>
             <tr>
-                <th>Account &amp; Key</th>
-                <th style="width: 85px;">Status</th>
-                <th>Certificates</th>
-                <th>Order Requests</th>
-                <th class="cell-registered">Registered</th>
-                <th style="text-align: right;">Actions</th>
+                <th data-col-key="account">Account &amp; Key</th>
+                <th data-col-key="status" style="width: 95px;">Status</th>
+                <th data-col-key="certificates">Certificates</th>
+                <th data-col-key="orders">Order Requests</th>
+                <th class="cell-registered" data-col-key="registered">Registered</th>
+                <th data-no-sort data-col-key="actions" style="text-align: right;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for acc in accounts %}
             <tr>
-                <td>
+                <td data-sort-val="{{ acc.email|lower }} {{ acc.account_id }}">
                     <div class="account-meta">
                         <div class="account-email">
                             <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
@@ -586,7 +618,14 @@
                         </div>
                     </div>
                 </td>
-                <td>
+                {% if acc.account_status == 'valid' %}
+                {% set acc_status_val = 1 %}
+                {% elif acc.account_status == 'deactivated' %}
+                {% set acc_status_val = 2 %}
+                {% else %}
+                {% set acc_status_val = 3 %}
+                {% endif %}
+                <td data-sort-val="{{ acc_status_val }}">
                     {% if acc.account_status == 'valid' %}
                     <span class="badge badge-valid">Valid</span>
                     {% elif acc.account_status == 'deactivated' %}
@@ -595,7 +634,7 @@
                     <span class="badge badge-revoked">{{ acc.account_status|capitalize }}</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-sort-val="{{ acc.total_certs }}">
                     <div class="breakdown-group">
                         <span class="pill-counter pill-cert-valid">{{ acc.certs_valid }} Valid</span>
                         {% if acc.certs_revoked > 0 %}
@@ -606,7 +645,7 @@
                         {% endif %}
                     </div>
                 </td>
-                <td>
+                <td data-sort-val="{{ acc.total_orders }}">
                     <div class="breakdown-group">
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                             <span class="pill-counter pill-order-valid">{{ acc.orders_valid }} Valid</span>
@@ -624,7 +663,7 @@
                         </div>
                     </div>
                 </td>
-                <td class="cell-registered">
+                <td class="cell-registered" data-sort-val="{{ acc.created_at.isoformat() if acc.created_at else '' }}">
                     <span style="font-family: ui-monospace, monospace; font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">
                         {% if acc.created_at %}
                         {{ acc.created_at.strftime('%Y-%m-%d') }}
@@ -740,29 +779,75 @@ function openOrderModal(accountId, email) {
     if (!orders || orders.length === 0) {
         modalBody.innerHTML = '<div style="text-align:center; padding: 2.5rem; color: var(--text-muted); font-size: 0.95rem;">No orders recorded for this account.</div>';
     } else {
-        // Sort orders by expires_at in descending order (latest expiry date first)
-        orders.sort((a, b) => {
-            const timeA = a.expires_at ? new Date(a.expires_at).getTime() : 0;
-            const timeB = b.expires_at ? new Date(b.expires_at).getTime() : 0;
-            if (timeB !== timeA) {
-                return timeB - timeA;
-            }
-            return (b.order_id || '').localeCompare(a.order_id || '');
-        });
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'table-container';
+        tableContainer.style.overflowX = 'auto';
+        tableContainer.style.border = '1px solid var(--border-card)';
+        tableContainer.style.borderRadius = 'var(--radius-md)';
+
+        const table = document.createElement('table');
+        table.className = 'order-table';
+        table.dataset.tableId = 'account_orders';
+
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th data-col-key="status" style="width: 95px;">Status</th>
+                    <th data-col-key="order_id">Order ID</th>
+                    <th data-col-key="domains">Domains</th>
+                    <th data-col-key="expires">Expires</th>
+                    <th data-col-key="details">Error / Details</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+
+        const tbody = table.querySelector('tbody');
 
         orders.forEach(order => {
-            const card = document.createElement('div');
-            card.className = 'order-item-card';
+            const tr = document.createElement('tr');
 
             const isFailed = (order.is_failed || order.status === 'invalid' || order.error_type || order.error_detail);
             const statusColor = order.status === 'valid' ? '#16a34a' : (isFailed ? '#dc2626' : '#d97706');
 
-            if (isFailed) {
-                card.style.borderColor = '#fca5a5';
-                card.style.backgroundColor = '#fff8f8';
-            }
+            // 1. Status cell
+            const tdStatus = document.createElement('td');
+            tdStatus.dataset.sortVal = order.status || '';
+            tdStatus.innerHTML = `<span class="badge" style="background-color: ${statusColor}18; color: ${statusColor}; border: 1px solid ${statusColor}40; font-weight: 700; text-transform: uppercase;">${escapeHtml(order.status || 'UNKNOWN')}</span>`;
+            tr.appendChild(tdStatus);
 
-            let expiryHtml = '';
+            // 2. Order ID cell
+            const tdOrderId = document.createElement('td');
+            tdOrderId.dataset.sortVal = order.order_id || '';
+            tdOrderId.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <span style="font-family: ui-monospace, monospace; font-size: 0.82rem; font-weight: 600; color: var(--text-heading);">${escapeHtml(order.order_id || '')}</span>
+                    <button type="button" class="btn-copy-mini" onclick="copyText('${escapeHtml(order.order_id || '')}', this)" title="Copy Order ID">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            tr.appendChild(tdOrderId);
+
+            // 3. Domains cell
+            const tdDomains = document.createElement('td');
+            const domainsList = (order.domains && Array.isArray(order.domains)) ? order.domains : [];
+            tdDomains.dataset.sortVal = domainsList.join(' ').toLowerCase();
+            if (domainsList.length > 0) {
+                tdDomains.innerHTML = '<div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">' +
+                    domainsList.map(d => `<span style="font-size: 0.74rem; background:#ffffff; color:#334155; padding: 0.12rem 0.45rem; border-radius: 4px; border: 1px solid #e2e8f0; font-family: ui-monospace, monospace;">🌐 ${escapeHtml(d)}</span>`).join('') +
+                    '</div>';
+            } else {
+                tdDomains.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">&mdash;</span>';
+            }
+            tr.appendChild(tdDomains);
+
+            // 4. Expires cell
+            const tdExpires = document.createElement('td');
+            tdExpires.dataset.sortVal = order.expires_at || '';
+            let expiryHtml = '&mdash;';
             if (order.expires_at) {
                 try {
                     const expDate = new Date(order.expires_at);
@@ -773,56 +858,45 @@ function openOrderModal(accountId, email) {
                         const d = pad(expDate.getDate());
                         const hh = pad(expDate.getHours());
                         const mm = pad(expDate.getMinutes());
-                        const ss = pad(expDate.getSeconds());
-                        const formatted = `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+                        const formatted = `${y}-${m}-${d} ${hh}:${mm}`;
                         const isExpired = expDate.getTime() < Date.now();
-                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 0.72rem; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
-                        expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; font-family: ui-monospace, monospace; display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
-                            <span>📅 <strong>Expires:</strong> ${formatted}</span>
+                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 0.7rem; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
+                        expiryHtml = `<div style="font-size: 0.78rem; font-family: ui-monospace, monospace; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                            <span>${formatted}</span>
                             ${expBadge}
                         </div>`;
                     }
                 } catch (e) {
-                    expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">📅 <strong>Expires:</strong> ${escapeHtml(order.expires_at)}</div>`;
+                    expiryHtml = escapeHtml(order.expires_at);
                 }
-            } else {
-                expiryHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; font-style: italic;">📅 <strong>Expires:</strong> Not specified</div>`;
             }
+            tdExpires.innerHTML = expiryHtml;
+            tr.appendChild(tdExpires);
 
-            let domainsHtml = '';
-            if (order.domains && Array.isArray(order.domains) && order.domains.length > 0) {
-                domainsHtml = '<div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem;">' +
-                    order.domains.map(d => `<span style="font-size: 0.76rem; background:#ffffff; color:#334155; padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid #e2e8f0; font-family: ui-monospace, monospace;">🌐 ${escapeHtml(d)}</span>`).join('') +
-                    '</div>';
-            }
-
-            let errorHtml = '';
+            // 5. Error / Details cell
+            const tdDetails = document.createElement('td');
+            tdDetails.dataset.sortVal = ((order.error_type || '') + ' ' + (order.error_detail || '')).toLowerCase();
             if (order.error_type || order.error_detail) {
-                errorHtml = `
-                    <div class="order-error-box">
-                        <div class="order-error-type">⚠️ ${escapeHtml(order.error_type || 'ACME Validation Error')}</div>
-                        <div style="line-height: 1.45; word-break: break-word;">${escapeHtml(order.error_detail || 'No detailed error message')}</div>
+                tdDetails.innerHTML = `
+                    <div class="order-error-box" style="margin: 0; padding: 0.45rem 0.75rem; font-size: 0.8rem;">
+                        <div class="order-error-type" style="font-size: 0.78rem;">⚠️ ${escapeHtml(order.error_type || 'ACME Validation Error')}</div>
+                        <div style="line-height: 1.35; word-break: break-word;">${escapeHtml(order.error_detail || 'No detailed error message')}</div>
                     </div>
                 `;
+            } else {
+                tdDetails.innerHTML = '<span style="color: #16a34a; font-size: 0.82rem; font-weight: 500;">✓ Clean</span>';
             }
+            tr.appendChild(tdDetails);
 
-            card.innerHTML = `
-                <div class="order-item-header">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-family: ui-monospace, monospace; font-size: 0.88rem; font-weight: 700; color: var(--text-heading); word-break: break-all;">
-                            Order: ${escapeHtml(order.order_id)}
-                        </div>
-                        ${expiryHtml}
-                        ${domainsHtml}
-                    </div>
-                    <span class="badge" style="background-color: ${statusColor}18; color: ${statusColor}; border: 1px solid ${statusColor}40; font-weight: 700; text-transform: uppercase; align-self: flex-start;">
-                        ${escapeHtml(order.status || 'UNKNOWN')}
-                    </span>
-                </div>
-                ${errorHtml}
-            `;
-            modalBody.appendChild(card);
+            tbody.appendChild(tr);
         });
+
+        tableContainer.appendChild(table);
+        modalBody.appendChild(tableContainer);
+
+        if (window.initTableFeatures) {
+            window.initTableFeatures(table, 'account_orders');
+        }
     }
 
     document.getElementById('orderModal').classList.add('open');

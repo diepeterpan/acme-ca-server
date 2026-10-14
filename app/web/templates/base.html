@@ -235,6 +235,109 @@
             border-color: var(--status-expired-border);
             background-color: var(--status-expired-bg);
         }
+
+        /* Sortable & Resizable Table Enhancements */
+        th.sortable-th,
+        th.th-no-sort {
+            position: relative;
+            user-select: none;
+        }
+
+        th.sortable-th {
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        th.sortable-th:hover {
+            background-color: #f3e8ff !important;
+            color: var(--primary) !important;
+        }
+
+        .th-content-wrapper {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            width: calc(100% - 10px);
+            max-width: 100%;
+        }
+
+        .th-title {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sort-icon-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            color: #94a3b8;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+
+        th.sortable-th:hover .sort-icon-badge {
+            color: var(--primary);
+        }
+
+        .sort-icon-svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+
+        .sort-icon-svg.active-sort {
+            fill: var(--primary);
+            filter: drop-shadow(0 1px 2px rgba(124, 58, 237, 0.3));
+        }
+
+        /* Column Resizer Handle */
+        .col-resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 9px;
+            height: 100%;
+            cursor: col-resize;
+            user-select: none;
+            touch-action: none;
+            z-index: 10;
+        }
+
+        .col-resizer::after {
+            content: '';
+            position: absolute;
+            top: 15%;
+            bottom: 15%;
+            right: 2px;
+            width: 2px;
+            background-color: transparent;
+            border-radius: 1px;
+            transition: background-color 0.15s ease;
+        }
+
+        th:hover .col-resizer::after {
+            background-color: #cbd5e1;
+        }
+
+        .col-resizer:hover::after,
+        .col-resizer.active::after {
+            background-color: var(--primary) !important;
+            width: 3px;
+        }
+
+        body.table-col-resizing {
+            cursor: col-resize !important;
+            user-select: none !important;
+        }
+
+        body.table-col-resizing * {
+            cursor: col-resize !important;
+            user-select: none !important;
+        }
     </style>
     {% endblock %}
 </head>
@@ -294,6 +397,8 @@
     <main class="container">
         {% block content %}{% endblock %}
     </main>
+
+    <script src="/table-features.js"></script>
 </body>
 
 </html>

@@ -305,27 +305,27 @@
 <!-- Table View -->
 <div class="table-container">
     {% if domains|length > 0 %}
-    <table class="domain-table">
+    <table class="domain-table" data-table-id="domains">
         <thead>
             <tr>
-                <th style="width: 85px;">Status</th>
-                <th>Domain Name</th>
-                <th>First Requested</th>
-                <th>Certificate Valid Until</th>
-                <th style="text-align: right;">Action</th>
+                <th data-col-key="status" style="width: 95px;">Status</th>
+                <th data-col-key="domain">Domain Name</th>
+                <th data-col-key="first_requested">First Requested</th>
+                <th data-col-key="expires">Certificate Valid Until</th>
+                <th data-no-sort data-col-key="action" style="text-align: right;">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for domain in domains %}
             <tr>
-                <td>
+                <td data-sort-val="{{ 1 if domain.is_valid else 2 }}">
                     {% if domain.is_valid %}
                     <span class="badge badge-valid">Valid</span>
                     {% else %}
                     <span class="badge badge-invalid">Invalid</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-sort-val="{{ domain.domain_name|lower }}">
                     <div class="domain-cell">
                         <svg class="domain-globe" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                         <a href="https://{{domain.domain_name}}" target="_blank" rel="noopener noreferrer" class="domain-link">
@@ -333,7 +333,7 @@
                         </a>
                     </div>
                 </td>
-                <td>
+                <td data-sort-val="{{ domain.first_requested_at.isoformat() if domain.first_requested_at else '' }}">
                     <span class="date-text">
                         {% if domain.first_requested_at %}
                         {{ domain.first_requested_at.strftime('%Y-%m-%d') }}
@@ -342,7 +342,7 @@
                         {% endif %}
                     </span>
                 </td>
-                <td>
+                <td data-sort-val="{{ domain.expires_at.isoformat() if domain.expires_at else '' }}">
                     <span class="date-text">
                         {% if domain.expires_at %}
                         {{ domain.expires_at.strftime('%Y-%m-%d') }}

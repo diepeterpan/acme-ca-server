@@ -76,10 +76,12 @@ The active Certificate Authority screen with a **40% left / 60% right** proporti
 
 ### 06. Certificates Audit Log
 Comprehensive log of all certificates issued by the ACME server:
-- Filterable by status tabs: **All**, **Valid**, **Revoked**, **Expired**.
-- Real-time text search by domain, common name, or serial number.
+- **Interactive Sortable Columns**: Multi-state 3-way cycle (Ascending ▲ ➔ Descending ▼ ➔ Original order ↕) for **Status**, **Primary FQDN**, **Serial Number**, **Issue Date**, and **Expiry Date**.
+- **User-Resizable Columns**: Draggable border handles on all column headers (including **Actions**) with double-click reset and `localStorage` persistence.
+- Filterable by status tabs: **All**, **Valid**, **Expiring**, **Revoked**, **Expired**.
+- Real-time client-side text search by domain, common name, or serial number.
 - Direct download of individual leaf certificates and certificate chains.
-- Revocation management and validity timeline tracking.
+- Revocation management with confirmation dialog and CRL synchronization.
 
 ![Certificates Audit Log](screenshots/06_certificates_log.png)
 
@@ -87,6 +89,8 @@ Comprehensive log of all certificates issued by the ACME server:
 
 ### 07. Domains Registry
 Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
+- **Interactive Sortable Columns**: Sortable by **Status**, **Domain Name**, **First Requested**, and **Certificate Valid Until**.
+- **User-Resizable Columns**: Interactive drag handles to adjust column widths with persistence across visits.
 - Tracks first request timestamp and current certificate expiration date.
 - Status badges indicating domain validity.
 - Direct link (`View Certificates →`) to inspect all certificates associated with a specific domain.
@@ -97,10 +101,11 @@ Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 
 ### 08. Accounts Management
 Management center for all registered ACME client accounts:
+- **Interactive Sortable Columns**: Sortable by **Account & Key**, **Status**, **Certificates** count, **Order Requests** count, and **Registered** date.
+- **User-Resizable Columns**: Draggable column resize handles with automatic minimum-width protection and `localStorage` persistence.
 - Displays Account ID (`kid`), contact email, and public key type (RSA/ECDSA).
 - Certificate breakdown counters: **Valid**, **Revoked**, and **Expired**.
 - Order request breakdown counters: **Valid**, **Pending**, **Processing**, and **Errors**.
-- **Non-wrapping Registered column** ensuring clean tabular alignment.
 - Administrative actions to toggle account status between **Valid** and **Deactivated**.
 
 ![Accounts Management](screenshots/08_accounts_log.png)
@@ -109,9 +114,10 @@ Management center for all registered ACME client accounts:
 
 ### 09. Account Orders & Error Details Modal
 Triggered by clicking on the order error pill or the **Orders** button for any account:
-- **Descending Order Sort**: Orders are strictly ordered by `expires_at` descending, placing the most recent orders at the top.
-- **Clear Expiration Display**: Shows formatted timestamp (`📅 Expires: YYYY-MM-DD HH:MM:SS`) and flags expired orders with a distinct badge.
+- **Sortable & Resizable Data Table**: Rendered as a structured table with interactive 3-way sorting and draggable column width resizing.
+- **Status & Order ID**: Instant status badges and one-click copy button for each ACME Order ID.
 - **Domain Pills**: Lists all domain identifiers associated with each order request.
+- **Clear Expiration Display**: Shows formatted timestamp (`YYYY-MM-DD HH:MM`) with real-time expired status badges.
 - **Detailed Error Box**: Pinpoints validation failures (e.g., DNS NXDOMAIN, connection refused, unauthorized) directly from the underlying ACME challenges.
 
 ![Account Orders & Error Details Modal](screenshots/09_account_orders_modal.png)
