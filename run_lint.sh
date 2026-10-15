@@ -25,9 +25,42 @@ fi
 echo "--> Installing / verifying lint tools (ruff, pylint, flake8 + plugins, mypy)..."
 pip install -q ruff pylint flake8 flake8-bandit flake8-bugbear flake8-builtins flake8-comprehensions flake8-deprecated flake8-isort flake8-print flake8-quotes flake8-todo mypy
 
+# Ensure typos binary is available for spell checking
+if ! command -v typos &>/dev/null; then
+    TARGET_BIN_DIR=""
+    if [ -d "$REPO_DIR/.venv/bin" ]; then
+        TARGET_BIN_DIR="$REPO_DIR/.venv/bin"
+    elif [ -d "$REPO_DIR/venv/bin" ]; then
+        TARGET_BIN_DIR="$REPO_DIR/venv/bin"
+    fi
+
+    OS="$(uname -s)"
+    ARCH="$(uname -m)"
+    TARGET=""
+    if [ "$OS" = "Linux" ]; then
+        if [ "$ARCH" = "x86_64" ]; then
+            TARGET="x86_64-unknown-linux-musl"
+        elif [ "$ARCH" = "aarch64" ]; then
+            TARGET="aarch64-unknown-linux-musl"
+        fi
+    elif [ "$OS" = "Darwin" ]; then
+        if [ "$ARCH" = "x86_64" ]; then
+            TARGET="x86_64-apple-darwin"
+        elif [ "$ARCH" = "arm64" ]; then
+            TARGET="aarch64-apple-darwin"
+        fi
+    fi
+
+    if [ -n "$TARGET" ] && [ -n "$TARGET_BIN_DIR" ]; then
+        echo "--> Downloading typos spell checker binary ($TARGET)..."
+        curl -sL "https://github.com/crate-ci/typos/releases/latest/download/typos-$TARGET.tar.gz" | tar -xz -C "$TARGET_BIN_DIR" ./typos 2>/dev/null || true
+        [ -f "$TARGET_BIN_DIR/typos" ] && chmod +x "$TARGET_BIN_DIR/typos"
+    fi
+fi
+
 # 3. Ruff Check
 echo ""
-echo "--> [1/5] Running ruff check on 'app'..."
+echo "--> [1/6] Running ruff check on 'app'..."
 RUFF_TMP=$(mktemp)
 ruff check app > "$RUFF_TMP" 2>&1
 RUFF_EXIT=$?
@@ -72,7 +105,7 @@ rm -f "$RUFF_TMP"
 
 # 4. Ruff Format Check
 echo ""
-echo "--> [2/5] Running ruff format --check on 'app'..."
+echo "--> [2/6] Running ruff format --check on 'app'..."
 RUFF_FMT_TMP=$(mktemp)
 ruff format --check app > "$RUFF_FMT_TMP" 2>&1
 RUFF_FMT_EXIT=$?
@@ -104,7 +137,7 @@ rm -f "$RUFF_FMT_TMP"
 
 # 5. Mypy Type Check
 echo ""
-echo "--> [3/5] Running mypy on 'app'..."
+echo "--> [3/6] Running mypy on 'app'..."
 MYPY_TMP=$(mktemp)
 mypy app > "$MYPY_TMP" 2>&1
 MYPY_EXIT=$?
@@ -125,7 +158,7 @@ rm -f "$MYPY_TMP"
 
 # 6. Flake8 (Matching CI Workflow)
 echo ""
-echo "--> [4/5] Running flake8 on 'app'..."
+echo "--> [4/6] Running flake8 on 'app'..."
 FLAKE8_TMP=$(mktemp)
 python -m flake8 --max-line-length 179 --ignore=F722,B008,I001,I004,I005 app > "$FLAKE8_TMP" 2>&1
 FLAKE8_EXIT=$?
@@ -144,7 +177,7 @@ rm -f "$FLAKE8_TMP"
 
 # 7. Pylint (Matching CI Workflow)
 echo ""
-echo "--> [5/5] Running pylint on 'app'..."
+echo "--> [5/6] Running pylint on 'app'..."
 PYLINT_TMP=$(mktemp)
 pylint app > "$PYLINT_TMP" 2>&1
 PYLINT_EXIT=$?
@@ -158,18 +191,41 @@ else
 fi
 rm -f "$PYLINT_TMP"
 
+# 8. Typos Spell Check (Matching CI Workflow)
+echo ""
+echo "--> [6/6] Running typos spell check on '.'..."
+if command -v typos &>/dev/null; then
+    TYPOS_TMP=$(mktemp)
+    typos . > "$TYPOS_TMP" 2>&1
+    TYPOS_EXIT=$?
+    cat "$TYPOS_TMP"
+
+    if [ $TYPOS_EXIT -eq 0 ]; then
+        TYPOS_ERRORS=0
+    else
+        TYPOS_ERRORS=$(grep -cE "error: " "$TYPOS_TMP")
+        [ "$TYPOS_ERRORS" -eq 0 ] && TYPOS_ERRORS=$(grep -c . "$TYPOS_TMP")
+        [ "$TYPOS_ERRORS" -eq 0 ] && TYPOS_ERRORS=1
+    fi
+    rm -f "$TYPOS_TMP"
+else
+    echo "Warning: 'typos' binary not found. Skipping spell check."
+    TYPOS_ERRORS=0
+fi
+
 # Summary Report
-TOTAL_ISSUES=$((RUFF_ERRORS + RUFF_FMT_ERRORS + MYPY_ERRORS + FLAKE8_ERRORS + PYLINT_ERRORS))
+TOTAL_ISSUES=$((RUFF_ERRORS + RUFF_FMT_ERRORS + MYPY_ERRORS + FLAKE8_ERRORS + PYLINT_ERRORS + TYPOS_ERRORS))
 
 echo ""
 echo "=========================================="
 echo "          LINT SUMMARY REPORT"
 echo "=========================================="
-printf "  %-30s : %s\n" "[1/5] Ruff Check" "$RUFF_ERRORS error(s)"
-printf "  %-30s : %s\n" "[2/5] Ruff Format Check" "$RUFF_FMT_ERRORS file(s) to reformat"
-printf "  %-30s : %s\n" "[3/5] Mypy Type Check" "$MYPY_ERRORS error(s)"
-printf "  %-30s : %s\n" "[4/5] Flake8" "$FLAKE8_ERRORS error(s)"
-printf "  %-30s : %s\n" "[5/5] Pylint" "$PYLINT_ERRORS issue(s)"
+printf "  %-30s : %s\n" "[1/6] Ruff Check" "$RUFF_ERRORS error(s)"
+printf "  %-30s : %s\n" "[2/6] Ruff Format Check" "$RUFF_FMT_ERRORS file(s) to reformat"
+printf "  %-30s : %s\n" "[3/6] Mypy Type Check" "$MYPY_ERRORS error(s)"
+printf "  %-30s : %s\n" "[4/6] Flake8" "$FLAKE8_ERRORS error(s)"
+printf "  %-30s : %s\n" "[5/6] Pylint" "$PYLINT_ERRORS issue(s)"
+printf "  %-30s : %s\n" "[6/6] Typos Spell Check" "$TYPOS_ERRORS error(s)"
 echo "------------------------------------------"
 printf "  %-30s : %s\n" "TOTAL ISSUES" "$TOTAL_ISSUES"
 echo "=========================================="

@@ -1,0 +1,6 @@
+# Configuration for crate-ci/typos spell checker
+# https://github.com/crate-ci/typos
+
+[default.extend-words]
+# Ignore "UE" - part of ASN.1 X.509 base64 certificate strings (e.g. 1UE in OID id-at-*)
+UE = "UE"
