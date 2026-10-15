@@ -1,4 +1,4 @@
-from .conftest import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_show_directory(testclient: TestClient):

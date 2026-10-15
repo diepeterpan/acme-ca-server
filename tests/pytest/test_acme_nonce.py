@@ -2,8 +2,7 @@ import datetime
 import re
 
 import jwcrypto
-
-from .conftest import TestClient
+from fastapi.testclient import TestClient
 
 
 def test_generate_nonce(testclient: TestClient, directory):

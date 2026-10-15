@@ -325,13 +325,83 @@ PORT=9000 HOST=127.0.0.1 ./run_local.sh
 
 ---
 
-### 3. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
+### 3. `run_tests.sh` &mdash; Local CI / Test Suite Runner (Pytest & E2E)
+
+Replicates the GitHub Actions test workflow ([.github/workflows/tests.yml](.github/workflows/tests.yml)) locally. Exits with standard return codes (`0` on success, non-zero on failure) for consumption in CI pipelines, automation scripts, and git hooks.
+
+**Key capabilities:**
+* Automatically executes the **Pytest** unit/integration suite (`tests/pytest/run.sh`) and the **End-to-End** client compatibility suite (`tests/e2e/run.sh`).
+* Flexible target selection: run both suites (`all`) or isolate individual suites (`pytest` or `e2e`).
+* Automatically detects whether Docker commands require `sudo` or run directly under the current user permissions (with manual `--sudo` and `--no-sudo` flags).
+* Built-in `--fail-fast` mode to immediately stop on the first suite failure.
+* Includes `--no-cleanup` flag to preserve test containers and networks for post-failure inspection and debugging.
+* Generates a concise execution summary displaying individual suite durations and overall pass/fail status.
+
+**Usage:**
+```shell
+# Run all test suites (pytest + e2e)
+./run_tests.sh
+
+# Run only the pytest suite
+./run_tests.sh pytest
+
+# Run only the end-to-end client suite
+./run_tests.sh e2e
+
+# Stop immediately if a suite fails
+./run_tests.sh --fail-fast
+
+# Retain test containers upon failure for debugging
+./run_tests.sh --no-cleanup
+```
+
+---
+
+### 4. `run_lint.sh` &mdash; Code Quality & Lint Checks
+
+Replicates the GitHub Actions linting workflow ([.github/workflows/lint.yml](.github/workflows/lint.yml)) locally, performing static analysis, security auditing, type checking, and spell checking.
+
+**Key capabilities:**
+* Activates or configures the Python virtual environment (`.venv`).
+* Installs and verifies all linting tools: **Ruff**, **Flake8** (with security and best-practice plugins), **Pylint**, and **Mypy**.
+* Automatically detects fixable errors in **Ruff** and offers an interactive `--fix` prompt.
+* Automatically downloads and runs the **Typos** binary for fast codebase spell checking according to `_typos.toml`.
+* Returns a total error count and exits with standard success (`0`) or failure (`1`) codes.
+
+**Usage:**
+```shell
+# Run all lint checks
+./run_lint.sh
+```
+
+---
+
+### 5. `run_release.sh` &mdash; Release Workflow & Git Tagging
+
+An interactive script to safely create, update, and push git release tags to trigger automated release workflows.
+
+**Key capabilities:**
+* Performs pre-release safety checks to ensure the git working tree is clean.
+* Automatically executes `run_lint.sh` before allowing a release to proceed.
+* Displays recent release tags and prompts for the next semver tag.
+* Supports creating annotated or lightweight tags, updating tag messages, or re-pushing existing tags to `origin`.
+* Automatically pushes tags to GitHub to trigger [.github/workflows/release.yml](.github/workflows/release.yml).
+
+**Usage:**
+```shell
+# Run release workflow
+./run_release.sh
+```
+
+---
+
+### 6. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
 
 A Playwright-driven automation utility that captures high-resolution screenshots of all 9 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details, audit logs, and the account orders & error modal).
 
 **Key capabilities:**
 * Automatically generates signed session cookies to capture both guest and authenticated administrative screens.
-* **Automatic Privacy Obfuscation**: Sanitizes real personal email addresses (`admin@example.com`), domain names (`app.example.com`), and Subject DN location fields (e.g. Cape Town, Western Cape, custom organization names) with generic demonstration data (disable with `--no-obfuscate`).
+* **Automatic Privacy Obfuscation**: Sanitizes real personal email addresses (`admin@example.com`), domain names (`app.example.com`), and Subject DN location fields with generic demonstration data (disable with `--no-obfuscate`).
 * Interacts with UI components (e.g. opens the Order Requests & Error modal with descending expiration sorting).
 * Automatically updates images in `Documentation/screenshots/` to keep [Documentation/UI_TOUR_SHOWCASE.md](./Documentation/UI_TOUR_SHOWCASE.md) fresh.
 
@@ -343,4 +413,5 @@ A Playwright-driven automation utility that captures high-resolution screenshots
 # Custom target server or custom output folder
 ./scripts/capture_ui_screens.py --base-url http://localhost:8080 --output-dir Documentation/screenshots
 ```
+
 

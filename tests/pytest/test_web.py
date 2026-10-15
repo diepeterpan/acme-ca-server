@@ -4,9 +4,7 @@ import httpx
 import jwcrypto
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import Encoding
-
-from .conftest import TestClient
-from .utils import build_csr
+from fastapi.testclient import TestClient
 
 
 def test_get_certificates_page(testclient: TestClient):
@@ -40,7 +38,7 @@ def test_revoke_non_existent_cert(testclient: TestClient):
     assert response.status_code == 404, response.text
 
 
-def test_download_and_revoke_certificate_web(signed_request, directory, testclient: TestClient, db):
+def test_download_and_revoke_certificate_web(signed_request, directory, testclient: TestClient, db, build_csr):
     mail_address = 'mailto:webuser@example.com'
     host = 'web.example.com'
 
@@ -167,5 +165,3 @@ def test_ca_setup_validation(testclient: TestClient):
         assert ca.is_initialized is True
     finally:
         ca.is_initialized = True
-
-

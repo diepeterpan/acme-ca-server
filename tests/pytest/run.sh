@@ -2,8 +2,8 @@
 
 # also works: alias docker='podman'
 
-docker container rm -f test_db
-docker network rm -f test_net
+docker container rm -f test_db 2>/dev/null || true
+docker network rm -f test_net 2>/dev/null || true
 
 set -e
 

@@ -70,7 +70,10 @@ async def create_or_view_account(
             raise ACMEException(status_code=status.HTTP_400_BAD_REQUEST, exctype='accountDoesNotExist', detail='Account does not exist', new_nonce=data.new_nonce)
         else:  # create new account
             # NewAccountPayload contains more checks than NewOrViewAccountPayload
-            payload = NewAccountPayload(**data.payload.model_dump())
+            dump_data = data.payload.model_dump()
+            if dump_data.get('contact') is None and not settings.acme.mail_required:
+                dump_data['contact'] = []
+            payload = NewAccountPayload(**dump_data)
             mail_addr = payload.mail_addr
             account_id = secrets.token_urlsafe(16)
             async with db.transaction() as sql:

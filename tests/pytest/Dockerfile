@@ -2,7 +2,7 @@ FROM docker.io/python:3.14.1-alpine3.23
 
 RUN apk add openssl
 
-RUN pip install pytest coverage
+RUN pip install --no-cache-dir pytest coverage pytest-cov
 
 WORKDIR /runner
 

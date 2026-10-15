@@ -111,7 +111,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
         next_url = request.url.path
         if request.url.query:
             next_url = f'{next_url}?{request.url.query}'
-        login_url = f'/login?next={quote(next_url)}' if next_url != '/' else '/login'
+        login_url = f'/login?next={quote(next_url, safe="")}' if next_url != '/' else '/login'
         return RedirectResponse(url=login_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 

@@ -38,6 +38,8 @@ class transaction:  # pylint: disable=invalid-name
         self.trans: asyncpg.connection.transaction = None
 
     async def __aenter__(self, *args, **kwargs):
+        if _POOL is None or _POOL._closed or _POOL.is_closing():
+            await connect()
         self.conn = await _POOL.acquire()
         self.trans = self.conn.transaction(readonly=self.readonly)
         await self.trans.start()

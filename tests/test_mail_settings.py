@@ -20,9 +20,9 @@ if ENV_FILE.exists():
 
 import db
 import db.migrations
-from fastapi.testclient import TestClient
 import mail
 import mail.service
+from fastapi.testclient import TestClient
 from main import app
 from web.auth import create_session_cookie
 

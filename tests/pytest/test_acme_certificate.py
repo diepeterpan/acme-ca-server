@@ -5,13 +5,11 @@ import jwcrypto
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import Encoding
 
-from .utils import build_csr
-
 _mail_address = 'mailto:dummy@example.com'
 _host = 'example.com'
 
 
-def test_should_revoke_certificate(signed_request, directory):
+def test_should_revoke_certificate(signed_request, directory, build_csr):
     response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [_mail_address]})
     account_id = response.headers['Location']
 
