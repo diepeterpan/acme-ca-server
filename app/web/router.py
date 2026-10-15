@@ -167,7 +167,7 @@ async def setup_post(
 
 
 @api.get('/login', response_class=HTMLResponse)
-async def login_get(request: Request, next: str = '/', error: str = ''):  # pylint: disable=redefined-builtin
+async def login_get(request: Request, next: str = '/', error: str = ''):  # noqa: A002  # pylint: disable=redefined-builtin
     # If user is already authenticated, redirect to next or /
     cookie_val = request.cookies.get(web_auth.COOKIE_NAME)
     if cookie_val and web_auth.verify_session_cookie(cookie_val):
@@ -197,7 +197,7 @@ async def login_post(
     username: str = Form(''),
     password: str = Form(''),
     remember_me: bool = Form(False),
-    next: str = Form('/'),  # pylint: disable=redefined-builtin
+    next: str = Form('/'),  # noqa: A002  # pylint: disable=redefined-builtin
 ):
     user = await web_auth.authenticate_user(username, password)
     if not user:

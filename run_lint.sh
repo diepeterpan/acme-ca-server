@@ -22,8 +22,8 @@ else
 fi
 
 # 2. Install / ensure required lint tools are available
-echo "--> Installing / verifying lint tools (ruff, pylint, flake8, mypy)..."
-pip install -q ruff pylint flake8 mypy
+echo "--> Installing / verifying lint tools (ruff, pylint, flake8 + plugins, mypy)..."
+pip install -q ruff pylint flake8 flake8-bandit flake8-bugbear flake8-builtins flake8-comprehensions flake8-deprecated flake8-isort flake8-print flake8-quotes flake8-todo mypy
 
 # 3. Ruff Check
 echo ""

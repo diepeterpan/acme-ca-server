@@ -93,7 +93,7 @@ def verify_session_cookie(cookie_value: str | None) -> dict[str, Any] | None:
             return None
 
         return payload
-    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+    except (ValueError, TypeError, json.JSONDecodeError):
         return None
 
 
