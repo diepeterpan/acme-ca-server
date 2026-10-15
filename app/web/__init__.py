@@ -1,5 +1,6 @@
-from . import auth  # noqa: F401
-from . import middleware  # noqa: F401 (import required as module export)
+from . import auth, middleware
 from . import router as router_module
 
 router = router_module.api
+
+__all__ = ['auth', 'middleware', 'router']

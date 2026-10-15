@@ -10,6 +10,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+from logger import logger
 
 from .model import SignedCertInfo
 
@@ -141,6 +142,7 @@ def generate_root_ca_sync(
     validity_years: int = 10,
 ):
     key_type = (key_type or 'RSA').strip().upper()
+    private_key: rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
     if key_type == 'RSA':
         key_size = int(key_size_or_curve or 4096)
         if key_size not in (2048, 3072, 4096):
@@ -148,6 +150,7 @@ def generate_root_ca_sync(
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
     elif key_type == 'ECDSA':
         curve_name = (key_size_or_curve or 'P-384').strip().upper()
+        curve: ec.EllipticCurve
         if curve_name in ('P-256', 'SECP256R1'):
             curve = ec.SECP256R1()
         elif curve_name in ('P-384', 'SECP384R1'):
@@ -161,6 +164,7 @@ def generate_root_ca_sync(
         raise ValueError(f'Unsupported key type: {key_type}')
 
     digest_name = (digest_algorithm or 'SHA-384').strip().upper()
+    hash_algo: hashes.HashAlgorithm
     if digest_name == 'SHA-256':
         hash_algo = hashes.SHA256()
     elif digest_name == 'SHA-384':
@@ -254,9 +258,9 @@ async def create_root_ca(
     digest_algorithm: str = 'SHA-384',
     validity_years: int = 10,
 ) -> str:
-    import acme
-    import ca
-    from logger import logger
+    import acme  # pylint: disable=import-outside-toplevel
+
+    import ca  # pylint: disable=import-outside-toplevel
 
     cert, cert_pem_bytes, key_pem_bytes, crl_pem = await asyncio.to_thread(
         generate_root_ca_sync,
@@ -272,6 +276,8 @@ async def create_root_ca(
         validity_years=validity_years,
     )
 
+    if not settings.ca.encryption_key:
+        raise RuntimeError('CA encryption key is not configured')
     f = Fernet(settings.ca.encryption_key.get_secret_value())
     key_pem_enc = f.encrypt(key_pem_bytes)
     serial_number = SerialNumberConverter.int2hex(cert.serial_number)
@@ -298,7 +304,7 @@ async def create_root_ca(
         (import_dir / 'ca.pem').write_bytes(cert_pem_bytes)
         (import_dir / 'ca.key').write_bytes(key_pem_bytes)
         logger.info('Saved newly generated CA certificate and key to %s', import_dir)
-    except Exception as e:
+    except OSError as e:
         logger.warning('Could not save CA to import_dir %s: %s', settings.ca.import_dir, e)
 
     ca.is_initialized = True
@@ -357,5 +363,5 @@ async def get_active_ca_details() -> dict | None:
         'days_remaining': days_remaining,
         'fingerprint_sha256': fingerprint,
         'key_info': f'{key_info} / {sig_algo}',
-        'signature_algorithm': cert.signature_algorithm_oid._name,
+        'signature_algorithm': cert.signature_algorithm_oid._name,  # pylint: disable=protected-access
     }

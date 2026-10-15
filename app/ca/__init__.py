@@ -29,7 +29,7 @@ if settings.ca.enabled:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown CA')
 
     async def init():
-        global is_initialized
+        global is_initialized  # pylint: disable=global-statement
         if (settings.ca.import_dir / 'ca.pem').is_file() and (settings.ca.import_dir / 'ca.key').is_file():
             with open(settings.ca.import_dir / 'ca.key', 'rb') as f:  # noqa: ASYNC230
                 ca_key_bytes = f.read()

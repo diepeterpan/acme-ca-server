@@ -279,36 +279,119 @@ acme_request() {
 # Standalone HTTP-01 Challenge Server
 # ------------------------------------------------------------------------------
 start_standalone_http() {
-    stop_standalone_http
-    echo -e "${BLUE}[*] Starting standalone HTTP-01 challenge server on port ${HTTP_CHALLENGE_PORT}...${NC}"
-    nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 &
-    local pid=$!
-    echo "$pid" > "$HTTP_PID_FILE"
-    sleep 1
+    local use_sudo=false
 
-    if kill -0 "$pid" 2>/dev/null; then
-        echo -e "${GREEN}[+] HTTP server listening on port ${HTTP_CHALLENGE_PORT} (PID: ${pid})${NC}"
-        echo -e "    Serving root: ${WWW_DIR}"
-        echo -e "    Challenge path: ${CHALLENGE_DIR}"
-        return 0
-    else
-        echo -e "${RED}[ERROR] Failed to start HTTP challenge server. Check log:${NC}"
-        cat "$HTTP_LOG"
-        return 1
-    fi
+    while true; do
+        stop_standalone_http
+        echo -e "${BLUE}[*] Starting standalone HTTP-01 challenge server on port ${HTTP_CHALLENGE_PORT}...${NC}"
+
+        if [[ "$use_sudo" == true ]]; then
+            echo -e "${YELLOW}[*] Invoking standalone HTTP server with sudo...${NC}"
+            sudo nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 &
+            local pid=$!
+        else
+            nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 &
+            local pid=$!
+        fi
+        echo "$pid" > "$HTTP_PID_FILE"
+        sleep 1
+
+        if kill -0 "$pid" 2>/dev/null || sudo kill -0 "$pid" 2>/dev/null; then
+            echo -e "${GREEN}[+] HTTP server listening on port ${HTTP_CHALLENGE_PORT} (PID: ${pid})${NC}"
+            echo -e "    Serving root: ${WWW_DIR}"
+            echo -e "    Challenge path: ${CHALLENGE_DIR}"
+            return 0
+        else
+            echo -e "${RED}[ERROR] Failed to start HTTP challenge server. Check log:${NC}"
+            cat "$HTTP_LOG"
+            rm -f "$HTTP_PID_FILE"
+
+            # Check if there is an existing process using HTTP_CHALLENGE_PORT
+            echo -e "\n${YELLOW}[*] Checking for existing processes on port ${HTTP_CHALLENGE_PORT}...${NC}"
+            local pids=""
+            local proc_info=""
+
+            if command -v lsof >/dev/null 2>&1; then
+                proc_info=$(lsof -i ":${HTTP_CHALLENGE_PORT}" 2>/dev/null || sudo lsof -i ":${HTTP_CHALLENGE_PORT}" 2>/dev/null || true)
+                pids=$(lsof -t -i ":${HTTP_CHALLENGE_PORT}" 2>/dev/null || sudo lsof -t -i ":${HTTP_CHALLENGE_PORT}" 2>/dev/null || true)
+            elif command -v fuser >/dev/null 2>&1; then
+                pids=$(fuser "${HTTP_CHALLENGE_PORT}/tcp" 2>/dev/null || sudo fuser "${HTTP_CHALLENGE_PORT}/tcp" 2>/dev/null || true)
+                if [[ -n "$pids" ]]; then
+                    proc_info=$(ps -fp $pids 2>/dev/null || sudo ps -fp $pids 2>/dev/null || true)
+                fi
+            fi
+
+            # Clean and normalize pids
+            local cleaned_pids
+            cleaned_pids=$(echo "$pids" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+
+            if [[ -n "$cleaned_pids" && -n "$proc_info" ]]; then
+                echo -e "${CYAN}Process(es) currently using port ${HTTP_CHALLENGE_PORT}:${NC}"
+                echo "$proc_info"
+                echo ""
+                read -r -p "Process(es) found using port ${HTTP_CHALLENGE_PORT}. Kill process(es) and retry starting server? [y/N]: " kill_ans
+                if [[ "$kill_ans" =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}[*] Killing process(es): ${cleaned_pids}...${NC}"
+                    for p in $cleaned_pids; do
+                        kill -15 "$p" 2>/dev/null || sudo kill -15 "$p" 2>/dev/null || true
+                    done
+                    sleep 1
+                    for p in $cleaned_pids; do
+                        if kill -0 "$p" 2>/dev/null || sudo kill -0 "$p" 2>/dev/null; then
+                            echo -e "${YELLOW}[*] Force-killing process ${p}...${NC}"
+                            kill -9 "$p" 2>/dev/null || sudo kill -9 "$p" 2>/dev/null || true
+                        fi
+                    done
+                    sleep 1
+                    echo -e "${GREEN}[+] Process(es) terminated. Retrying server startup...${NC}"
+                    continue
+                fi
+            else
+                echo -e "${YELLOW}[!] No existing process detected on port ${HTTP_CHALLENGE_PORT}.${NC}"
+                if grep -qi "Permission denied" "$HTTP_LOG" && [[ "$HTTP_CHALLENGE_PORT" -lt 1024 ]] && [[ "$use_sudo" != true ]]; then
+                    echo -e "${YELLOW}[!] Note: Port ${HTTP_CHALLENGE_PORT} requires root privileges (port < 1024).${NC}"
+                    read -r -p "Would you like to retry starting the server with sudo? [y/N]: " sudo_ans
+                    if [[ "$sudo_ans" =~ ^[Yy]$ ]]; then
+                        use_sudo=true
+                        continue
+                    fi
+                else
+                    read -r -p "Would you like to retry starting the standalone server? [y/N]: " retry_ans
+                    if [[ "$retry_ans" =~ ^[Yy]$ ]]; then
+                        continue
+                    fi
+                fi
+            fi
+
+            return 1
+        fi
+    done
 }
 
 stop_standalone_http() {
     if [[ -f "$HTTP_PID_FILE" ]]; then
         local pid
         pid=$(cat "$HTTP_PID_FILE")
-        if kill -0 "$pid" 2>/dev/null; then
+        if kill -0 "$pid" 2>/dev/null || sudo kill -0 "$pid" 2>/dev/null; then
             echo -e "${BLUE}[*] Stopping HTTP challenge server (PID: ${pid})...${NC}"
-            kill "$pid" 2>/dev/null || true
+            kill "$pid" 2>/dev/null || sudo kill "$pid" 2>/dev/null || true
             sleep 0.5
         fi
         rm -f "$HTTP_PID_FILE"
     fi
+}
+
+reinit_workspace() {
+    echo -e "${YELLOW}[*] Clearing and re-initializing workspace at ${WORKSPACE_DIR}...${NC}"
+    stop_standalone_http
+    if ! rm -rf "${WORKSPACE_DIR}" 2>/dev/null; then
+        echo -e "${YELLOW}[!] Some files could not be removed with standard user permissions. Attempting with sudo...${NC}"
+        sudo rm -rf "${WORKSPACE_DIR}" 2>/dev/null || rm -rf "${WORKSPACE_DIR}"
+    fi
+    mkdir -p "${WORKSPACE_DIR}" "${CERTS_DIR}" "${CHALLENGE_DIR}"
+    save_config
+    ensure_account_key
+    echo -e "${GREEN}[+] Workspace cleared and re-initialized.${NC}"
 }
 
 # ------------------------------------------------------------------------------
@@ -318,6 +401,13 @@ workflow_new_cert() {
     echo -e "\n${BOLD}======================================================${NC}"
     echo -e "${BOLD}         REQUEST NEW CERTIFICATE (END-TO-END)         ${NC}"
     echo -e "${BOLD}======================================================${NC}"
+
+    if [[ -d "$WORKSPACE_DIR" ]]; then
+        read -r -p "Do you want to clear and re-initialize the existing .acme_workspace? [y/N]: " clear_ws
+        if [[ "$clear_ws" =~ ^[Yy]$ ]]; then
+            reinit_workspace
+        fi
+    fi
 
     ensure_account_key
     fetch_directory || return 1

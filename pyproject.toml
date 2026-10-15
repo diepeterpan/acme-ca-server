@@ -26,7 +26,7 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 [tool.pylint]
 max-line-length = 179
 recursive = 'yes'
-disable = 'too-many-branches,no-else-return,broad-exception-caught,missing-module-docstring,missing-class-docstring,missing-function-docstring'
+disable = 'too-many-branches,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-statements,too-many-return-statements,too-many-instance-attributes,cyclic-import,no-else-return,broad-exception-caught,missing-module-docstring,missing-class-docstring,missing-function-docstring'
 
 [tool.pytest.ini_options]
 pythonpath = "app"

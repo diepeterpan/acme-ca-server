@@ -6,8 +6,8 @@ import secrets
 import time
 from typing import Any
 
-from config import settings
 import db
+from config import settings
 from logger import logger
 
 COOKIE_NAME = 'acme_session'
@@ -33,7 +33,7 @@ def verify_password(password: str, password_hash: str) -> bool:
         expected_hash = bytes.fromhex(parts[3])
         actual_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
         return hmac.compare_digest(actual_hash, expected_hash)
-    except Exception:
+    except (ValueError, TypeError):
         return False
 
 
@@ -93,13 +93,13 @@ def verify_session_cookie(cookie_value: str | None) -> dict[str, Any] | None:
             return None
 
         return payload
-    except Exception:
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
 
 async def has_users() -> bool:
     """Check if at least one admin user exists in the database."""
-    global _HAS_USERS_CACHE
+    global _HAS_USERS_CACHE  # pylint: disable=global-statement
     if _HAS_USERS_CACHE:
         return True
 
@@ -112,7 +112,7 @@ async def has_users() -> bool:
 
 
 def set_users_cache(val: bool = True) -> None:
-    global _HAS_USERS_CACHE
+    global _HAS_USERS_CACHE  # pylint: disable=global-statement
     _HAS_USERS_CACHE = val
 
 
@@ -146,7 +146,7 @@ async def authenticate_user(username: str, password: str) -> dict[str, Any] | No
         try:
             async with db.transaction() as sql:
                 await sql.exec('UPDATE users SET last_login_at = now() WHERE id = $1', record['id'])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning('Failed to update last_login_at: %s', e)
         return {'id': record['id'], 'username': record['username']}
 

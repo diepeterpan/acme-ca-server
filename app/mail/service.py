@@ -1,13 +1,13 @@
 import asyncio
+import ssl
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
-import ssl
 from typing import Literal
 
+import db
 from aiosmtplib import SMTP, SMTPAuthenticationError, SMTPConnectError, SMTPException, SMTPRecipientRefused
 from config import settings
-import db
 from logger import logger
 
 EncryptionType = Literal['tls', 'starttls', 'plain', 'tls-nonstrict', 'starttls-nonstrict']
@@ -154,7 +154,7 @@ async def save_mail_settings(
     async with db.transaction() as sql:
         current_pwd = None
         if not update_password or password is None:
-            current_pwd = await sql.value("select password from mail_settings where dummy_id = 1")
+            current_pwd = await sql.value('select password from mail_settings where dummy_id = 1')
             final_pwd = current_pwd
         else:
             final_pwd = password.strip() if password else None
@@ -214,31 +214,32 @@ async def save_mail_settings(
 
 async def test_smtp_connection(
     *,
-    host: str,
+    host: str | None,
     port: int | None,
     encryption: str,
-    sender: str,
-    recipient: str,
+    sender: str | None,
+    recipient: str | None,
     username: str | None = None,
     password: str | None = None,
 ) -> tuple[bool, str]:
     if not host or not host.strip():
-        return False, "SMTP Host is required."
+        return False, 'SMTP Host is required.'
     if not sender or not sender.strip():
-        return False, "Sender Email address is required."
+        return False, 'Sender Email address is required.'
     if not recipient or not recipient.strip():
-        return False, "Test Recipient Email address is required."
+        return False, 'Test Recipient Email address is required.'
 
     port_map = {'tls': 465, 'starttls': 587, 'plain': 25, 'tls-nonstrict': 465, 'starttls-nonstrict': 587}
     effective_port = port or port_map.get(encryption, 587)
 
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     html_body = f"""
     <!DOCTYPE html>
     <html>
     <head><meta charset="utf-8"></head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e1b4b; background-color: #f8fafc; padding: 24px;">
-        <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #ede9fe; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.08);">
+        <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #ede9fe; border-radius: 12px; padding: 32px;
+                    box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.08);">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                 <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; padding: 8px 16px; border-radius: 9999px; font-weight: 600; font-size: 14px;">
                     ✓ SMTP Test Successful
@@ -267,7 +268,7 @@ async def test_smtp_connection(
     message = MIMEText(html_body, 'html', 'utf-8')
     message['From'] = sender.strip()
     message['To'] = recipient.strip()
-    message['Subject'] = f"[ACME CA Server] SMTP Test Notification - {now_str}"
+    message['Subject'] = f'[ACME CA Server] SMTP Test Notification - {now_str}'
 
     auth: dict[str, str] = {}
     if username and password:
@@ -289,26 +290,26 @@ async def test_smtp_connection(
             timeout=15,
         ) as client:
             await client.send_message(message)
-        return True, f"Test email sent successfully to {recipient.strip()} via {host}:{effective_port}!"
+        return True, f'Test email sent successfully to {recipient.strip()} via {host}:{effective_port}!'
 
     except SMTPAuthenticationError as e:
         logger.warning('SMTP authentication failed during test: %s', e)
-        return False, f"Authentication failed: Invalid SMTP username or password (code {e.code}: {e.message})."
+        return False, f'Authentication failed: Invalid SMTP username or password (code {e.code}: {e.message}).'
     except SMTPRecipientRefused as e:
         logger.warning('SMTP recipient refused during test: %s', e)
-        return False, f"Recipient rejected by server: {recipient} (code {e.code}: {e.message})."
+        return False, f'Recipient rejected by server: {recipient} (code {e.code}: {e.message}).'
     except SMTPConnectError as e:
         logger.warning('SMTP connection failed during test: %s', e)
-        return False, f"Failed to connect to SMTP server at {host}:{effective_port}: {e}."
+        return False, f'Failed to connect to SMTP server at {host}:{effective_port}: {e}.'
     except ssl.SSLError as e:
         logger.warning('SSL error during SMTP test: %s', e)
-        return False, f"SSL/TLS Handshake failed: {e}. If using internal or self-signed certs, try selecting non-strict encryption."
+        return False, f'SSL/TLS Handshake failed: {e}. If using internal or self-signed certs, try selecting non-strict encryption.'
     except (TimeoutError, asyncio.TimeoutError):
         logger.warning('SMTP test timed out connecting to %s:%s', host, effective_port)
-        return False, f"Connection timed out after 15 seconds trying to connect to {host}:{effective_port}."
+        return False, f'Connection timed out after 15 seconds trying to connect to {host}:{effective_port}.'
     except SMTPException as e:
         logger.warning('SMTP exception during test: %s', e)
-        return False, f"SMTP Error ({type(e).__name__}): {e}"
+        return False, f'SMTP Error ({type(e).__name__}): {e}'
     except Exception as e:  # noqa: BLE001
         logger.error('Unexpected error during SMTP test: %s', e, exc_info=True)
-        return False, f"Connection error ({type(e).__name__}): {e}"
+        return False, f'Connection error ({type(e).__name__}): {e}'

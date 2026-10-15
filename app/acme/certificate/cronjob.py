@@ -2,7 +2,6 @@ import asyncio
 
 import db
 import mail
-from config import settings
 from logger import logger
 
 

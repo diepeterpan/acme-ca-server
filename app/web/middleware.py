@@ -1,5 +1,12 @@
-from fastapi import FastAPI, Request, Response
+from urllib.parse import quote
+
+import ca
+from config import settings
+from fastapi import FastAPI, Request, Response, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+from . import auth as web_auth
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-methods
@@ -51,11 +58,6 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
     """Enforce Web UI setup and authentication."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        from urllib.parse import quote
-        import web.auth
-        from fastapi import status
-        from fastapi.responses import JSONResponse, RedirectResponse
-
         path = request.url.path
 
         # 1. Exempt public machine ACME endpoints, static assets, and CA cert/CRL downloads
@@ -72,7 +74,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
             return await call_next(request)
 
         # 2. Check if any admin users exist
-        has_any_user = await web.auth.has_users()
+        has_any_user = await web_auth.has_users()
 
         if not has_any_user:
             # If no users exist, only /setup is accessible
@@ -85,8 +87,8 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
             return RedirectResponse(url='/login', status_code=status.HTTP_303_SEE_OTHER)
 
         # 4. Check for active session cookie
-        cookie_val = request.cookies.get(web.auth.COOKIE_NAME)
-        session_data = web.auth.verify_session_cookie(cookie_val)
+        cookie_val = request.cookies.get(web_auth.COOKIE_NAME)
+        session_data = web_auth.verify_session_cookie(cookie_val)
 
         if session_data:
             # Authenticated! Attach user data to request.state
@@ -108,8 +110,8 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
         # For all other web management routes, redirect to /login with next param
         next_url = request.url.path
         if request.url.query:
-            next_url = f"{next_url}?{request.url.query}"
-        login_url = f"/login?next={quote(next_url)}" if next_url != '/' else '/login'
+            next_url = f'{next_url}?{request.url.query}'
+        login_url = f'/login?next={quote(next_url)}' if next_url != '/' else '/login'
         return RedirectResponse(url=login_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
@@ -117,11 +119,6 @@ class CaSetupRedirectMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-
     """Redirect to /ca/setup when internal CA is enabled but not initialized."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        import ca
-        from config import settings
-        from fastapi import status
-        from fastapi.responses import JSONResponse, RedirectResponse
-
         path = request.url.path
 
         if settings.ca.enabled and not ca.is_initialized:
@@ -153,4 +150,3 @@ class CaSetupRedirectMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-
             return RedirectResponse(url='/ca', status_code=status.HTTP_303_SEE_OTHER)
 
         return await call_next(request)
-

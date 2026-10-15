@@ -2,13 +2,17 @@ import json
 from pathlib import Path
 from typing import Literal
 
+import ca
 import db
+import mail.service
 from ca import service as ca_service
 from config import settings
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 from pydantic import constr
+
+from . import auth as web_auth
 
 template_engine = Environment(loader=FileSystemLoader(Path(__file__).parent / 'templates'), enable_async=True, autoescape=True)
 
@@ -25,8 +29,6 @@ api = APIRouter(tags=['web'])
 
 @api.get('/', response_class=HTMLResponse)
 async def index(request: Request):
-    import ca
-
     stats = {
         'accounts_count': 0,
         'total_domains': 0,
@@ -39,7 +41,7 @@ async def index(request: Request):
     }
 
     async with db.transaction(readonly=True) as sql:
-        accounts_count = await sql.value("select count(*) from accounts")
+        accounts_count = await sql.value('select count(*) from accounts')
         stats['accounts_count'] = accounts_count or 0
 
         cert_stats = await sql.record(
@@ -94,9 +96,7 @@ async def index(request: Request):
 
 @api.get('/setup', response_class=HTMLResponse)
 async def setup_get(request: Request, error: str = ''):
-    import web.auth
-
-    if await web.auth.has_users():
+    if await web_auth.has_users():
         return RedirectResponse(url='/login', status_code=status.HTTP_303_SEE_OTHER)
     return await template_engine.get_template('setup.html').render_async(
         **default_params,
@@ -112,9 +112,7 @@ async def setup_post(
     password: str = Form(''),
     confirm_password: str = Form(''),
 ):
-    import web.auth
-
-    if await web.auth.has_users():
+    if await web_auth.has_users():
         return RedirectResponse(url='/login', status_code=status.HTTP_303_SEE_OTHER)
 
     username_clean = username.strip()
@@ -151,14 +149,14 @@ async def setup_post(
         )
 
     # Create admin user
-    await web.auth.create_user(username_clean, password)
+    await web_auth.create_user(username_clean, password)
 
     # Create session cookie and redirect to /
-    cookie_val, max_age = web.auth.create_session_cookie(username_clean)
+    cookie_val, max_age = web_auth.create_session_cookie(username_clean)
     response = RedirectResponse(url='/', status_code=status.HTTP_303_SEE_OTHER)
     is_secure = str(settings.external_url).startswith('https')
     response.set_cookie(
-        web.auth.COOKIE_NAME,
+        web_auth.COOKIE_NAME,
         cookie_val,
         max_age=max_age,
         httponly=True,
@@ -169,13 +167,10 @@ async def setup_post(
 
 
 @api.get('/login', response_class=HTMLResponse)
-async def login_get(request: Request, next: str = '/', error: str = ''):
-    import ca
-    import web.auth
-
+async def login_get(request: Request, next: str = '/', error: str = ''):  # pylint: disable=redefined-builtin
     # If user is already authenticated, redirect to next or /
-    cookie_val = request.cookies.get(web.auth.COOKIE_NAME)
-    if cookie_val and web.auth.verify_session_cookie(cookie_val):
+    cookie_val = request.cookies.get(web_auth.COOKIE_NAME)
+    if cookie_val and web_auth.verify_session_cookie(cookie_val):
         target = next if next.startswith('/') and not next.startswith('//') and next != '/login' else '/'
         return RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -202,11 +197,9 @@ async def login_post(
     username: str = Form(''),
     password: str = Form(''),
     remember_me: bool = Form(False),
-    next: str = Form('/'),
+    next: str = Form('/'),  # pylint: disable=redefined-builtin
 ):
-    import web.auth
-
-    user = await web.auth.authenticate_user(username, password)
+    user = await web_auth.authenticate_user(username, password)
     if not user:
         ca_ready = bool(settings.ca.enabled and ca.is_initialized)
         ca_pem = None
@@ -225,14 +218,14 @@ async def login_post(
         )
         return HTMLResponse(content=html_content)
 
-    cookie_val, max_age = web.auth.create_session_cookie(user['username'], remember_me=remember_me)
+    cookie_val, max_age = web_auth.create_session_cookie(user['username'], remember_me=remember_me)
 
     # Sanitize redirect target to prevent open redirect vulnerabilities
     target = next if next.startswith('/') and not next.startswith('//') and next not in ('/login', '/setup', '/logout') else '/'
     response = RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
     is_secure = str(settings.external_url).startswith('https')
     response.set_cookie(
-        web.auth.COOKIE_NAME,
+        web_auth.COOKIE_NAME,
         cookie_val,
         max_age=max_age,
         httponly=True,
@@ -245,17 +238,13 @@ async def login_post(
 @api.get('/logout')
 @api.post('/logout')
 async def logout():
-    import web.auth
-
     response = RedirectResponse(url='/login', status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie(web.auth.COOKIE_NAME, path='/', httponly=True, samesite='lax')
+    response.delete_cookie(web_auth.COOKIE_NAME, path='/', httponly=True, samesite='lax')
     return response
 
 
 @api.get('/ca/setup', response_class=HTMLResponse)
 async def ca_setup_get(request: Request, error: str = '', status_msg: str = ''):
-    import ca
-
     if not settings.ca.enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
     if ca.is_initialized:
@@ -294,8 +283,6 @@ async def ca_setup_post(
     digest_algorithm: str = Form('SHA-384'),
     validity_years: int = Form(10),
 ):
-    import ca
-
     if not settings.ca.enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
     if ca.is_initialized:
@@ -373,8 +360,6 @@ async def ca_setup_post(
 
 @api.get('/ca', response_class=HTMLResponse)
 async def ca_view(request: Request, status_msg: str = ''):
-    import ca
-
     if not settings.ca.enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
     if not ca.is_initialized:
@@ -396,14 +381,12 @@ async def ca_view(request: Request, status_msg: str = ''):
 @api.get('/ca/download/crt', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
 @api.get('/ca/download-crt', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
 async def ca_download():
-    import ca
-
     if not settings.ca.enabled or not ca.is_initialized:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
     ca_details = await ca_service.get_active_ca_details()
     if not ca_details or not ca_details.get('cert_pem'):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No active CA certificate found')
-    filename = f"ca_{ca_details['serial_number'][:8]}.crt"
+    filename = f'ca_{ca_details["serial_number"][:8]}.crt'
     return Response(
         content=ca_details['cert_pem'],
         media_type='application/x-x509-ca-cert',
@@ -414,14 +397,12 @@ async def ca_download():
 @api.get('/ca/download/pem', response_class=Response, responses={200: {'content': {'application/x-pem-file': {}}}})
 @api.get('/ca/download-pem', response_class=Response, responses={200: {'content': {'application/x-pem-file': {}}}})
 async def ca_download_pem():
-    import ca
-
     if not settings.ca.enabled or not ca.is_initialized:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
     ca_details = await ca_service.get_active_ca_details()
     if not ca_details or not ca_details.get('cert_pem'):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No active CA certificate found')
-    filename = f"ca_{ca_details['serial_number'][:8]}.pem"
+    filename = f'ca_{ca_details["serial_number"][:8]}.pem'
     return Response(
         content=ca_details['cert_pem'],
         media_type='application/x-pem-file',
@@ -432,14 +413,12 @@ async def ca_download_pem():
 @api.get('/ca/download/crl', response_class=Response, responses={200: {'content': {'application/pkix-crl': {}}}})
 @api.get('/ca/download-crl', response_class=Response, responses={200: {'content': {'application/pkix-crl': {}}}})
 async def ca_download_crl():
-    import ca
-
     if not settings.ca.enabled or not ca.is_initialized:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
     ca_details = await ca_service.get_active_ca_details()
     if not ca_details or not ca_details.get('crl_pem'):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No CRL found for active CA')
-    filename = f"ca_{ca_details['serial_number'][:8]}.crl"
+    filename = f'ca_{ca_details["serial_number"][:8]}.crl'
     return Response(
         content=ca_details['crl_pem'],
         media_type='application/pkix-crl',
@@ -458,7 +437,7 @@ async def certificate_log(
     account_email = None
     async with db.transaction(readonly=True) as sql:
         if account_id:
-            account_email = await sql.value("select mail from accounts where id = $1", account_id)
+            account_email = await sql.value('select mail from accounts where id = $1', account_id)
 
         certs = [
             record
@@ -530,7 +509,7 @@ async def download_certificate(serial_number: constr(pattern='^[0-9A-F]+$')):  #
         )
     if not record or not record['chain_pem']:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
-    filename = f"{record['primary_domain']}_{serial_number[:8]}.crt"
+    filename = f'{record["primary_domain"]}_{serial_number[:8]}.crt'
     return Response(
         content=record['chain_pem'],
         media_type='application/pem-certificate-chain',
@@ -599,7 +578,9 @@ async def domain_log(request: Request, domainfilter: str = '', domainstatus: Lit
                 domainstatus,
             )
         ]
-    return await template_engine.get_template('domain-log.html').render_async(**default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter)
+    return await template_engine.get_template('domain-log.html').render_async(
+        **default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter
+    )
 
 
 @api.get('/accounts', response_class=HTMLResponse)
@@ -687,7 +668,7 @@ async def account_log(
             if isinstance(orders_raw, str):
                 try:
                     item['orders_info'] = json.loads(orders_raw)
-                except Exception:
+                except (json.JSONDecodeError, TypeError):
                     item['orders_info'] = []
             accounts.append(item)
 
@@ -703,14 +684,13 @@ async def account_log(
 
 @api.post('/accounts/{account_id}/status')
 async def update_account_status(
-    request: Request,
     account_id: str,
     action: Literal['activate', 'deactivate'] = Form(...),
 ):
     new_status = 'valid' if action == 'activate' else 'deactivated'
     async with db.transaction() as sql:
         await sql.exec(
-            "update accounts set status = $2 where id = $1",
+            'update accounts set status = $2 where id = $1',
             account_id,
             new_status,
         )
@@ -720,8 +700,6 @@ async def update_account_status(
 
 @api.get('/mail', response_class=HTMLResponse)
 async def mail_settings_get(request: Request, status_msg: str = '', error: str = ''):
-    import mail.service
-
     mail_cfg = await mail.service.get_mail_settings()
     return await template_engine.get_template('mail-settings.html').render_async(
         **default_params,
@@ -746,8 +724,6 @@ async def mail_settings_post(
     notify_when_cert_expired: str = Form(None),
     notify_on_account_creation: str = Form(None),
 ):
-    import mail.service
-
     is_enabled = enabled in ('on', 'true', '1')
     has_expired_notify = notify_when_cert_expired in ('on', 'true', '1')
     has_account_notify = notify_on_account_creation in ('on', 'true', '1')
@@ -792,7 +768,7 @@ async def mail_settings_post(
             notify_when_cert_expired=has_expired_notify,
             update_password=update_password,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         mail_cfg = await mail.service.get_mail_settings()
         return await template_engine.get_template('mail-settings.html').render_async(
             **default_params,
@@ -811,11 +787,9 @@ async def mail_settings_post(
 
 @api.post('/mail/test')
 async def mail_test_post(request: Request):
-    import mail.service
-
     try:
         data = await request.json()
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         data = {}
 
     host = data.get('host')
@@ -849,4 +823,3 @@ async def mail_test_post(request: Request):
         status_code=200 if ok else 400,
         content={'ok': ok, 'message' if ok else 'error': msg},
     )
-
