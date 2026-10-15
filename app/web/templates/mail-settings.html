@@ -574,7 +574,7 @@
                         <label class="form-label" for="testRecipientInput">
                             <span>Test Recipient Address</span>
                         </label>
-                        <input type="email" id="testRecipientInput" class="form-control" placeholder="admin@example.org" value="{{ mail_cfg.sender or '' }}">
+                        <input type="email" id="testRecipientInput" class="form-control" placeholder="admin@example.org" value="">
                     </div>
 
                     <div>
@@ -680,8 +680,39 @@
     const testResultTitle = document.getElementById('testResultTitle');
     const testResultDetail = document.getElementById('testResultDetail');
 
+    // Restore saved test recipient from localStorage if available
+    const TEST_RECIPIENT_STORAGE_KEY = 'acme_mail_test_recipient';
+    try {
+        const savedRecipient = localStorage.getItem(TEST_RECIPIENT_STORAGE_KEY);
+        if (savedRecipient) {
+            testRecipientInput.value = savedRecipient;
+        }
+    } catch (e) {
+        // Ignore localStorage access issues if storage is blocked
+    }
+
+    testRecipientInput.addEventListener('input', () => {
+        try {
+            const val = testRecipientInput.value.trim();
+            if (val) {
+                localStorage.setItem(TEST_RECIPIENT_STORAGE_KEY, val);
+            } else {
+                localStorage.removeItem(TEST_RECIPIENT_STORAGE_KEY);
+            }
+        } catch (e) {
+            // Ignore storage quota/permission errors
+        }
+    });
+
     sendTestEmailBtn.addEventListener('click', async () => {
         const recipient = testRecipientInput.value.trim();
+        try {
+            if (recipient) {
+                localStorage.setItem(TEST_RECIPIENT_STORAGE_KEY, recipient);
+            }
+        } catch (e) {
+            // Ignore storage errors
+        }
         const host = document.getElementById('hostInput').value.trim();
         const sender = document.getElementById('senderInput').value.trim();
         const port = document.getElementById('portInput').value ? parseInt(document.getElementById('portInput').value, 10) : null;
