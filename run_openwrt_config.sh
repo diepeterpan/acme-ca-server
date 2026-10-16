@@ -1128,9 +1128,25 @@ RENEW_SCRIPT_CONTENT='#!/bin/sh
 LOG_TAG="acme-renew"
 logger -t "$LOG_TAG" "Starting daily ACME certificate renewal check..."
 
-# Ensure dynamic ACME challenge directory exists
+# Ensure dynamic ACME challenge directory exists in RAM
 mkdir -p /tmp/acme 2>/dev/null || true
 
+# Self-Healing: Verify & recreate DNS API plugin symlinks
+DNS_PLUGIN="/etc/acme/dnsapi/dns_openwrt_dnsmasq.sh"
+if [ -f "$DNS_PLUGIN" ]; then
+    mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true
+    if [ ! -e /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+    if [ -d /usr/lib/acme/dnsapi ] && [ ! -e /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+    if [ ! -e /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+fi
+
+# Locate acme.sh binary across known OpenWrt paths
 ACME_BIN="/usr/lib/acme/client/acme.sh"
 if [ ! -x "$ACME_BIN" ] && [ -x /usr/lib/acme/acme.sh ]; then
     ACME_BIN="/usr/lib/acme/acme.sh"
@@ -1145,6 +1161,11 @@ fi
 if [ -z "$ACME_BIN" ] || [ ! -x "$ACME_BIN" ]; then
     logger -t "$LOG_TAG" "Error: acme.sh binary not found on system!"
     exit 1
+fi
+
+# Self-Healing: Verify & recreate /usr/bin/acme.sh CLI wrapper symlink
+if [ ! -e /usr/bin/acme.sh ]; then
+    ln -s "$ACME_BIN" /usr/bin/acme.sh 2>/dev/null || true
 fi
 
 "$ACME_BIN" --cron --home /etc/acme >> /var/log/acme_renew.log 2>&1
