@@ -276,6 +276,107 @@ ssh_upload_string() {
     fi
 }
 
+remote_file_exists() {
+    local remote_path="$1"
+    local res
+    res="$(ssh_exec "[ -f '${remote_path}' ] && echo 'yes' || echo 'no'" "read_only" | tr -d '\r\n')"
+    [[ "${res}" == "yes" ]]
+}
+
+remote_content_matches() {
+    local content_or_file="$1"
+    local remote_path="$2"
+    local remote_md5 local_md5 local_md5_nl
+
+    remote_md5="$(ssh_exec "md5sum '${remote_path}' 2>/dev/null" "read_only" | awk '{print $1}' | tr -d '\r\n')"
+    [[ -z "${remote_md5}" ]] && return 1
+
+    if [[ -f "${content_or_file}" ]]; then
+        local_md5="$(md5sum "${content_or_file}" 2>/dev/null | awk '{print $1}')"
+        [[ "${local_md5}" == "${remote_md5}" ]] && return 0
+    else
+        local_md5="$(printf "%s" "${content_or_file}" | md5sum 2>/dev/null | awk '{print $1}')"
+        local_md5_nl="$(printf "%s\n" "${content_or_file}" | md5sum 2>/dev/null | awk '{print $1}')"
+        if [[ "${local_md5}" == "${remote_md5}" || "${local_md5_nl}" == "${remote_md5}" ]]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+prompt_overwrite_or_skip() {
+    local description="$1"
+    local remote_path="$2"
+    local is_identical="$3" # "true" or "false"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] File check: ${remote_path} (identical: ${is_identical})"
+        return 0
+    fi
+
+    if [[ "${ASSUME_YES}" == "true" ]]; then
+        if [[ "${is_identical}" == "true" ]]; then
+            log_info "${description} (${remote_path}) is already present with identical content. Skipping update (--yes)."
+            return 1
+        else
+            log_info "${description} (${remote_path}) exists. Overwriting (--yes)."
+            return 0
+        fi
+    fi
+
+    if [[ "${is_identical}" == "true" ]]; then
+        echo -e "\n${BOLD}${YELLOW}[NOTICE]${NC} ${BOLD}${WHITE}${description}${NC} (${CYAN}${remote_path}${NC}) already exists on OpenWrt with ${GREEN}identical content${NC}."
+        read -r -p "Overwrite anyway or skip? [o=overwrite / S=skip]: " resp
+        case "${resp}" in
+            [oO]|[oO][vV][eE][rR][wW][rR][iI][tT][eE]|[yY]|[yY][eE][sS])
+                return 0
+                ;;
+            *)
+                log_info "Skipping overwrite of ${remote_path}."
+                return 1
+                ;;
+        esac
+    else
+        echo -e "\n${BOLD}${YELLOW}[NOTICE]${NC} ${BOLD}${WHITE}${description}${NC} (${CYAN}${remote_path}${NC}) already exists on OpenWrt."
+        read -r -p "Overwrite file or skip? [O=overwrite / s=skip]: " resp
+        case "${resp}" in
+            [sS]|[sS][kK][iI][pP]|[nN]|[nN][oO])
+                log_info "Skipping overwrite of ${remote_path}."
+                return 1
+                ;;
+            *)
+                return 0
+                ;;
+        esac
+    fi
+}
+
+prompt_reapply_or_skip() {
+    local description="$1"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Setting check: ${description}"
+        return 1
+    fi
+
+    if [[ "${ASSUME_YES}" == "true" ]]; then
+        log_info "${description} is already configured. Skipping re-apply (--yes)."
+        return 1
+    fi
+
+    echo -e "\n${BOLD}${YELLOW}[NOTICE]${NC} ${BOLD}${WHITE}${description}${NC} is already configured on OpenWrt."
+    read -r -p "Re-apply / overwrite configuration anyway? [y/N]: " resp
+    case "${resp}" in
+        [yY]|[yY][eE][sS])
+            return 0
+            ;;
+        *)
+            log_info "Skipping re-apply for ${description}."
+            return 1
+            ;;
+    esac
+}
+
 # ------------------------------------------------------------------------------
 # Application Flow & Session Logging
 # ------------------------------------------------------------------------------
@@ -567,22 +668,42 @@ if ! echo "${ROUTER_SSL_TEST}" | grep -q "newOrder"; then
             CA_CERT_PATH="${TARGET_CA_PEM}"
             save_config
             log_info "Selected root CA certificate: ${BOLD}${CA_CERT_PATH}${NC}"
-            if confirm_action "Upload CA certificate (${CA_CERT_PATH}) to OpenWrt trust store (/etc/ssl/certs/local-ca.pem)" \
-"cat '${CA_CERT_PATH}' | ssh ... 'cat > /etc/ssl/certs/local-ca.pem'
-c_rehash /etc/ssl/certs/ || true"; then
-                CA_PEM_CONTENT="$(cat "${CA_CERT_PATH}")"
-                ssh_upload_string "${CA_PEM_CONTENT}" "/etc/ssl/certs/local-ca.pem"
-                ssh_exec "chmod 644 /etc/ssl/certs/local-ca.pem && c_rehash /etc/ssl/certs 2>/dev/null || true" "mutating"
-                log_success "Uploaded CA certificate and rehashed trust store on OpenWrt."
+            REMOTE_CA_TARGET="/etc/ssl/certs/local-ca.pem"
+            DO_UPLOAD=true
 
-                # Retest reachability with strict SSL
-                log_info "Retesting CA SSL verification from OpenWrt router..."
-                RETEST_SSL="$(ssh_exec "curl -s --connect-timeout 5 '${CA_URL}' 2>&1 || true" "read_only")"
-                if echo "${RETEST_SSL}" | grep -q "newOrder"; then
-                    log_success "OpenWrt router now successfully trusts and verifies the local ACME CA!"
-                else
-                    log_warn "Router still encountered SSL verification issues contacting ${CA_URL}."
+            if remote_file_exists "${REMOTE_CA_TARGET}"; then
+                CA_IDENTICAL=false
+                if remote_content_matches "${CA_CERT_PATH}" "${REMOTE_CA_TARGET}"; then
+                    CA_IDENTICAL=true
                 fi
+                if ! prompt_overwrite_or_skip "Root CA certificate" "${REMOTE_CA_TARGET}" "${CA_IDENTICAL}"; then
+                    DO_UPLOAD=false
+                fi
+            fi
+
+            if [[ "${DO_UPLOAD}" == "true" ]]; then
+                if confirm_action "Upload CA certificate (${CA_CERT_PATH}) to OpenWrt trust store (${REMOTE_CA_TARGET})" \
+"cat '${CA_CERT_PATH}' | ssh ... 'cat > ${REMOTE_CA_TARGET}'
+c_rehash /etc/ssl/certs/ || true
+grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf"; then
+                    CA_PEM_CONTENT="$(cat "${CA_CERT_PATH}")"
+                    ssh_upload_string "${CA_PEM_CONTENT}" "${REMOTE_CA_TARGET}"
+                    ssh_exec "chmod 644 ${REMOTE_CA_TARGET} && c_rehash /etc/ssl/certs 2>/dev/null || true" "mutating"
+                    ssh_exec "grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+                    log_success "Uploaded CA certificate, rehashed trust store, and registered in /etc/sysupgrade.conf."
+                fi
+            else
+                # Ensure sysupgrade registration even if upload was skipped
+                ssh_exec "grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+            fi
+
+            # Retest reachability with strict SSL
+            log_info "Retesting CA SSL verification from OpenWrt router..."
+            RETEST_SSL="$(ssh_exec "curl -s --connect-timeout 5 '${CA_URL}' 2>&1 || true" "read_only")"
+            if echo "${RETEST_SSL}" | grep -q "newOrder"; then
+                log_success "OpenWrt router now successfully trusts and verifies the local ACME CA!"
+            else
+                log_warn "Router still encountered SSL verification issues contacting ${CA_URL}."
             fi
             break
         else
@@ -623,9 +744,14 @@ save_config
 log_success "Using ACME account email: ${BOLD}${ACCOUNT_EMAIL}${NC}"
 
 # Check if global ACME configuration already matches desired email and debug='1'
+DO_CONFIG_GLOBAL=true
 if [[ "${EXISTING_EMAIL}" == "${ACCOUNT_EMAIL}" && "${EXISTING_DEBUG}" == "1" ]]; then
-    log_success "Global ACME configuration (acme.${GLOBAL_TARGET}) is already up to date (account_email='${ACCOUNT_EMAIL}', debug='1'). Skipping update."
-else
+    if ! prompt_reapply_or_skip "Global ACME configuration (acme.${GLOBAL_TARGET}: account_email='${ACCOUNT_EMAIL}', debug='1')"; then
+        DO_CONFIG_GLOBAL=false
+    fi
+fi
+
+if [[ "${DO_CONFIG_GLOBAL}" == "true" ]]; then
     # Configure global acme section with account_email and debug='1'
     if [[ "${GLOBAL_ACME_SECTION}" == "acme1" ]]; then
         UCI_GLOBAL_CMDS="uci set acme.acme1.account_email='${ACCOUNT_EMAIL}'
@@ -663,10 +789,16 @@ fi
 ssh_exec "mkdir -p /tmp/acme 2>/dev/null || true" "read_only" >/dev/null 2>&1 || true
 
 CONFDIRS="$(ssh_exec "uci get dhcp.${DHCP_DNSMASQ_TARGET}.confdir 2>/dev/null || uci get dhcp.@dnsmasq[0].confdir 2>/dev/null || true" "read_only")"
+DO_CONFIG_CONFDIR=true
 if echo "${CONFDIRS}" | grep -qw "/tmp/acme"; then
-    log_success "Dnsmasq (dhcp.${DHCP_DNSMASQ_TARGET}) is already configured with confdir='/tmp/acme'."
+    if ! prompt_reapply_or_skip "Dnsmasq (dhcp.${DHCP_DNSMASQ_TARGET}) confdir='/tmp/acme'"; then
+        DO_CONFIG_CONFDIR=false
+    fi
 else
     log_info "Dnsmasq (dhcp.${DHCP_DNSMASQ_TARGET}) confdir='/tmp/acme' is not yet present."
+fi
+
+if [[ "${DO_CONFIG_CONFDIR}" == "true" ]]; then
     UCI_CONFDIR_CMDS="mkdir -p /tmp/acme
 uci add_list dhcp.${DHCP_DNSMASQ_TARGET}.confdir='/tmp/acme'
 uci commit dhcp
@@ -682,13 +814,19 @@ fi
 log_step "8. Configuring Boot Startup Script (/etc/rc.local)"
 
 RC_LOCAL_HAS_ACME="$(ssh_exec "grep -q '/tmp/acme' /etc/rc.local 2>/dev/null && echo yes || echo no" "read_only" | tr -d '\r\n')"
+DO_CONFIG_RC_LOCAL=true
 if [[ "${RC_LOCAL_HAS_ACME}" == "yes" ]]; then
-    log_success "/etc/rc.local is already configured to initialize /tmp/acme and restart dnsmasq on boot."
-else
-    RC_LOCAL_CMDS="# Add /tmp/acme initialization to /etc/rc.local before exit 0
+    if ! prompt_reapply_or_skip "Boot startup initialization in /etc/rc.local (/tmp/acme & restart dnsmasq)"; then
+        DO_CONFIG_RC_LOCAL=false
+    fi
+fi
+
+if [[ "${DO_CONFIG_RC_LOCAL}" == "true" ]]; then
+    RC_LOCAL_CMDS="# Ensure /tmp/acme initialization in /etc/rc.local before exit 0
 if [ ! -f /etc/rc.local ]; then
     echo '#!/bin/sh' > /etc/rc.local
 fi
+sed -i '/# Ensure ACME challenge directory/,+2d' /etc/rc.local 2>/dev/null || true
 if grep -q '^exit 0' /etc/rc.local 2>/dev/null; then
     sed -i '/^exit 0/i # Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\n' /etc/rc.local
 else
@@ -697,8 +835,8 @@ fi
 chmod +x /etc/rc.local
 grep -q '/etc/rc.local' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/rc.local' >> /etc/sysupgrade.conf"
 
-    if confirm_action "Add /tmp/acme initialization & dnsmasq restart to /etc/rc.local on boot" "${RC_LOCAL_CMDS}"; then
-        ssh_exec "if [ ! -f /etc/rc.local ]; then echo '#!/bin/sh' > /etc/rc.local; fi && if grep -q '^exit 0' /etc/rc.local 2>/dev/null; then sed -i '/^exit 0/i # Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\n' /etc/rc.local; else echo -e '\\n# Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\nexit 0' >> /etc/rc.local; fi && chmod +x /etc/rc.local && grep -q '/etc/rc.local' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/rc.local' >> /etc/sysupgrade.conf" "mutating"
+    if confirm_action "Configure /tmp/acme initialization & dnsmasq restart in /etc/rc.local on boot" "${RC_LOCAL_CMDS}"; then
+        ssh_exec "if [ ! -f /etc/rc.local ]; then echo '#!/bin/sh' > /etc/rc.local; fi && sed -i '/# Ensure ACME challenge directory/,+2d' /etc/rc.local 2>/dev/null || true && if grep -q '^exit 0' /etc/rc.local 2>/dev/null; then sed -i '/^exit 0/i # Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\n' /etc/rc.local; else echo -e '\\n# Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\nexit 0' >> /etc/rc.local; fi && chmod +x /etc/rc.local && grep -q '/etc/rc.local' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/rc.local' >> /etc/sysupgrade.conf" "mutating"
         log_success "/etc/rc.local configured to create /tmp/acme and restart dnsmasq on boot."
     fi
 fi
@@ -760,12 +898,20 @@ dns_rm() {
 '
 
 DNS_PLUGIN_TARGET="/etc/acme/dnsapi/dns_openwrt_dnsmasq.sh"
-PLUGIN_EXISTS="$(ssh_exec "[ -f ${DNS_PLUGIN_TARGET} ] && echo yes || echo no" "read_only")"
-if [[ "${PLUGIN_EXISTS}" == "yes" ]]; then
-    log_info "Plugin ${DNS_PLUGIN_TARGET} already exists on router."
+DO_DEPLOY_PLUGIN=true
+
+if remote_file_exists "${DNS_PLUGIN_TARGET}"; then
+    PLUGIN_IDENTICAL=false
+    if remote_content_matches "${DNS_PLUGIN_CONTENT}" "${DNS_PLUGIN_TARGET}"; then
+        PLUGIN_IDENTICAL=true
+    fi
+    if ! prompt_overwrite_or_skip "acme.sh DNS API plugin" "${DNS_PLUGIN_TARGET}" "${PLUGIN_IDENTICAL}"; then
+        DO_DEPLOY_PLUGIN=false
+    fi
 fi
 
-DEPLOY_PLUGIN_CMDS="mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi
+if [[ "${DO_DEPLOY_PLUGIN}" == "true" ]]; then
+    DEPLOY_PLUGIN_CMDS="mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi
 cat << 'EOF' > ${DNS_PLUGIN_TARGET}
 ...
 EOF
@@ -773,22 +919,22 @@ chmod +x ${DNS_PLUGIN_TARGET}
 ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh
 [ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh
 ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh
-grep -q '${DNS_PLUGIN_TARGET}' /etc/sysupgrade.conf || echo '${DNS_PLUGIN_TARGET}' >> /etc/sysupgrade.conf
-# Clean up legacy hook if present
-rm -f /usr/bin/acme-dnsmasq-hook.sh 2>/dev/null || true
-sed -i '\#/usr/bin/acme-dnsmasq-hook.sh#d' /etc/sysupgrade.conf 2>/dev/null || true"
+grep -q '/etc/acme' /etc/sysupgrade.conf || echo '/etc/acme' >> /etc/sysupgrade.conf"
 
-if confirm_action "Deploy acme.sh DNS API plugin (${DNS_PLUGIN_TARGET}) and link into dnsapi directories" "${DEPLOY_PLUGIN_CMDS}"; then
-    ssh_exec "mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true" "mutating"
-    ssh_upload_string "${DNS_PLUGIN_CONTENT}" "${DNS_PLUGIN_TARGET}"
-    ssh_exec "chmod +x ${DNS_PLUGIN_TARGET}" "mutating"
-    ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
-    ssh_exec "[ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
-    ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
-    ssh_exec "grep -q '${DNS_PLUGIN_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${DNS_PLUGIN_TARGET}' >> /etc/sysupgrade.conf" "mutating"
-    # Clean legacy hook
-    ssh_exec "rm -f /usr/bin/acme-dnsmasq-hook.sh 2>/dev/null; sed -i '\#/usr/bin/acme-dnsmasq-hook.sh#d' /etc/sysupgrade.conf 2>/dev/null || true" "mutating"
-    log_success "acme.sh DNS API plugin deployed, symlinked to dnsapi paths, and registered in /etc/sysupgrade.conf."
+    if confirm_action "Deploy acme.sh DNS API plugin (${DNS_PLUGIN_TARGET}) and link into dnsapi directories" "${DEPLOY_PLUGIN_CMDS}"; then
+        ssh_exec "mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true" "mutating"
+        ssh_upload_string "${DNS_PLUGIN_CONTENT}" "${DNS_PLUGIN_TARGET}"
+        ssh_exec "chmod +x ${DNS_PLUGIN_TARGET}" "mutating"
+        ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
+        ssh_exec "[ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
+        ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
+        ssh_exec "grep -q '/etc/acme' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/acme' >> /etc/sysupgrade.conf" "mutating"
+        log_success "acme.sh DNS API plugin deployed, symlinked to dnsapi paths, and /etc/acme registered in /etc/sysupgrade.conf."
+    fi
+else
+    # Ensure symlinks and sysupgrade entry exist even if file upload was skipped
+    ssh_exec "mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && [ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && grep -q '/etc/acme' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/acme' >> /etc/sysupgrade.conf" "mutating"
+    log_info "Plugin upload skipped; verified symlinks and backup registration."
 fi
 
 # Step 10: Configure /etc/config/acme for Native DNS API
@@ -807,9 +953,14 @@ EXISTING_ENABLED="$(ssh_exec "uci -q get acme.${CERT_SECTION}.enabled || true" "
 EXISTING_UHTTPD="$(ssh_exec "uci -q get acme.${CERT_SECTION}.use_uhttpd || true" "read_only" | tr -d '\r\n')"
 EXISTING_DNS="$(ssh_exec "uci -q get acme.${CERT_SECTION}.dns || true" "read_only" | tr -d '\r\n')"
 
+DO_CONFIG_CERT=true
 if [[ "${EXISTING_ENABLED}" == "1" && "${EXISTING_UHTTPD}" == "1" && "${EXISTING_DNS}" == "dns_openwrt_dnsmasq" && "${EXISTING_DOMAINS}" == "${TARGET_DOMAINS}" ]]; then
-    log_success "Certificate entry acme.${CERT_SECTION} is already configured with domains [${TARGET_DOMAINS}] and dns='dns_openwrt_dnsmasq'. Skipping update."
-else
+    if ! prompt_reapply_or_skip "Certificate entry acme.${CERT_SECTION} (domains: [${TARGET_DOMAINS}], dns: dns_openwrt_dnsmasq)"; then
+        DO_CONFIG_CERT=false
+    fi
+fi
+
+if [[ "${DO_CONFIG_CERT}" == "true" ]]; then
     UCI_ACME_CMDS="uci set acme.${CERT_SECTION}=cert
 uci set acme.${CERT_SECTION}.enabled='1'
 uci set acme.${CERT_SECTION}.use_uhttpd='1'
@@ -903,25 +1054,70 @@ ssh_exec "[ -x /usr/lib/acme/client/acme.sh ] && [ ! -e /usr/bin/acme.sh ] && ln
 # Ensure ACME state directory exists
 ssh_exec "mkdir -p /etc/acme 2>/dev/null || true" "read_only" >/dev/null 2>&1 || true
 
-ACME_ISSUE_CMD="${ROUTER_ACME_BIN} --home /etc/acme --issue"
-for d in "${DOMAINS_TO_REGISTER[@]}"; do
-    ACME_ISSUE_CMD="${ACME_ISSUE_CMD} -d \"${d}\""
-done
-ACME_ISSUE_CMD="${ACME_ISSUE_CMD} --dns dns_openwrt_dnsmasq"
-ACME_ISSUE_CMD="${ACME_ISSUE_CMD} --dnssleep 5"
-ACME_ISSUE_CMD="${ACME_ISSUE_CMD} --accountemail \"${ACCOUNT_EMAIL}\" --debug"
-ACME_ISSUE_CMD="${ACME_ISSUE_CMD} --server \"${CA_URL}\""
-ACME_ISSUE_CMD="${ACME_ISSUE_CMD} --reloadcmd \"/etc/init.d/uhttpd reload 2>/dev/null || true\""
+EXISTING_CERT_FOUND="$(ssh_exec "if [ -f '/etc/acme/${BASE_DOMAIN}/fullchain.cer' ] || [ -f '/etc/acme/${BASE_DOMAIN}_ecc/fullchain.cer' ] || [ -f '/etc/acme/${CERT_SECTION}/fullchain.cer' ]; then echo yes; else echo no; fi" "read_only" | tr -d '\r\n')"
 
-if confirm_action "Execute initial certificate issuance on OpenWrt" "${ACME_ISSUE_CMD}"; then
-    log_info "Running acme.sh --issue on OpenWrt router..."
-    ssh_exec "${ACME_ISSUE_CMD}" "mutating"
-    ISSUE_STATUS=$?
-    if [[ ${ISSUE_STATUS} -eq 0 ]]; then
-        log_success "Certificate issued successfully by acme.sh on OpenWrt!"
+ACME_BASE_ARGS="--home /etc/acme --issue"
+for d in "${DOMAINS_TO_REGISTER[@]}"; do
+    ACME_BASE_ARGS="${ACME_BASE_ARGS} -d \"${d}\""
+done
+ACME_BASE_ARGS="${ACME_BASE_ARGS} --dns dns_openwrt_dnsmasq --dnssleep 5 --accountemail \"${ACCOUNT_EMAIL}\" --debug --server \"${CA_URL}\" --reloadcmd \"/etc/init.d/uhttpd reload 2>/dev/null || true\""
+
+DO_ISSUE=true
+FORCE_FLAG=""
+
+if [[ "${DRY_RUN}" == "true" ]]; then
+    log_info "[DRY-RUN] Would prompt for certificate issuance."
+    DO_ISSUE=false
+elif [[ "${ASSUME_YES}" == "true" ]]; then
+    log_info "Automatic certificate issuance requested (--yes)."
+else
+    echo -e "\n${BOLD}${YELLOW}[ACTION REQUIRED]${NC} ${BOLD}${WHITE}Certificate Issuance Request${NC}"
+    echo -e "  Domains:  ${CYAN}${DOMAINS_TO_REGISTER[*]}${NC}"
+    echo -e "  CA URL:   ${CYAN}${CA_URL}${NC}"
+    if [[ "${EXISTING_CERT_FOUND}" == "yes" ]]; then
+        echo -e "  ${YELLOW}Notice: Existing certificate files detected under /etc/acme/ for ${BASE_DOMAIN}.${NC}"
+        read -r -p "Choose action: [i]ssue / [f]orce-renew / [s]kip certificate issuance? [i/f/S] (default: skip): " issue_choice
+        case "${issue_choice}" in
+            [iI]|[iI][sS][sS][uU][eE])
+                DO_ISSUE=true
+                ;;
+            [fF]|[fF][oO][rR][cC][eE])
+                DO_ISSUE=true
+                FORCE_FLAG=" --force"
+                ;;
+            *)
+                log_info "Skipping certificate issuance upon user request."
+                DO_ISSUE=false
+                ;;
+        esac
     else
-        log_warn "acme.sh exited with code ${ISSUE_STATUS}. Review output above for details."
+        read -r -p "Request certificate issuance from ACME CA now or skip? [I=issue / s=skip]: " issue_choice
+        case "${issue_choice}" in
+            [sS]|[sS][kK][iI][pP]|[nN]|[nN][oO])
+                log_info "Skipping certificate issuance upon user request."
+                DO_ISSUE=false
+                ;;
+            *)
+                DO_ISSUE=true
+                ;;
+        esac
     fi
+fi
+
+if [[ "${DO_ISSUE}" == "true" ]]; then
+    ACME_ISSUE_CMD="${ROUTER_ACME_BIN} ${ACME_BASE_ARGS}${FORCE_FLAG}"
+    if confirm_action "Execute certificate issuance on OpenWrt" "${ACME_ISSUE_CMD}"; then
+        log_info "Running acme.sh --issue on OpenWrt router..."
+        ssh_exec "${ACME_ISSUE_CMD}" "mutating"
+        ISSUE_STATUS=$?
+        if [[ ${ISSUE_STATUS} -eq 0 ]]; then
+            log_success "Certificate issued successfully by acme.sh on OpenWrt!"
+        else
+            log_warn "acme.sh exited with code ${ISSUE_STATUS}. Review output above for details."
+        fi
+    fi
+else
+    log_info "Certificate issuance skipped."
 fi
 
 # Step 12: Schedule Daily Renewal Check on OpenWrt
@@ -964,26 +1160,62 @@ else
 fi
 '
 
-RENEW_SETUP_CMDS="cat << 'EOF' > /usr/bin/acme-renew-check.sh
+RENEW_SCRIPT_TARGET="/usr/bin/acme-renew-check.sh"
+DO_DEPLOY_RENEW=true
+
+if remote_file_exists "${RENEW_SCRIPT_TARGET}"; then
+    RENEW_IDENTICAL=false
+    if remote_content_matches "${RENEW_SCRIPT_CONTENT}" "${RENEW_SCRIPT_TARGET}"; then
+        RENEW_IDENTICAL=true
+    fi
+    if ! prompt_overwrite_or_skip "Daily renewal script" "${RENEW_SCRIPT_TARGET}" "${RENEW_IDENTICAL}"; then
+        DO_DEPLOY_RENEW=false
+    fi
+fi
+
+CRON_JOB_EXISTS="$(ssh_exec "grep -q 'acme-renew-check.sh' /etc/crontabs/root 2>/dev/null && echo yes || echo no" "read_only" | tr -d '\r\n')"
+DO_CONFIG_CRON=true
+if [[ "${CRON_JOB_EXISTS}" == "yes" ]]; then
+    if ! prompt_reapply_or_skip "Cron schedule for acme-renew-check.sh in /etc/crontabs/root"; then
+        DO_CONFIG_CRON=false
+    fi
+fi
+
+if [[ "${DO_DEPLOY_RENEW}" == "true" ]]; then
+    RENEW_UPLOAD_CMDS="cat << 'EOF' > ${RENEW_SCRIPT_TARGET}
 ...
 EOF
-chmod +x /usr/bin/acme-renew-check.sh
-grep -q '/usr/bin/acme-renew-check.sh' /etc/sysupgrade.conf || echo '/usr/bin/acme-renew-check.sh' >> /etc/sysupgrade.conf
-grep -q '/etc/crontabs/root' /etc/sysupgrade.conf || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf
-mkdir -p /etc/crontabs
+chmod +x ${RENEW_SCRIPT_TARGET}
+grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf"
+
+    if confirm_action "Deploy daily renewal script (${RENEW_SCRIPT_TARGET}) on OpenWrt" "${RENEW_UPLOAD_CMDS}"; then
+        ssh_upload_string "${RENEW_SCRIPT_CONTENT}" "${RENEW_SCRIPT_TARGET}"
+        ssh_exec "chmod +x ${RENEW_SCRIPT_TARGET}" "mutating"
+        ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+        log_success "Daily renewal script deployed and registered in /etc/sysupgrade.conf."
+    fi
+else
+    # Ensure sysupgrade registration is intact
+    ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+    log_info "Daily renewal script upload skipped; ensured backup registration."
+fi
+
+if [[ "${DO_CONFIG_CRON}" == "true" ]]; then
+    CRON_SETUP_CMDS="mkdir -p /etc/crontabs
 touch /etc/crontabs/root
-grep -q 'acme-renew-check.sh' /etc/crontabs/root || echo '15 3 * * * /usr/bin/acme-renew-check.sh' >> /etc/crontabs/root
+grep -q '${RENEW_SCRIPT_TARGET}' /etc/crontabs/root || echo '15 3 * * * ${RENEW_SCRIPT_TARGET}' >> /etc/crontabs/root
+grep -q '/etc/crontabs/root' /etc/sysupgrade.conf || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf
 /etc/init.d/cron enable && /etc/init.d/cron restart"
 
-if confirm_action "Deploy daily renewal script & cron schedule on OpenWrt" "${RENEW_SETUP_CMDS}"; then
-    ssh_upload_string "${RENEW_SCRIPT_CONTENT}" "/usr/bin/acme-renew-check.sh"
-    ssh_exec "chmod +x /usr/bin/acme-renew-check.sh" "mutating"
-    ssh_exec "grep -q '/usr/bin/acme-renew-check.sh' /etc/sysupgrade.conf 2>/dev/null || echo '/usr/bin/acme-renew-check.sh' >> /etc/sysupgrade.conf" "mutating"
-    ssh_exec "grep -q '/etc/crontabs/root' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf" "mutating"
-    ssh_exec "mkdir -p /etc/crontabs && touch /etc/crontabs/root" "mutating"
-    ssh_exec "grep -q 'acme-renew-check.sh' /etc/crontabs/root 2>/dev/null || echo '15 3 * * * /usr/bin/acme-renew-check.sh' >> /etc/crontabs/root" "mutating"
-    ssh_exec "/etc/init.d/cron enable && /etc/init.d/cron restart" "mutating"
-    log_success "Daily renewal script installed, registered in cron (03:15 daily), and added to /etc/sysupgrade.conf."
+    if confirm_action "Configure daily cron schedule (03:15) in /etc/crontabs/root on OpenWrt" "${CRON_SETUP_CMDS}"; then
+        ssh_exec "mkdir -p /etc/crontabs && touch /etc/crontabs/root" "mutating"
+        ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/crontabs/root 2>/dev/null || echo '15 3 * * * ${RENEW_SCRIPT_TARGET}' >> /etc/crontabs/root" "mutating"
+        ssh_exec "grep -q '/etc/crontabs/root' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf" "mutating"
+        ssh_exec "/etc/init.d/cron enable && /etc/init.d/cron restart" "mutating"
+        log_success "Cron schedule configured (03:15 daily) and service restarted."
+    fi
+else
+    log_info "Cron schedule update skipped."
 fi
 
 # ------------------------------------------------------------------------------
