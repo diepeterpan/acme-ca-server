@@ -72,6 +72,7 @@ def test_should_offer_only_dns_challenge_for_wildcard_domain(signed_request, dir
     authz_data = response.json()
     assert authz_data['status'] == 'pending'
     assert authz_data.get('wildcard') is True
+    assert authz_data['identifier']['value'] == 'wildcard.example.org'
 
     types = [c['type'] for c in authz_data['challenges']]
     assert types == ['dns-01']

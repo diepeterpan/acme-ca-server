@@ -242,7 +242,8 @@
     }
 
     /* Domain & Monospace Elements */
-    .domain-link {
+    .domain-link,
+    .domain-text {
         font-weight: 600;
         color: var(--text-heading);
         text-decoration: none;
@@ -593,7 +594,11 @@
                     {% endif %}
                 </td>
                 <td data-sort-val="{{ cert.domains[0]|lower }}">
+                    {% if cert.domains[0].startswith('*') %}
+                    <span class="domain-text">{{cert.domains[0]}}</span>
+                    {% else %}
                     <a href="https://{{cert.domains[0]}}" target="_blank" rel="noopener noreferrer" class="domain-link">{{cert.domains[0]}}</a>
+                    {% endif %}
                     {% if cert.domains|length > 1 %}
                     <span class="badge-san" title="SANs: {{ cert.domains|join(', ') }}">+{{ cert.domains|length - 1 }} SANs</span>
                     {% endif %}

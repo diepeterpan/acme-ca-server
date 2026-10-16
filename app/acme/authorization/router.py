@@ -76,13 +76,14 @@ async def view_or_update_authorization(
         }
         challenges.append({k: v for k, v in chal_dict.items() if v is not None})
 
+    is_wildcard = domain.startswith('*.')
     result = {
         'status': authz_status,
         'expires': expires_at,
-        'identifier': {'type': 'dns', 'value': domain},
+        'identifier': {'type': 'dns', 'value': domain.removeprefix('*.') if is_wildcard else domain},
         'challenges': challenges,
     }
-    if domain.startswith('*.'):
+    if is_wildcard:
         result['wildcard'] = True
     return result
 

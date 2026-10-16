@@ -8,6 +8,7 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 
 * ✅ **ACME Server** implementation (supports `http-01` and `dns-01` challenges, including wildcard certificates)
 * 🔐 **Built-in CA** to sign/revoke certificates (can be replaced with an external CA), CA rollover is supported
+* 📡 **OpenWrt Router Integration** &mdash; One-command automated configuration (`run_openwrt_config.sh`) for OpenWrt routers: configures `acme.sh` with dynamic `dnsmasq` hooks for zero-touch RFC 8555 `dns-01` wildcard issuance, cleans stale static TXT entries, sets up daily renewal checks, and preserves scripts across sysupgrades.
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (certificates, domains, accounts, orders) and ACME Entrypoint hero card with 1-click clipboard copy.
@@ -343,9 +344,73 @@ If your local DNS is managed by an **OpenWrt 25** router/gateway running `dnsmas
 
 *(Note: `acme_test_harness.sh` is provided as a convenient symlink to `acme_client.sh`)*
 
+> [!TIP]
+> For fully automated, zero-touch certificate issuance and renewal on OpenWrt (without manually editing `/etc/config/dhcp`), use the [`run_openwrt_config.sh`](#2-run_openwrt_configsh--openwrt-router-acme-client--dnsmasq-automation) configurator described below.
+
 ---
 
-### 2. `run_local.sh` &mdash; Local Dev Server & Database Bootstrapper
+### 2. `run_openwrt_config.sh` &mdash; OpenWrt Router ACME Client & Dnsmasq Automation
+
+An automated, interactive configuration tool that provisions an OpenWrt router to issue and renew RFC 8555 certificates (including wildcard domains) directly against your local ACME CA server using dynamic `dnsmasq` DNS-01 challenge hooks.
+
+**Key capabilities:**
+* **Safety & Preview Guard**: Includes an author warranty waiver / liability disclaimer prompt, `--dry-run` simulation mode, non-interactive disclaimer acceptance (`-y` / `--yes` / `--accept-terms`), and an explicit confirmation gate with full command previews before applying any configuration changes or executing mutations on the router.
+* **Dual SSH Authentication & Connection Multiplexing**: Connects using standard SSH public keys (with automatic discovery) or password authentication (`sshpass` / interactive prompt). Reuses an OpenSSH `ControlMaster` multiplexed connection for instant execution across multiple commands without re-prompting.
+* **Package Manager Auto-Detection**: Dynamically detects the package manager (modern OpenWrt 25.12+ `apk` vs. legacy `opkg`), verifies installed dependencies (`luci-app-acme`, `acme-acmesh`, `curl`, `ca-certificates`), incorporates direct binary fallbacks, and builds targeted installation commands.
+* **Smart State Management**: Automatically remembers router hostname, user, port, domain, account email, and CA URL in a local config file (`.openwrt_config.env`), which is automatically ignored by Git.
+* **ACME Account Email & Debug Logging**: Discovers existing `account_email` on OpenWrt across named (`acme.acme1`, `acme.acme`) and indexed (`acme.@acme[0]`) sections, skips unnecessary update prompts if values already match, and enables verbose debug logging (`option debug '1'` on OpenWrt and `--debug` in `acme.sh`).
+* **Zero-Touch Dynamic DNS-01 Hook**:
+  * Configures `dnsmasq` dynamic `confdir='/tmp/acme'` (supporting both `@dnsmasq[0]` and named sections like `dnsmasq1`).
+  * Automatically provisions boot startup (`/etc/rc.local`) to recreate `/tmp/acme` and restart `dnsmasq` on router boot.
+  * Deploys native `acme.sh` DNS API plugin `/etc/acme/dnsapi/dns_openwrt_dnsmasq.sh` (symlinked into `/usr/lib/acme/client/dnsapi/`, `/usr/lib/acme/dnsapi/`, and `/root/.acme.sh/dnsapi/`) to dynamically write temporary challenge files (`/tmp/acme/acme_<domain>_<token>.conf`) with collision-proof concurrent wildcard + apex support, self-heals `/tmp/acme` directory creation, and triggers `/etc/init.d/dnsmasq restart`.
+  * Automatically detects and prompts to clean legacy static `option extraconftext 'txt-record=...'` entries from `/etc/config/dhcp` to avoid challenge conflicts.
+* **Wildcard & Apex Domain Support**: Automatically maps and issues certificates covering both `*.<domain>` and `<domain>`, enabling single-certificate encryption for both router web administration (`uhttpd`) and network services.
+* **CA Trust Auto-Upload**: Checks router connectivity to your local ACME CA server, detecting SSL certificate verification issues and offering to upload the local or user-specified root CA certificate (`ca.pem`) directly to OpenWrt's trust store (`/etc/ssl/certs/local-ca.pem`) with `c_rehash`.
+* **Pre-Flight DNS-01 Resolution Verification**: Deploys a temporary probe TXT record (`_acme-challenge-test.<domain>`), verifies local resolution on the router (`nslookup`), and validates query propagation from the host machine against the router (`<ROUTER_HOST>:53` via Python dnspython or `dig`) before requesting certificates from the CA.
+* **Initial Issuance & Web Admin Integration**: Discovers the router's `acme.sh` binary, creates a `/usr/bin/acme.sh` convenience symlink, executes the initial certificate issuance against the CA, and reloads `uhttpd` web server upon completion.
+* **Automated Daily Renewal & Sysupgrade Backup Protection**:
+  * Deploys `/usr/bin/acme-renew-check.sh` (with self-healing `/tmp/acme` creation) and registers a daily cron job (`03:15`) with automatic `uhttpd` reload on renewal.
+  * Adds `/etc/rc.local`, custom scripts, and cron tables to `/etc/sysupgrade.conf` so all ACME configurations survive OpenWrt firmware upgrades and backups.
+* **Session Logging & Interactive Viewer**: Streams colored output to the console and records a full timestamped log to `.acme_workspace/logs/`, offering an interactive log viewer (`less` / `cat`) upon completion.
+* **Plugin Unit Testing**: Includes `tests/test_dns_openwrt_dnsmasq.sh` to validate the POSIX `/bin/sh` plugin logic, token slugging, wildcard + apex coexistence, and selective record cleanup.
+
+**CLI Options:**
+
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `-d`, `--dry-run` | Simulate all operations without modifying the OpenWrt router | `false` |
+| `-y`, `--yes`, `--accept-terms` | Accept disclaimer and liability terms without interactive prompt | `false` |
+| `-h`, `--help` | Show usage and CLI help message | |
+| `--host <HOST>` | OpenWrt router IP or hostname | `192.168.1.1` |
+| `--user <USER>` | OpenWrt SSH username | `root` |
+| `--port <PORT>` | OpenWrt SSH port | `22` |
+| `--ca-url <URL>` | ACME CA directory URL (auto-appends `/acme/directory`) | `https://your-local-ca.lan/acme/directory` |
+| `--domain <DOMAIN>` | LAN domain or wildcard (e.g., `lan`, `*.home.arpa`) | Detected from router |
+| `--email <EMAIL>` | ACME account contact email | `admin@<domain>` |
+| `--ca-cert <PATH>` | Path to local root CA certificate to upload if untrusted | `./ca.pem` |
+
+**Usage Examples:**
+
+```shell
+# Run interactive wizard (prompts for options, credentials, and confirmation)
+./run_openwrt_config.sh
+
+# Run dry-run simulation mode to preview remote commands without modifying OpenWrt
+./run_openwrt_config.sh --dry-run
+
+# Run non-interactively in scripts (pre-accepting disclaimer terms)
+./run_openwrt_config.sh --yes --host 192.168.1.1 --ca-url https://ca.local/acme/directory --domain *.lan
+
+# Specify full router, CA URL, certificate, and account email parameters via CLI flags
+./run_openwrt_config.sh --host 192.168.1.1 --user root --ca-url https://acme.mydomain.org --domain *.home.arpa --email admin@home.arpa --ca-cert ./ca.pem
+
+# Run the plugin unit & integration test suite
+./tests/test_dns_openwrt_dnsmasq.sh
+```
+
+---
+
+### 3. `run_local.sh` &mdash; Local Dev Server & Database Bootstrapper
 
 A one-command setup script to run the server locally for development without building Docker images manually.
 
@@ -367,7 +432,7 @@ PORT=9000 HOST=127.0.0.1 ./run_local.sh
 
 ---
 
-### 3. `run_tests.sh` &mdash; Local CI / Test Suite Runner (Pytest & E2E)
+### 4. `run_tests.sh` &mdash; Local CI / Test Suite Runner (Pytest & E2E)
 
 Replicates the GitHub Actions test workflow ([.github/workflows/tests.yml](.github/workflows/tests.yml)) locally. Exits with standard return codes (`0` on success, non-zero on failure) for consumption in CI pipelines, automation scripts, and git hooks.
 
@@ -399,7 +464,7 @@ Replicates the GitHub Actions test workflow ([.github/workflows/tests.yml](.gith
 
 ---
 
-### 4. `run_lint.sh` &mdash; Code Quality & Lint Checks
+### 5. `run_lint.sh` &mdash; Code Quality & Lint Checks
 
 Replicates the GitHub Actions linting workflow ([.github/workflows/lint.yml](.github/workflows/lint.yml)) locally, performing static analysis, security auditing, type checking, and spell checking.
 
@@ -418,7 +483,7 @@ Replicates the GitHub Actions linting workflow ([.github/workflows/lint.yml](.gi
 
 ---
 
-### 5. `run_release.sh` &mdash; Release Workflow & Git Tagging
+### 6. `run_release.sh` &mdash; Release Workflow & Git Tagging
 
 An interactive script to safely create, update, and push git release tags to trigger automated release workflows.
 
@@ -437,7 +502,7 @@ An interactive script to safely create, update, and push git release tags to tri
 
 ---
 
-### 6. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
+### 7. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
 
 A Playwright-driven automation utility that captures high-resolution screenshots of all 9 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details, audit logs, and the account orders & error modal).
 
