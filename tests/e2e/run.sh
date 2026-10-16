@@ -3,11 +3,12 @@
 # also works: alias docker='podman'
 
 # cleanup
-docker rm -f -v test_db
-docker rm -f -v test_server
-docker rm -f -v test_mail
+docker rm -f -v test_db 2>/dev/null || true
+docker rm -f -v test_server 2>/dev/null || true
+docker rm -f -v test_mail 2>/dev/null || true
+docker rm -f -v test_dns 2>/dev/null || true
 
-docker network rm -f test_net
+docker network rm -f test_net 2>/dev/null || true
 
 # run tests
 set -e
@@ -20,6 +21,12 @@ docker run -dit -e POSTGRES_PASSWORD=secret --name test_db --net test_net docker
 
 docker run -dit --name test_mail --net test_net -p "3000:80" docker.io/rnwood/smtp4dev
 echo See sent emails at http://localhost:3000
+
+# start mock DNS server for DNS-01 challenges
+docker run -dit --name test_dns --net test_net -p "8053:8053" \
+    --network-alias test_dns --network-alias dns.example.org \
+    -v "$PWD/mock_dns.py:/mock_dns.py:ro" \
+    docker.io/python:3.13-alpine python3 /mock_dns.py
 
 # generate ca key+cert
 openssl genrsa -out ca.key 4096
@@ -34,6 +41,7 @@ function start_server() {
         -e MAIL_ENABLED=true -e MAIL_HOST=test_mail -e MAIL_ENCRYPTION=plain -e MAIL_SENDER=acme@example.org \
         -e EXTERNAL_URL="http://acme.example.org:8080" \
         -e CA_ENCRYPTION_KEY="DaxNj1bTiCsk6aQiY43hz2jDqBZAU5kta1uNBzp_yqo=" \
+        -e ACME_DNS_RESOLVERS="test_dns:53" \
         ${EXTRA_ARGS} \
         acmeserver
 
@@ -120,6 +128,37 @@ docker run --rm --pull always --name test_certbot5a --net test_net \
      --server http://acme.example.org:8080/acme/directory --standalone --no-eff-email \
      -vvv \
      --domains host1.example.org --domains host2.example.org 2>&1 | grep urn:ietf:params:acme:error:malformed
+
+echo "Certbot 6a (DNS-01 challenge)"
+docker run --rm --name test_certbot6a --net test_net -v "$PWD/certbot:/etc/letsencrypt" \
+     -v "$PWD/dns_auth_hook.py:/dns_auth_hook.py:ro" -v "$PWD/dns_cleanup_hook.py:/dns_cleanup_hook.py:ro" \
+     docker.io/certbot/certbot certonly \
+     --server http://acme.example.org:8080/acme/directory \
+     --manual --preferred-challenges dns \
+     --manual-auth-hook "python3 /dns_auth_hook.py" \
+     --manual-cleanup-hook "python3 /dns_cleanup_hook.py" \
+     --agree-tos --non-interactive --no-eff-email --email certbot@example.org -vvv \
+     --domains hostdns.example.org
+
+echo "Certbot 6b (DNS-01 Wildcard certificate)"
+docker run --rm --name test_certbot6b --net test_net -v "$PWD/certbot:/etc/letsencrypt" \
+     -v "$PWD/dns_auth_hook.py:/dns_auth_hook.py:ro" -v "$PWD/dns_cleanup_hook.py:/dns_cleanup_hook.py:ro" \
+     docker.io/certbot/certbot certonly \
+     --server http://acme.example.org:8080/acme/directory \
+     --manual --preferred-challenges dns \
+     --manual-auth-hook "python3 /dns_auth_hook.py" \
+     --manual-cleanup-hook "python3 /dns_cleanup_hook.py" \
+     --agree-tos --non-interactive --no-eff-email --email certbot@example.org -vvv \
+     --domains "*.wildcard.example.org" --domains "wildcard.example.org"
+
+echo "Certbot 6c (DNS-01 failure on missing TXT record)"
+! docker run --rm --name test_certbot6c --net test_net -v "$PWD/certbot:/etc/letsencrypt" \
+     docker.io/certbot/certbot certonly \
+     --server http://acme.example.org:8080/acme/directory \
+     --manual --preferred-challenges dns \
+     --manual-auth-hook "/bin/true" \
+     --agree-tos --non-interactive --no-eff-email --email certbot@example.org \
+     --domains dnsfail.example.org
 
 
 # TODO: disable traefik as lego requires a HTTPS server now
@@ -227,3 +266,5 @@ docker exec test_db psql -U postgres -c "update certificates set not_valid_befor
 start_server
 
 stop_server
+
+docker rm -f -v test_dns 2>/dev/null || true

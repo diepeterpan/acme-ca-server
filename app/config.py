@@ -1,3 +1,5 @@
+import json
+import re
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -84,9 +86,32 @@ class AcmeSettings(BaseSettings):
     terms_of_service_url: AnyHttpUrl | None = None
     mail_target_regex: Pattern = r'[^@]+@[^@]+\.[^@]+'  # type: ignore[assignment]
     mail_required: bool = True
-    target_domain_regex: Pattern = r'[^\*]+\.[^\.]+'  # type: ignore[assignment]  # disallow wildcard
+    dns_challenge_enabled: bool = True
+    http_challenge_enabled: bool = True
+    dns_resolvers: list[str] | str = []
+    dns_timeout: float = 5.0
+    dns_retries: int = 3
+    allow_wildcards: bool = True
+    target_domain_regex: Pattern = r'(\*\.)?[^\*]+\.[^\.]+'  # type: ignore[assignment]
 
     model_config = SettingsConfigDict(env_prefix='acme_', secrets_dir='/run/secrets')
+
+    @model_validator(mode='after')
+    def sanitize_acme_values(self) -> 'AcmeSettings':
+        if isinstance(self.dns_resolvers, str):
+            val = self.dns_resolvers.strip()
+            if val.startswith('[') and val.endswith(']'):
+                try:
+                    self.dns_resolvers = json.loads(val)
+                except (json.JSONDecodeError, TypeError):
+                    self.dns_resolvers = [r.strip() for r in val.strip('[]').split(',') if r.strip()]
+            elif val:
+                self.dns_resolvers = [r.strip() for r in val.split(',') if r.strip()]
+            else:
+                self.dns_resolvers = []
+        if not self.allow_wildcards:
+            self.target_domain_regex = re.compile(r'[^\*]+\.[^\.]+')
+        return self
 
 
 class Settings(BaseSettings):

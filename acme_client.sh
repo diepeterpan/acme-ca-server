@@ -67,6 +67,15 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# Terminal & Console Helpers
+# ------------------------------------------------------------------------------
+restore_tty() {
+    if [[ -t 1 ]]; then
+        stty opost onlcr 2>/dev/null || stty sane 2>/dev/null || true
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Cryptography & JWS Helpers (Pure Bash + OpenSSL + Python stdlib)
 # ------------------------------------------------------------------------------
 b64url() {
@@ -287,13 +296,16 @@ start_standalone_http() {
 
         if [[ "$use_sudo" == true ]]; then
             echo -e "${YELLOW}[*] Invoking standalone HTTP server with sudo...${NC}"
-            sudo nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 &
-            local pid=$!
+            sudo sh -c "nohup python3 -m http.server '$HTTP_CHALLENGE_PORT' --directory '$WWW_DIR' > '$HTTP_LOG' 2>&1 < /dev/null & echo \$! > '$HTTP_PID_FILE' && chown $(id -u):$(id -g) '$HTTP_PID_FILE' '$HTTP_LOG' 2>/dev/null || true"
+            restore_tty
+            local pid
+            pid=$(cat "$HTTP_PID_FILE" 2>/dev/null)
         else
-            nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 &
+            nohup python3 -m http.server "$HTTP_CHALLENGE_PORT" --directory "$WWW_DIR" > "$HTTP_LOG" 2>&1 < /dev/null &
             local pid=$!
+            echo "$pid" > "$HTTP_PID_FILE"
+            restore_tty
         fi
-        echo "$pid" > "$HTTP_PID_FILE"
         sleep 1
 
         if kill -0 "$pid" 2>/dev/null || sudo kill -0 "$pid" 2>/dev/null; then
@@ -342,6 +354,7 @@ start_standalone_http() {
                             kill -9 "$p" 2>/dev/null || sudo kill -9 "$p" 2>/dev/null || true
                         fi
                     done
+                    restore_tty
                     sleep 1
                     echo -e "${GREEN}[+] Process(es) terminated. Retrying server startup...${NC}"
                     continue
@@ -379,6 +392,7 @@ stop_standalone_http() {
         fi
         rm -f "$HTTP_PID_FILE"
     fi
+    restore_tty
 }
 
 reinit_workspace() {
@@ -484,14 +498,12 @@ workflow_new_cert() {
     local finalize_url
     finalize_url=$(echo "$order_resp" | jq -r '.finalize // empty')
 
-    # Step 3: Handle HTTP-01 Challenges
-    echo -e "\n${BOLD}Step 3: Solving HTTP-01 Challenges${NC}"
+    # Step 3: Handle Authorizations & Challenges (HTTP-01 / DNS-01)
+    echo -e "\n${BOLD}Step 3: Solving Authorizations & Challenges${NC}"
     local key_info
     key_info=$(get_jwk_and_thumbprint "$ACCOUNT_KEY")
     local thumbprint
     thumbprint=$(echo "$key_info" | jq -r '.thumbprint')
-
-    start_standalone_http || return 1
 
     for authz_url in $authz_urls; do
         echo -e "\nFetching authorization: ${CYAN}${authz_url}${NC}..."
@@ -508,11 +520,19 @@ workflow_new_cert() {
             continue
         fi
 
-        # Find http-01 challenge
-        local challenge_obj
-        challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "http-01")')
+        # Select challenge: if wildcard or http-01 unavailable, use dns-01
+        local challenge_obj=""
+        local chal_type="http-01"
+        if [[ "$domain_val" != *"*"* ]]; then
+            challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "http-01")')
+        fi
         if [[ -z "$challenge_obj" ]]; then
-            echo -e "${RED}[ERROR] No http-01 challenge found in authorization!${NC}"
+            challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "dns-01")')
+            chal_type="dns-01"
+        fi
+
+        if [[ -z "$challenge_obj" ]]; then
+            echo -e "${RED}[ERROR] No supported challenge found in authorization!${NC}"
             stop_standalone_http
             return 1
         fi
@@ -523,10 +543,24 @@ workflow_new_cert() {
         chal_token=$(echo "$challenge_obj" | jq -r '.token')
         local key_auth="${chal_token}.${thumbprint}"
 
-        echo -e "Deploying HTTP challenge file:"
-        echo -e "  Token: ${CYAN}${chal_token}${NC}"
-        echo -e "  KeyAuthorization: ${CYAN}${key_auth}${NC}"
-        echo -n "$key_auth" > "${CHALLENGE_DIR}/${chal_token}"
+        if [[ "$chal_type" == "http-01" ]]; then
+            if [[ ! -f "$HTTP_PID_FILE" ]] || ! kill -0 "$(cat "$HTTP_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+                start_standalone_http || return 1
+            fi
+            echo -e "Deploying HTTP challenge file:"
+            echo -e "  Token: ${CYAN}${chal_token}${NC}"
+            echo -e "  KeyAuthorization: ${CYAN}${key_auth}${NC}"
+            echo -n "$key_auth" > "${CHALLENGE_DIR}/${chal_token}"
+        else
+            local dns_digest
+            dns_digest=$(printf "%s" "$key_auth" | openssl dgst -sha256 -binary | b64url)
+            local clean_domain="${domain_val#\*.}"
+            local txt_record="_acme-challenge.${clean_domain}"
+            echo -e "${YELLOW}[!] DNS-01 Challenge: Please deploy the following DNS TXT record:${NC}"
+            echo -e "  Host / Name:  ${CYAN}${txt_record}${NC}"
+            echo -e "  TXT Value:    ${CYAN}${dns_digest}${NC}"
+            read -r -p "Press Enter once the TXT record has been deployed..." _
+        fi
 
         echo -e "Triggering challenge validation at: ${CYAN}${chal_url}${NC}..."
         local chal_resp
@@ -757,7 +791,6 @@ workflow_renew_cert() {
     local thumbprint
     thumbprint=$(echo "$key_info" | jq -r '.thumbprint')
 
-    start_standalone_http || return 1
     for authz_url in $authz_urls; do
         local authz_resp
         authz_resp=$(acme_request "$authz_url" "")
@@ -765,15 +798,47 @@ workflow_renew_cert() {
         authz_status=$(echo "$authz_resp" | jq -r '.status')
         if [[ "$authz_status" == "valid" ]]; then continue; fi
 
-        local challenge_obj
-        challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "http-01")')
+        local domain_val
+        domain_val=$(echo "$authz_resp" | jq -r '.identifier.value')
+        echo -e "Authorization for [${BOLD}${domain_val}${NC}] is currently: ${CYAN}${authz_status}${NC}"
+
+        local challenge_obj=""
+        local chal_type="http-01"
+        if [[ "$domain_val" != *"*"* ]]; then
+            challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "http-01")')
+        fi
+        if [[ -z "$challenge_obj" ]]; then
+            challenge_obj=$(echo "$authz_resp" | jq -c '.challenges[] | select(.type == "dns-01")')
+            chal_type="dns-01"
+        fi
+
+        if [[ -z "$challenge_obj" ]]; then
+            echo -e "${RED}[ERROR] No supported challenge found in authorization!${NC}"
+            stop_standalone_http
+            return 1
+        fi
+
         local chal_url
         chal_url=$(echo "$challenge_obj" | jq -r '.url')
         local chal_token
         chal_token=$(echo "$challenge_obj" | jq -r '.token')
         local key_auth="${chal_token}.${thumbprint}"
 
-        echo -n "$key_auth" > "${CHALLENGE_DIR}/${chal_token}"
+        if [[ "$chal_type" == "http-01" ]]; then
+            if [[ ! -f "$HTTP_PID_FILE" ]] || ! kill -0 "$(cat "$HTTP_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+                start_standalone_http || return 1
+            fi
+            echo -n "$key_auth" > "${CHALLENGE_DIR}/${chal_token}"
+        else
+            local dns_digest
+            dns_digest=$(printf "%s" "$key_auth" | openssl dgst -sha256 -binary | b64url)
+            local clean_domain="${domain_val#\*.}"
+            local txt_record="_acme-challenge.${clean_domain}"
+            echo -e "${YELLOW}[!] Renewal DNS-01 Challenge: Please deploy DNS TXT record:${NC}"
+            echo -e "  Host / Name:  ${CYAN}${txt_record}${NC}"
+            echo -e "  TXT Value:    ${CYAN}${dns_digest}${NC}"
+            read -r -p "Press Enter once the TXT record has been deployed..." _
+        fi
         acme_request "$chal_url" "{}" > /dev/null
 
         local tries=0
@@ -1308,6 +1373,7 @@ main_menu() {
     startup_initialization
 
     while true; do
+        restore_tty
         local acct_status="None (Not registered)"
         if [[ -f "$ACCOUNT_URL_FILE" ]]; then
             acct_status=$(cat "$ACCOUNT_URL_FILE")
@@ -1364,8 +1430,14 @@ main_menu() {
     done
 }
 
-# Trap exit to cleanup background HTTP server
-trap stop_standalone_http EXIT
+# Cleanup handler
+cleanup_on_exit() {
+    stop_standalone_http
+    restore_tty
+}
+
+# Trap exit to cleanup background HTTP server and terminal state
+trap cleanup_on_exit EXIT
 
 # Run
 main_menu

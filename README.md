@@ -6,7 +6,7 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 
 ## Features
 
-* ✅ **ACME Server** implementation (supports `http-01` challenge)
+* ✅ **ACME Server** implementation (supports `http-01` and `dns-01` challenges, including wildcard certificates)
 * 🔐 **Built-in CA** to sign/revoke certificates (can be replaced with an external CA), CA rollover is supported
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
@@ -120,7 +120,11 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | ACME_TERMS_OF_SERVICE_URL        | `None`        | Optional URL which the ACME client can show when the user has to accept the terms of service, e.g. https://acme.mydomain.org/terms             |
 | ACME_MAIL_REQUIRED        | `True`       | whether the user has to provide a mail address to obtain certificates via the ACME client (recommended)        |
 | ACME_MAIL_TARGET_REGEX        | any mail address       | restrict the format of user-provided mail addresses. E.g. `[^@]+@mydomain\.org` only allows mail addresses from mydomain.org             |
-| ACME_TARGET_DOMAIN_REGEX        | any non-wildcard domain name       | restrict the domain names for which certificates can be requested via ACME. E.g. `[^\*]+\.mydomain\.org` only allows domain names from mydomain.org             |
+| ACME_DNS_CHALLENGE_ENABLED    | `True`       | whether `dns-01` challenge validation is enabled                                                                 |
+| ACME_HTTP_CHALLENGE_ENABLED   | `True`       | whether `http-01` challenge validation is enabled                                                                |
+| ACME_DNS_RESOLVERS            | `[]`         | custom DNS resolvers for DNS-01 validation (e.g. `1.1.1.1:53,8.8.8.8:53`). Defaults to system DNS if empty      |
+| ACME_ALLOW_WILDCARDS          | `True`       | allow requesting wildcard certificates (e.g. `*.mydomain.org`, fulfilled via `dns-01`)                           |
+| ACME_TARGET_DOMAIN_REGEX      | domain regex | restrict the domain names for which certificates can be requested via ACME. Default: `(\*\.)?[^\*]+\.[^\.]+`   |
 | CA_ENABLED        | `True`       | whether the internal CA is enabled, set this to false when providing a custom CA implementation  |
 | CA_ENCRYPTION_KEY        | will be generated if not provided       | the key to protect the CA private keys at rest (encrypted in the database)  |
 | CA_IMPORT_DIR        | `/import`       | where the *ca.pem* and *ca.key* are initially imported from, see 2. <br>CA rollover is as simple as placing a new cert and key in this directory. The server will detect and import them at startup. |
@@ -277,27 +281,65 @@ The repository includes several standalone utility scripts to simplify developme
 
 ### 1. `acme_client.sh` &mdash; Pure Bash ACME Test Harness & Client
 
-A zero-dependency, pure Bash client implementing the RFC 8555 ACME protocol using standard CLI tools (`curl`, `openssl`, `jq`). It includes primitive API tests, certificate lifecycle flows (issuance, renewal, revocation, key change, ARI renewal info), and an integrated HTTP-01 challenge responder.
+A zero-dependency, pure Bash interactive test harness and client implementing the RFC 8555 ACME protocol using standard CLI tools (`curl`, `openssl`, `jq`, `python3`). It provides end-to-end certificate lifecycle workflows (new issuance, renewal, revocation, account key rollover, ARI renewal info) and individual ACME API primitive tests.
 
 **Key capabilities:**
-* Test Directory, New-Nonce, New-Account, New-Order, Challenge Validation, Finalize, Download, Revocation, Key Rollover, and Renewal Info (ARI).
-* Issue certificates with custom validity ranges (`--not-before` and `--not-after`).
-* Standalone built-in HTTP-01 challenge server (`./acme_client.sh server <port>`).
+* **Challenge Support**:
+  * **HTTP-01**: Integrated standalone HTTP responder on custom/configurable ports with automatic `sudo` elevation for privileged ports (e.g. port 80). Challenge files are deployed to `.acme_workspace/www/.well-known/acme-challenge/`.
+  * **DNS-01 & Wildcards**: Full support for wildcard certificates (`*.example.com`) and standard domains using DNS-01. The client automatically calculates the RFC 8555 SHA-256 base64url digest of the key authorization and interactively displays the exact DNS TXT record details (`_acme-challenge.<domain>`), pausing until propagation is complete before triggering validation.
+* **On-Demand Challenge Server**: The standalone HTTP-01 challenge responder only starts when an HTTP-01 challenge is actually required. Wildcard-only orders proceed directly to DNS-01 without prompting for HTTP server privileges.
+* **Certificate Lifecycle Workflows**:
+  * Request new certificates with custom validity ranges (`notBefore` and `notAfter`).
+  * Renew existing certificates with automatic domain discovery, private key reuse or re-generation, and ACME Renewal Information (ARI, RFC 9444) queries.
+* **ACME Protocol Test Suite**: Interactive execution of individual ACME API primitives (Directory fetching, New-Nonce, Account creation/update, Key-Change rollover per RFC 8555 §7.5, Order creation, Authorization polling, Challenge triggering, CSR Finalization, Certificate download, and Revocation).
 
-**Usage:**
+**Interactive Usage:**
 ```shell
-# Display help and available commands
-./acme_client.sh help
+# Launch the interactive menu (options [1-6])
+./acme_client.sh
 
-# Run full end-to-end ACME test suite against local server
-./acme_client.sh test-all
-
-# Issue a certificate for a domain using the built-in HTTP-01 responder
-./acme_client.sh request-cert example.com
-
-# Start standalone HTTP-01 challenge responder on port 5002 (or 80)
-./acme_client.sh server 5002
+# Or via the symlink
+./acme_test_harness.sh
 ```
+
+#### DNS-01 Challenge & Wildcards Workflow
+
+When requesting a certificate for a wildcard domain (e.g., `*.example.com`) or when the CA requires DNS validation:
+
+1. **Automatic Challenge Selection**: Per RFC 8555, wildcard domains require `dns-01`. `acme_client.sh` automatically detects the wildcard identifier and selects the `dns-01` challenge.
+2. **Digest Calculation**: The client derives the account thumbprint, constructs the key authorization (`token.thumbprint`), and calculates the base64url-encoded SHA-256 digest:
+   $$\text{TXT Value} = \text{base64url}(\text{SHA-256}(\text{keyAuthorization}))$$
+3. **Interactive Deployment Prompt**: The client displays the exact record name and value to publish in your DNS zone:
+   ```
+   [!] DNS-01 Challenge: Please deploy the following DNS TXT record:
+     Host / Name:  _acme-challenge.example.com
+     TXT Value:    HVFIxLEqgP4vy-1TT6f3h1H3RJTUleGA0Uwh0XDv9TU
+   Press Enter once the TXT record has been deployed...
+   ```
+4. **Validation & Finalization**: After creating the TXT record in your DNS provider and pressing <kbd>Enter</kbd>, `acme_client.sh` notifies the CA server to validate the challenge, polls the authorization status until valid, submits the CSR, and saves `fullchain.pem` and `privkey.pem` to `.acme_workspace/certs/<domain>/`.
+
+##### Example: Deploying DNS-01 TXT Record on OpenWrt 25 (`dnsmasq`)
+
+If your local DNS is managed by an **OpenWrt 25** router/gateway running `dnsmasq`, you can configure the challenge TXT record directly via SSH or the router console:
+
+1. Edit `/etc/config/dhcp`:
+   ```shell
+   nano /etc/config/dhcp
+   ```
+   Under the `config dnsmasq` section, add or update the `extraconftext` option with your domain and challenge digest:
+   ```text
+   option extraconftext 'txt-record=_acme-challenge.domain.com,"FVjqY3EYMomWyBOsJpj0ozekNUgALVIwmitoWaiHV40"'
+   ```
+
+2. Restart `dnsmasq` to apply the changes:
+   ```shell
+   /etc/init.d/dnsmasq restart
+   ```
+
+3. Verify that the TXT record is being resolved:
+   ```shell
+   nslookup -type=txt _acme-challenge.domain.com 127.0.0.1
+   ```
 
 *(Note: `acme_test_harness.sh` is provided as a convenient symlink to `acme_client.sh`)*
 

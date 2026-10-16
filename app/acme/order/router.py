@@ -70,14 +70,37 @@ async def submit_order(response: Response, data: Annotated[RequestData[NewOrderP
 
     domains: list[str] = list({identifier.value for identifier in data.payload.identifiers})  # deduplicate domains
 
+    for domain in domains:
+        if domain.startswith('*.'):
+            if not settings.acme.allow_wildcards:
+                raise ACMEException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    exctype='rejectedIdentifier',
+                    detail='Wildcard domains are not allowed.',
+                    new_nonce=data.new_nonce,
+                )
+            if not settings.acme.dns_challenge_enabled:
+                raise ACMEException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    exctype='rejectedIdentifier',
+                    detail='Wildcard domains require dns-01 challenge support which is disabled.',
+                    new_nonce=data.new_nonce,
+                )
+
     def generate_tokens_sync(domains):
         order_id = secrets.token_urlsafe(16)
         authz_ids = {domain: secrets.token_urlsafe(16) for domain in domains}
-        chal_ids = {domain: secrets.token_urlsafe(16) for domain in domains}
-        chal_tkns = {domain: secrets.token_urlsafe(32) for domain in domains}
-        return order_id, authz_ids, chal_ids, chal_tkns
+        chals = []
+        for domain in domains:
+            is_wildcard = domain.startswith('*.')
+            authz_id = authz_ids[domain]
+            if not is_wildcard and settings.acme.http_challenge_enabled:
+                chals.append((secrets.token_urlsafe(16), authz_id, 'http-01', secrets.token_urlsafe(32)))
+            if settings.acme.dns_challenge_enabled:
+                chals.append((secrets.token_urlsafe(16), authz_id, 'dns-01', secrets.token_urlsafe(32)))
+        return order_id, authz_ids, chals
 
-    order_id, authz_ids, chal_ids, chal_tkns = await asyncio.to_thread(generate_tokens_sync, domains)
+    order_id, authz_ids, chals = await asyncio.to_thread(generate_tokens_sync, domains)
 
     async with db.transaction() as sql:
         order_status, expires_at = await sql.record(
@@ -90,8 +113,8 @@ async def submit_order(response: Response, data: Annotated[RequestData[NewOrderP
             *[(authz_ids[domain], order_id, domain) for domain in domains],
         )
         await sql.execmany(
-            """insert into challenges (id, authz_id, token) values ($1, $2, $3)""",
-            *[(chal_ids[domain], authz_ids[domain], chal_tkns[domain]) for domain in domains],
+            """insert into challenges (id, authz_id, type, token) values ($1, $2, $3, $4)""",
+            *chals,
         )
 
     response.headers['Location'] = f'{settings.external_url}acme/orders/{order_id}'
@@ -99,7 +122,7 @@ async def submit_order(response: Response, data: Annotated[RequestData[NewOrderP
         status=order_status,
         expires_at=expires_at,
         domains=domains,
-        authz_ids=authz_ids.values(),
+        authz_ids=list(authz_ids.values()),
         order_id=order_id,
     )
 
