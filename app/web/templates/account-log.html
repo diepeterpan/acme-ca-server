@@ -154,7 +154,7 @@
         width: 100%;
         border-collapse: collapse;
         text-align: left;
-        font-size: 0.84rem;
+        font-size: var(--font-size-table, 12px);
     }
 
     table.account-table th {
@@ -164,7 +164,7 @@
         padding: 0.40rem 0.55rem;
         border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
-        font-size: 0.77rem;
+        font-size: var(--font-size-table-header, 12px);
     }
 
     table.account-table th:first-child,
@@ -181,6 +181,7 @@
         padding: 0.40rem 0.55rem;
         border-bottom: 1px solid #f1f5f9;
         vertical-align: middle;
+        font-size: var(--font-size-table, 12px);
     }
 
     table.account-table tbody tr {
@@ -213,7 +214,7 @@
         display: flex;
         align-items: center;
         gap: 0.35rem;
-        font-size: 0.84rem;
+        font-size: 12px;
     }
 
     .account-email svg {
@@ -230,7 +231,7 @@
 
     .account-id-badge {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.70rem;
+        font-size: 12px;
         background-color: #f1f5f9;
         color: var(--text-muted);
         padding: 0.10rem 0.35rem;
@@ -239,7 +240,7 @@
     }
 
     .key-badge {
-        font-size: 0.66rem;
+        font-size: 12px;
         font-weight: 600;
         color: var(--primary);
         background-color: var(--primary-light);
@@ -268,9 +269,9 @@
     .badge {
         display: inline-flex;
         align-items: center;
-        padding: 0.12rem 0.45rem;
+        padding: 0.10rem 0.45rem;
         border-radius: var(--radius-pill);
-        font-size: 0.70rem;
+        font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
         border: none;
@@ -305,7 +306,7 @@
         gap: 0.25rem;
         padding: 0.10rem 0.38rem;
         border-radius: var(--radius-pill);
-        font-size: 0.68rem;
+        font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
         width: fit-content;
@@ -367,9 +368,9 @@
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        padding: 0.22rem 0.48rem;
+        padding: 0.20rem 0.50rem;
         border-radius: 5px;
-        font-size: 0.70rem;
+        font-size: 12px;
         font-weight: 600;
         text-decoration: none;
         background-color: var(--primary-light);
@@ -442,7 +443,7 @@
     table.order-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.80rem;
+        font-size: var(--font-size-table, 12px);
     }
 
     table.order-table th {
@@ -452,7 +453,7 @@
         padding: 0.38rem 0.55rem;
         border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
-        font-size: 0.75rem;
+        font-size: var(--font-size-table-header, 12px);
         text-align: left;
     }
 
@@ -461,6 +462,7 @@
         border-bottom: 1px solid #f1f5f9;
         vertical-align: top;
         text-align: left;
+        font-size: var(--font-size-table, 12px);
     }
 
     table.order-table tbody tr:hover {
@@ -668,7 +670,7 @@
                     </div>
                 </td>
                 <td class="cell-registered" data-sort-val="{{ acc.created_at.isoformat() if acc.created_at else '' }}">
-                    <span style="font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;">
+                    <span style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-muted); white-space: nowrap;">
                         {% if acc.created_at %}
                         {{ acc.created_at.strftime('%Y-%m-%d %H:%M') }}
                         {% else %}
@@ -825,7 +827,7 @@ function openOrderModal(accountId, email) {
             tdOrderId.dataset.sortVal = order.order_id || '';
             tdOrderId.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 0.35rem;">
-                    <span style="font-family: ui-monospace, monospace; font-size: 0.82rem; font-weight: 600; color: var(--text-heading);">${escapeHtml(order.order_id || '')}</span>
+                    <span style="font-family: ui-monospace, monospace; font-size: 12px; font-weight: 600; color: var(--text-heading);">${escapeHtml(order.order_id || '')}</span>
                     <button type="button" class="btn-copy-mini" onclick="copyText('${escapeHtml(order.order_id || '')}', this)" title="Copy Order ID">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
@@ -841,7 +843,7 @@ function openOrderModal(accountId, email) {
             tdDomains.dataset.sortVal = domainsList.join(' ').toLowerCase();
             if (domainsList.length > 0) {
                 tdDomains.innerHTML = '<div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">' +
-                    domainsList.map(d => `<span style="font-size: 0.74rem; background:#ffffff; color:#334155; padding: 0.12rem 0.45rem; border-radius: 4px; border: 1px solid #e2e8f0; font-family: ui-monospace, monospace;">🌐 ${escapeHtml(d)}</span>`).join('') +
+                    domainsList.map(d => `<span style="font-size: 12px; background:#ffffff; color:#334155; padding: 0.10rem 0.45rem; border-radius: 4px; border: 1px solid #e2e8f0; font-family: ui-monospace, monospace;">🌐 ${escapeHtml(d)}</span>`).join('') +
                     '</div>';
             } else {
                 tdDomains.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">&mdash;</span>';
@@ -864,8 +866,8 @@ function openOrderModal(accountId, email) {
                         const mm = pad(expDate.getMinutes());
                         const formatted = `${y}-${m}-${d} ${hh}:${mm}`;
                         const isExpired = expDate.getTime() < Date.now();
-                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 0.7rem; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
-                        expiryHtml = `<div style="font-size: 0.78rem; font-family: ui-monospace, monospace; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 12px; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
+                        expiryHtml = `<div style="font-size: 12px; font-family: ui-monospace, monospace; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
                             <span>${formatted}</span>
                             ${expBadge}
                         </div>`;
@@ -882,13 +884,13 @@ function openOrderModal(accountId, email) {
             tdDetails.dataset.sortVal = ((order.error_type || '') + ' ' + (order.error_detail || '')).toLowerCase();
             if (order.error_type || order.error_detail) {
                 tdDetails.innerHTML = `
-                    <div class="order-error-box" style="margin: 0; padding: 0.45rem 0.75rem; font-size: 0.8rem;">
-                        <div class="order-error-type" style="font-size: 0.78rem;">⚠️ ${escapeHtml(order.error_type || 'ACME Validation Error')}</div>
+                    <div class="order-error-box" style="margin: 0; padding: 0.45rem 0.75rem; font-size: 12px;">
+                        <div class="order-error-type" style="font-size: 12px;">⚠️ ${escapeHtml(order.error_type || 'ACME Validation Error')}</div>
                         <div style="line-height: 1.35; word-break: break-word;">${escapeHtml(order.error_detail || 'No detailed error message')}</div>
                     </div>
                 `;
             } else {
-                tdDetails.innerHTML = '<span style="color: #16a34a; font-size: 0.82rem; font-weight: 500;">✓ Clean</span>';
+                tdDetails.innerHTML = '<span style="color: #16a34a; font-size: 12px; font-weight: 500;">✓ Clean</span>';
             }
             tr.appendChild(tdDetails);
 

@@ -556,4 +556,36 @@ A Playwright-driven automation utility that captures high-resolution screenshots
 ./scripts/capture_ui_screens.py --base-url http://localhost:8080 --output-dir Documentation/screenshots
 ```
 
+---
+
+### 8. `run_mockdata.sh` &mdash; Development Mock Data Generator
+
+A database seeding utility that generates realistic ACME mock data in the development PostgreSQL database for testing, local development, and documentation showcase captures.
+
+**Key capabilities:**
+* **Comprehensive Entity Generation**: Populates at least 25 accounts, 115 orders, 95 certificates, and 35+ domains across diverse real-world states.
+* **Full State Coverage**:
+  * **Accounts**: Valid, deactivated, and revoked accounts with real RSA (2048/4096) and ECDSA (P-256/P-384) JWKs.
+  * **Orders**: Valid, pending, ready/processing, and invalid orders with realistic ACME error payloads (`dns`, `connection`, `unauthorized`, `incorrectResponse`, `malformed`).
+  * **Certificates**: Active valid, expiring ($\le$ 20 days left), expired, and revoked certificates with real X.509 chains signed by the active Root CA.
+  * **Domains**: Single-domain and multi-SAN configurations covering multiple root zones.
+* **Safety Protections**: Preserves active Root CA certificates (`cas` table) and administrator accounts (`users` table).
+* **Automated Screen Refresh**: Supports `--refresh-screens` to immediately re-capture all documentation screenshots with the new dataset.
+
+**Usage:**
+```shell
+# Generate default mock data (cleans previous mock records, preserves Root CA & users)
+./run_mockdata.sh
+
+# Generate mock data and automatically refresh all documentation screenshots
+./run_mockdata.sh --refresh-screens
+
+# Append mock data without deleting existing records
+./run_mockdata.sh --append
+
+# Custom target quantities
+./run_mockdata.sh --accounts 30 --orders 150 --certs 120 --domains 50
+```
+
+
 

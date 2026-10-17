@@ -149,23 +149,23 @@
         background: #fbf9ff;
         border: 1px solid var(--border-card);
         border-radius: var(--radius-md);
-        padding: 1.15rem 1.25rem;
+        padding: 1rem 1.15rem;
     }
 
     .detail-label {
-        font-size: 0.8rem;
+        font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-muted);
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.35rem;
         display: flex;
         align-items: center;
         gap: 0.4rem;
     }
 
     .detail-value {
-        font-size: 0.95rem;
+        font-size: 12px;
         font-weight: 600;
         color: var(--text-heading);
         word-break: break-all;
@@ -173,10 +173,10 @@
 
     .mono-code {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.88rem;
+        font-size: 12px;
         color: #334155;
         background: #f1f5f9;
-        padding: 0.25rem 0.55rem;
+        padding: 0.20rem 0.50rem;
         border-radius: 6px;
         display: inline-flex;
         align-items: center;
@@ -229,7 +229,7 @@
 
     .pem-content {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.82rem;
+        font-size: 12px;
         color: #1e293b;
         background: #ffffff;
         border: 1px solid var(--border-card);
@@ -310,14 +310,14 @@
             <div class="detail-label">Validity Period</div>
             <div class="detail-value">
                 <span>{{ ca.not_valid_before }} &mdash; {{ ca.not_valid_after }}</span>
-                <span style="margin-left: 0.5rem; font-size: 0.82rem; color: var(--status-valid-text); font-weight: 700;">({{ ca.days_remaining }} days left)</span>
+                <span style="margin-left: 0.5rem; font-size: 12px; color: var(--status-valid-text); font-weight: 700;">({{ ca.days_remaining }} days left)</span>
             </div>
         </div>
 
         <div class="detail-item" style="grid-column: 1 / -1;">
             <div class="detail-label">SHA-256 Fingerprint</div>
             <div class="detail-value">
-                <span class="mono-code" style="font-size: 0.82rem;">
+                <span class="mono-code" style="font-size: 12px;">
                     <span>{{ ca.fingerprint_sha256 }}</span>
                     <button class="copy-btn" onclick="copyToClipboard('{{ ca.fingerprint_sha256 }}', this)" title="Copy Fingerprint">
                         <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>

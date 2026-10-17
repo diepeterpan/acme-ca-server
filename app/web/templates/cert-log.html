@@ -125,7 +125,7 @@
         width: 100%;
         border-collapse: collapse;
         text-align: left;
-        font-size: 0.84rem;
+        font-size: var(--font-size-table, 12px);
     }
 
     table.cert-table th {
@@ -135,7 +135,7 @@
         padding: 0.40rem 0.55rem;
         border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
-        font-size: 0.77rem;
+        font-size: var(--font-size-table-header, 12px);
     }
 
     table.cert-table th:first-child,
@@ -152,6 +152,7 @@
         padding: 0.40rem 0.55rem;
         border-bottom: 1px solid #f1f5f9;
         vertical-align: middle;
+        font-size: var(--font-size-table, 12px);
     }
 
     .cell-issue-date {
@@ -174,7 +175,7 @@
     .date-text {
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
-        font-size: 0.78rem;
+        font-size: 12px;
     }
 
     table.cert-table tbody tr {
@@ -193,9 +194,9 @@
     .badge {
         display: inline-flex;
         align-items: center;
-        padding: 0.12rem 0.45rem;
+        padding: 0.10rem 0.45rem;
         border-radius: var(--radius-pill);
-        font-size: 0.70rem;
+        font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
         border: none;
@@ -230,8 +231,8 @@
     .badge-san {
         background-color: #f3e8ff;
         color: #6b21a8;
-        font-size: 0.68rem;
-        padding: 0.12rem 0.42rem;
+        font-size: 12px;
+        padding: 0.10rem 0.42rem;
         border-radius: var(--radius-pill);
         margin-left: 0.35rem;
         cursor: help;
@@ -241,6 +242,7 @@
     /* Domain & Monospace Elements */
     .domain-link,
     .domain-text {
+        font-size: 12px;
         font-weight: 600;
         color: var(--text-heading);
         text-decoration: none;
@@ -254,10 +256,10 @@
 
     .serial-code {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.75rem;
+        font-size: 12px;
         color: #475569;
         background: #f1f5f9;
-        padding: 0.12rem 0.38rem;
+        padding: 0.10rem 0.38rem;
         border-radius: 5px;
         display: inline-flex;
         align-items: center;
@@ -297,9 +299,9 @@
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-        padding: 0.24rem 0.52rem;
+        padding: 0.20rem 0.50rem;
         border-radius: 5px;
-        font-size: 0.72rem;
+        font-size: 12px;
         font-weight: 600;
         text-decoration: none;
         border: none;
