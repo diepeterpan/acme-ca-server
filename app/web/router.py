@@ -57,9 +57,8 @@ def get_service_tz_label() -> str:
     now = datetime.now().astimezone()
     tz_name = now.tzname() or ''
     offset = now.strftime('%z')
-    formatted_offset = f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
-    return f"{tz_name} ({formatted_offset})" if tz_name else formatted_offset
-
+    formatted_offset = f'UTC{offset[:3]}:{offset[3:]}' if offset else 'UTC'
+    return f'{tz_name} ({formatted_offset})' if tz_name else formatted_offset
 
 
 def make_redirect_url(base_path: str, params: dict[str, str | None]) -> str:
