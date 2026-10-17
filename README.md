@@ -4,6 +4,8 @@
 
 A self-hosted ACME server with a built-in CA and optional web interface.
 
+> 🤖 **Note**: The refreshed Web UI and RFC 8555 DNS-01 challenge support were added by **AI Vibe Coding**.
+
 ## Features
 
 * ✅ **ACME Server** implementation (supports `http-01` and `dns-01` challenges, including wildcard certificates)
@@ -21,16 +23,26 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
 
 ## Setup
-### 1. Generate a new CA root certificate (or use an existing one)
+### 1. Generate a new CA root certificate (Web UI or CLI)
+
+> [!TIP]
+> **No command-line OpenSSL required!**
+> You no longer need to manually generate certificates using the `openssl` CLI. When starting the server with an uninitialized or empty database, simply navigate to the Web UI at `/ca/setup` to configure and generate your Root CA certificate directly from your browser.
+> 
+> 📖 See the [Web UI Tour & Onboarding Showcase](./Documentation/UI_TOUR_SHOWCASE.md#03-root-ca-certificate-setup--onboarding) for a complete walkthrough.
+
+![Root CA Setup & Onboarding](./Documentation/screenshots/03_ca_certificate_onboarding.png)
+
+#### Alternative: Pre-generate via OpenSSL CLI (Headless / Import)
 
 You can generate a new root CA key and certificate using OpenSSL:
 
 ```shell
 openssl genrsa -out ca.key 4096
 openssl req -new -x509 -nodes -days 3650 -subj "/C=DE/O=Demo" -key ca.key -out ca.pem
-````
+```
 
-These two files (`ca.key` and `ca.pem`) will be imported into the container on first startup.
+These two files (`ca.key` and `ca.pem`) will be imported into the container on first startup if mounted into `/import`.
 
 > The container runs as a non-root user, so it must be able to read the key and certificate files.
 > Make sure the permissions are set correctly:
@@ -60,8 +72,11 @@ services:
       - db_net
       - reverse_proxy_net
     volumes:
-      - ./ca.key:/import/ca.key:ro # needed once to import new ca
-      - ./ca.pem:/import/ca.pem:ro # needed once to import new ca
+      # Option A: Mount pre-existing CA files for one-time import on startup (read-only):
+      - ./ca.key:/import/ca.key:ro # needed once to import existing ca
+      - ./ca.pem:/import/ca.pem:ro # needed once to import existing ca
+      # Option B: Mount a folder as read-write when using the Web UI to generate and persist CA certs to disk:
+      # - ./ca:/import:rw
     mem_limit: 250m
 
   db:
@@ -217,7 +232,9 @@ If you want to integrate your own CA logic, you can replace the default implemen
 
 > 💡 A complete example that retrieves certificates from an HTTP endpoint is available [here](https://github.com/knrdl/acme-ca-server/issues/247#issuecomment-3783583560)
 
-First set env var `CA_ENABLED=False` to disable the built-in CA. Then overwrite the file `/app/ca/service.py` in the docker image. You can use the [existing file](./app/ca/service.py) as a reference. Your implementation must provide two functions:
+First set env var `CA_ENABLED=False` to disable the built-in CA. *(Note: When the internal CA is disabled, internal CA Web UI routes `/ca` and `/ca/setup` return 404, while all certificate audit logs, domain registry, accounts & orders diagnostics, and mail settings remain fully active).*
+
+Then overwrite the file `/app/ca/service.py` in the docker image. You can use the [existing file](./app/ca/service.py) as a reference. Your implementation must provide two functions:
 
 #### 1. `sign_csr()`
 
@@ -261,11 +278,28 @@ A custom CA backend must also handle the CRL (certificate revocation list) distr
 flowchart LR
     accounts -->|1:0..n| orders
     orders -->|1:1..n| authorizations
-    authorizations -->|1:1| challenges
+    authorizations -->|1:1..n| challenges
     orders -->|1:0..1| certificates
 ```
 
+*Note: In addition to the core RFC 8555 ACME entities above, the database manages `cas` (internal active Root CA and CRL storage), `users` (administrative Web UI authentication), and `mail_settings` (SMTP and delivery alert configuration).*
+
 ### Tests
+
+Run the automated test runner directly from the project root:
+
+```shell
+# Run full test suite (pytest unit/integration + e2e client tests)
+./run_tests.sh
+
+# Or run specific suites:
+./run_tests.sh pytest
+./run_tests.sh e2e
+```
+
+See [Useful Scripts &mdash; 4. `run_tests.sh`](#4-run_testssh--local-ci--test-suite-runner-pytest--e2e) for full options (`--fail-fast`, `--no-cleanup`, etc.).
+
+Alternatively, run test containers directly within their subdirectories:
 
 ```shell
 cd tests/e2e
