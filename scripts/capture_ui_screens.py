@@ -285,6 +285,11 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         print("--> Capturing 06_certificates_log.png...")
         try:
             await page_auth.goto(f"{base_url}/certificates?certstatus=all", wait_until='networkidle')
+            chk_boxes = page_auth.locator('.cert-select-chk')
+            if await chk_boxes.count() >= 2:
+                await chk_boxes.nth(0).check()
+                await chk_boxes.nth(1).check()
+                await asyncio.sleep(0.4)
             if obfuscate:
                 await obfuscate_page(page_auth)
             await page_auth.screenshot(path=str(output_dir / "06_certificates_log.png"), full_page=False)

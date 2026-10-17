@@ -501,6 +501,260 @@
         background: #ede9fe;
         color: var(--primary-hover);
     }
+
+    /* Danger Button Styles */
+    .btn-action-danger {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .btn-action-danger:hover {
+        background-color: #dc2626;
+        color: #ffffff;
+        border-color: #dc2626;
+        transform: translateY(-1px);
+    }
+
+    .modal-icon-badge.danger {
+        background-color: #fef2f2;
+        color: #dc2626;
+    }
+
+    .modal-icon-badge.warning {
+        background-color: #fffbeb;
+        color: #d97706;
+    }
+
+    .btn-danger-solid {
+        background-color: #dc2626;
+        color: #ffffff;
+        border: none;
+        padding: 0.6rem 1.4rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+    }
+
+    .btn-danger-solid:hover {
+        background-color: #b91c1c;
+    }
+
+    /* Floating Batch Action Bar */
+    .batch-action-bar {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #1e1b4b;
+        color: #ffffff;
+        padding: 0.65rem 1.25rem;
+        border-radius: var(--radius-pill);
+        box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.3), 0 4px 6px -4px rgba(15, 23, 42, 0.2);
+        z-index: 90;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        animation: batchSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes batchSlideUp {
+        from {
+            transform: translate(-50%, 20px);
+            opacity: 0;
+        }
+        to {
+            transform: translate(-50%, 0);
+            opacity: 1;
+        }
+    }
+
+    .batch-bar-inner {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+    }
+
+    .batch-count-group {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.88rem;
+        font-weight: 500;
+    }
+
+    .batch-badge {
+        background-color: var(--primary);
+        color: #ffffff;
+        font-weight: 700;
+        padding: 0.15rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.82rem;
+    }
+
+    .batch-buttons {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-batch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.38rem 0.85rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+    }
+
+    .btn-batch-revoke {
+        background-color: #f59e0b;
+        color: #ffffff;
+    }
+
+    .btn-batch-revoke:hover:not(:disabled) {
+        background-color: #d97706;
+    }
+
+    .btn-batch-delete {
+        background-color: #ef4444;
+        color: #ffffff;
+    }
+
+    .btn-batch-delete:hover:not(:disabled) {
+        background-color: #dc2626;
+    }
+
+    .btn-batch:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .btn-batch-cancel {
+        background-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+    }
+
+    .btn-batch-cancel:hover {
+        background-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Top Batch Action Toolbar */
+    .batch-bar-top {
+        background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
+        color: #ffffff;
+        border-radius: var(--radius-lg);
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 14px rgba(30, 27, 75, 0.2);
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        animation: fadeIn 0.15s ease-in-out;
+    }
+
+    .batch-bar-top-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .batch-bar-top-info {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.9rem;
+        flex-wrap: wrap;
+    }
+
+    .batch-bar-top-badge {
+        background: var(--primary);
+        color: #ffffff;
+        font-weight: 700;
+        padding: 0.18rem 0.6rem;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .batch-bar-top-label {
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .batch-bar-top-hint {
+        font-size: 0.82rem;
+        color: #c4b5fd;
+        padding-left: 0.6rem;
+        border-left: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .batch-bar-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-top-batch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.95rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s ease;
+    }
+
+    .btn-top-revoke {
+        background-color: #f59e0b;
+        color: #ffffff;
+        box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-top-revoke:hover:not(:disabled) {
+        background-color: #d97706;
+        transform: translateY(-1px);
+    }
+
+    .btn-top-delete {
+        background-color: #ef4444;
+        color: #ffffff;
+        box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-top-delete:hover:not(:disabled) {
+        background-color: #dc2626;
+        transform: translateY(-1px);
+    }
+
+    .btn-top-batch:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none;
+    }
+
+    .btn-top-cancel {
+        background-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-top-cancel:hover {
+        background-color: rgba(255, 255, 255, 0.25);
+    }
 </style>
 {% endblock %}
 
@@ -517,6 +771,21 @@
 {% if status_msg == 'revoked_success' %}
 <div class="alert-banner" id="alert-banner">
     <span>Certificate was revoked successfully and added to the CA Revocation List.</span>
+    <button type="button" class="close-btn" id="close-alert">&times;</button>
+</div>
+{% elif status_msg == 'cert_deleted' %}
+<div class="alert-banner" id="alert-banner">
+    <span>Certificate was deleted successfully and related ACME order records were cleaned up.</span>
+    <button type="button" class="close-btn" id="close-alert">&times;</button>
+</div>
+{% elif status_msg == 'batch_revoked_success' %}
+<div class="alert-banner" id="alert-banner">
+    <span>{{ request.query_params.get('count', 'Selected') }} certificate(s) were successfully revoked and added to the CA Revocation List.</span>
+    <button type="button" class="close-btn" id="close-alert">&times;</button>
+</div>
+{% elif status_msg == 'batch_deleted_success' %}
+<div class="alert-banner" id="alert-banner">
+    <span>{{ request.query_params.get('count', 'Selected') }} revoked certificate(s) and their associated orders were permanently deleted.</span>
     <button type="button" class="close-btn" id="close-alert">&times;</button>
 </div>
 {% endif %}
@@ -553,10 +822,35 @@
 </div>
 {% endif %}
 
+<!-- Top Batch Action Bar -->
+<div id="batch-action-bar-top" class="batch-bar-top" style="display: none;">
+    <div class="batch-bar-top-content">
+        <div class="batch-bar-top-info">
+            <span class="batch-bar-top-badge" id="batch-top-selected-count">0</span>
+            <span class="batch-bar-top-label">selected</span>
+            <span class="batch-bar-top-hint" id="batch-top-hint"></span>
+        </div>
+        <div class="batch-bar-top-actions">
+            <button type="button" class="btn-top-batch btn-top-revoke" id="btn-top-batch-revoke" title="Revoke selected active certificates">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                Revoke (<span id="batch-top-revoke-count">0</span>)
+            </button>
+            <button type="button" class="btn-top-batch btn-top-delete" id="btn-top-batch-delete" title="Permanently delete selected revoked certificates">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                Delete (<span id="batch-top-delete-count">0</span>)
+            </button>
+            <button type="button" class="btn-top-batch btn-top-cancel" id="btn-top-batch-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <div class="table-container">
     <table class="cert-table" data-table-id="certificates">
         <thead>
             <tr>
+                <th data-no-sort style="width: 38px; text-align: center;">
+                    <input type="checkbox" id="select-all-certs" title="Select all certificates" aria-label="Select all certificates" style="cursor: pointer; width: 15px; height: 15px;">
+                </th>
                 <th data-col-key="status">Status</th>
                 <th data-col-key="fqdn">Primary FQDN</th>
                 <th data-col-key="serial">Serial Number</th>
@@ -568,6 +862,9 @@
         <tbody id="cert-table-body">
             {% for cert in certs %}
             <tr data-domain="{{cert.domains[0]}}" data-serial="{{cert.serial_number}}">
+                <td style="text-align: center;">
+                    <input type="checkbox" class="cert-select-chk" value="{{ cert.serial_number }}" data-status="{{ 'revoked' if cert.is_revoked else 'active' }}" data-domain="{{ cert.domains[0] }}" aria-label="Select certificate {{ cert.serial_number }}" style="cursor: pointer; width: 15px; height: 15px;">
+                </td>
                 {% if cert.is_revoked %}
                 {% set status_rank = 3 %}
                 {% elif cert.is_expiring %}
@@ -631,6 +928,10 @@
                         </a>
                         {% if cert.is_revoked %}
                         <button type="button" class="btn-action btn-revoked" disabled title="Certificate already revoked">Revoked</button>
+                        <button type="button" class="btn-action btn-action-danger open-delete-modal" data-serial="{{cert.serial_number}}" data-domain="{{cert.domains[0]}}" title="Delete Revoked Certificate">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                            Delete
+                        </button>
                         {% else %}
                         <button type="button" class="btn-action btn-revoke open-revoke-modal" data-serial="{{cert.serial_number}}" data-domain="{{cert.domains[0]}}" title="Revoke Certificate">Revoke</button>
                         {% endif %}
@@ -639,7 +940,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="6">
+                <td colspan="7">
                     <div class="empty-state">
                         <svg viewBox="0 0 24 24">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
@@ -654,12 +955,33 @@
     </table>
 </div>
 
+<!-- Floating Batch Action Bar -->
+<div id="batch-action-bar" class="batch-action-bar" style="display: none;">
+    <div class="batch-bar-inner">
+        <div class="batch-count-group">
+            <span class="batch-badge" id="batch-selected-count">0</span>
+            <span class="batch-text">selected</span>
+        </div>
+        <div class="batch-buttons">
+            <button type="button" class="btn-batch btn-batch-revoke" id="btn-batch-revoke" title="Revoke selected active certificates">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                Revoke (<span id="batch-revoke-count">0</span>)
+            </button>
+            <button type="button" class="btn-batch btn-batch-delete" id="btn-batch-delete" title="Permanently delete selected revoked certificates">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                Delete (<span id="batch-delete-count">0</span>)
+            </button>
+            <button type="button" class="btn-batch btn-batch-cancel" id="btn-batch-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!-- Revoke Confirmation Modal Dialog -->
 <dialog id="revoke-dialog" class="revoke-modal">
     <div class="modal-content">
         <div class="modal-header">
-            <div class="modal-icon-badge">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <div class="modal-icon-badge warning">
+                <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
             </div>
             <h3 class="modal-title">Revoke Certificate</h3>
         </div>
@@ -675,5 +997,239 @@
     </div>
 </dialog>
 
-<script src="/certificates.js" defer></script>
+<!-- Single Delete Confirmation Modal Dialog -->
+<dialog id="delete-dialog" class="revoke-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-icon-badge danger">
+                <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 class="modal-title">Delete Revoked Certificate</h3>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to permanently delete the certificate for <strong id="delete-modal-domain"></strong> (Serial: <code id="delete-modal-serial"></code>)?</p>
+            <div style="margin-top: 0.85rem; padding: 0.75rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; color: #92400e; font-size: 0.86rem; line-height: 1.5;">
+                <div style="font-weight: 700; display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    Impact on Certificate Revocation List (CRL)
+                </div>
+                Deleting this revoked certificate removes it permanently from the database and the Certificate Revocation List (CRL). Any client validating this certificate against the CRL will no longer see it as revoked. All associated ACME orders, authorizations, challenges, and error records will also be deleted.
+            </div>
+        </div>
+        <form method="post" id="delete-form" action="">
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="delete-modal-cancel-btn">Cancel</button>
+                <button type="submit" class="btn-danger-solid">Delete Permanently</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Batch Revoke Confirmation Modal Dialog -->
+<dialog id="batch-revoke-dialog" class="revoke-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-icon-badge warning">
+                <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 class="modal-title">Batch Revoke Certificates</h3>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to revoke <strong id="batch-revoke-modal-count">0</strong> selected active certificate(s)?</p>
+            <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.88rem;">This will immediately mark them as revoked and publish their serial numbers to the Certificate Revocation List (CRL). This action cannot be undone.</p>
+        </div>
+        <form method="post" id="batch-revoke-form" action="/certificates/batch-revoke">
+            <input type="hidden" name="serials" id="batch-revoke-serials-input" value="">
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="batch-revoke-cancel-btn">Cancel</button>
+                <button type="submit" class="btn-primary-danger">Revoke Selected</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Batch Delete Confirmation Modal Dialog -->
+<dialog id="batch-delete-dialog" class="revoke-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-icon-badge danger">
+                <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 class="modal-title">Batch Delete Revoked Certificates</h3>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to permanently delete <strong id="batch-delete-modal-count">0</strong> revoked certificate(s)?</p>
+            <div style="margin-top: 0.85rem; padding: 0.75rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; color: #92400e; font-size: 0.86rem; line-height: 1.5;">
+                <div style="font-weight: 700; display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    Impact on Certificate Revocation List (CRL)
+                </div>
+                Deleting these revoked certificates removes them from the CA Revocation List (CRL). Validating clients relying on the CRL will no longer receive revocation status for them. All associated ACME orders, authorizations, challenges, and error logs will also be permanently cleared.
+            </div>
+        </div>
+        <form method="post" id="batch-delete-form" action="/certificates/batch-delete">
+            <input type="hidden" name="serials" id="batch-delete-serials-input" value="">
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="batch-delete-cancel-btn">Cancel</button>
+                <button type="submit" class="btn-danger-solid">Delete Selected Permanently</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script src="/certificates.js?v=2" defer></script>
+<script>
+(function() {
+    function initCertBatchUI() {
+        const topBar = document.getElementById('batch-action-bar-top');
+        const bottomBar = document.getElementById('batch-action-bar');
+        const selectAllChk = document.getElementById('select-all-certs');
+
+        const topCount = document.getElementById('batch-top-selected-count');
+        const bottomCount = document.getElementById('batch-selected-count');
+        const topRevokeCount = document.getElementById('batch-top-revoke-count');
+        const bottomRevokeCount = document.getElementById('batch-revoke-count');
+        const topDeleteCount = document.getElementById('batch-top-delete-count');
+        const bottomDeleteCount = document.getElementById('batch-delete-count');
+        const topHint = document.getElementById('batch-top-hint');
+
+        const btnTopRevoke = document.getElementById('btn-top-batch-revoke');
+        const btnBottomRevoke = document.getElementById('btn-batch-revoke');
+        const btnTopDelete = document.getElementById('btn-top-batch-delete');
+        const btnBottomDelete = document.getElementById('btn-batch-delete');
+        const btnTopCancel = document.getElementById('btn-top-batch-cancel');
+        const btnBottomCancel = document.getElementById('btn-batch-cancel');
+
+        const batchRevokeDialog = document.getElementById('batch-revoke-dialog');
+        const batchRevokeCountModal = document.getElementById('batch-revoke-modal-count');
+        const batchRevokeSerialsInput = document.getElementById('batch-revoke-serials-input');
+
+        const batchDeleteDialog = document.getElementById('batch-delete-dialog');
+        const batchDeleteCountModal = document.getElementById('batch-delete-modal-count');
+        const batchDeleteSerialsInput = document.getElementById('batch-delete-serials-input');
+
+        function openModal(dlg) {
+            if (!dlg) return;
+            if (typeof dlg.showModal === 'function') {
+                dlg.showModal();
+            } else {
+                dlg.setAttribute('open', '');
+            }
+        }
+
+        function getSelectedCheckboxes() {
+            return Array.from(document.querySelectorAll('.cert-select-chk:checked'));
+        }
+
+        function updateAllBars() {
+            const selected = getSelectedCheckboxes();
+            const total = selected.length;
+
+            if (total === 0) {
+                if (topBar) topBar.style.display = 'none';
+                if (bottomBar) bottomBar.style.display = 'none';
+                if (selectAllChk) selectAllChk.checked = false;
+                return;
+            }
+
+            if (topBar) topBar.style.display = 'block';
+            if (bottomBar) bottomBar.style.display = 'flex';
+
+            if (topCount) topCount.textContent = total;
+            if (bottomCount) bottomCount.textContent = total;
+
+            const activeSerials = selected.filter(chk => chk.dataset.status === 'active').map(chk => chk.value);
+            const revokedSerials = selected.filter(chk => chk.dataset.status === 'revoked').map(chk => chk.value);
+
+            if (topRevokeCount) topRevokeCount.textContent = activeSerials.length;
+            if (bottomRevokeCount) bottomRevokeCount.textContent = activeSerials.length;
+            if (topDeleteCount) topDeleteCount.textContent = revokedSerials.length;
+            if (bottomDeleteCount) bottomDeleteCount.textContent = revokedSerials.length;
+
+            if (btnTopRevoke) btnTopRevoke.disabled = (activeSerials.length === 0);
+            if (btnBottomRevoke) btnBottomRevoke.disabled = (activeSerials.length === 0);
+            if (btnTopDelete) btnTopDelete.disabled = (revokedSerials.length === 0);
+            if (btnBottomDelete) btnBottomDelete.disabled = (revokedSerials.length === 0);
+
+            if (topHint) {
+                if (activeSerials.length > 0 && revokedSerials.length === 0) {
+                    topHint.textContent = 'Active certificates must be revoked before they can be deleted.';
+                } else if (revokedSerials.length > 0 && activeSerials.length === 0) {
+                    topHint.textContent = 'Revoked certificates are ready for permanent deletion.';
+                } else {
+                    topHint.textContent = `${activeSerials.length} active (revocable), ${revokedSerials.length} revoked (deletable).`;
+                }
+            }
+
+            if (selectAllChk) {
+                const visibleCheckboxes = Array.from(document.querySelectorAll('#cert-table-body tr')).filter(
+                    tr => tr.style.display !== 'none'
+                ).map(tr => tr.querySelector('.cert-select-chk')).filter(Boolean);
+
+                if (visibleCheckboxes.length > 0) {
+                    selectAllChk.checked = visibleCheckboxes.every(chk => chk.checked);
+                }
+            }
+        }
+
+        // Global delegated change listener for any certificate checkbox
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.classList && e.target.classList.contains('cert-select-chk')) {
+                updateAllBars();
+            } else if (e.target && e.target.id === 'select-all-certs') {
+                const isChecked = e.target.checked;
+                const visibleRows = Array.from(document.querySelectorAll('#cert-table-body tr')).filter(
+                    tr => tr.style.display !== 'none'
+                );
+                visibleRows.forEach(tr => {
+                    const chk = tr.querySelector('.cert-select-chk');
+                    if (chk) chk.checked = isChecked;
+                });
+                updateAllBars();
+            }
+        });
+
+        // Cancel buttons
+        function clearAllSelections() {
+            document.querySelectorAll('.cert-select-chk').forEach(chk => { chk.checked = false; });
+            if (selectAllChk) selectAllChk.checked = false;
+            updateAllBars();
+        }
+        if (btnTopCancel) btnTopCancel.addEventListener('click', clearAllSelections);
+        if (btnBottomCancel) btnBottomCancel.addEventListener('click', clearAllSelections);
+
+        // Batch Revoke triggers
+        function onBatchRevoke(e) {
+            e.preventDefault();
+            const selected = getSelectedCheckboxes();
+            const activeSerials = selected.filter(chk => chk.dataset.status === 'active').map(chk => chk.value);
+            if (activeSerials.length === 0) return;
+            if (batchRevokeCountModal) batchRevokeCountModal.textContent = activeSerials.length;
+            if (batchRevokeSerialsInput) batchRevokeSerialsInput.value = activeSerials.join(',');
+            openModal(batchRevokeDialog);
+        }
+        if (btnTopRevoke) btnTopRevoke.addEventListener('click', onBatchRevoke);
+        if (btnBottomRevoke) btnBottomRevoke.addEventListener('click', onBatchRevoke);
+
+        // Batch Delete triggers
+        function onBatchDelete(e) {
+            e.preventDefault();
+            const selected = getSelectedCheckboxes();
+            const revokedSerials = selected.filter(chk => chk.dataset.status === 'revoked').map(chk => chk.value);
+            if (revokedSerials.length === 0) return;
+            if (batchDeleteCountModal) batchDeleteCountModal.textContent = revokedSerials.length;
+            if (batchDeleteSerialsInput) batchDeleteSerialsInput.value = revokedSerials.join(',');
+            openModal(batchDeleteDialog);
+        }
+        if (btnTopDelete) btnTopDelete.addEventListener('click', onBatchDelete);
+        if (btnBottomDelete) btnBottomDelete.addEventListener('click', onBatchDelete);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCertBatchUI);
+    } else {
+        initCertBatchUI();
+    }
+})();
+</script>
 {% endblock %}

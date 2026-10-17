@@ -259,6 +259,118 @@
         transform: translateY(-1px);
     }
 
+    .btn-action-danger {
+        background-color: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    .btn-action-danger:hover {
+        background-color: #dc2626;
+        color: #ffffff;
+        border-color: #dc2626;
+        transform: translateY(-1px);
+    }
+
+    dialog.delete-domain-modal {
+        margin: auto;
+        border: none;
+        border-radius: var(--radius-lg);
+        padding: 0;
+        background: #ffffff;
+        box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1);
+        max-width: 500px;
+        width: 90vw;
+        border-top: 4px solid #dc2626;
+    }
+
+    dialog.delete-domain-modal::backdrop {
+        background: rgba(30, 27, 75, 0.4);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+        padding: 1.75rem 2rem;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .modal-icon-badge {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #fef2f2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #dc2626;
+    }
+
+    .modal-icon-badge svg {
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-heading);
+    }
+
+    .modal-body {
+        color: var(--text-body);
+        font-size: 0.95rem;
+        margin-bottom: 1.75rem;
+        line-height: 1.6;
+    }
+
+    .modal-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    .btn-secondary {
+        background-color: #ffffff;
+        color: var(--text-body);
+        border: 1px solid #cbd5e1;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: #f8fafc;
+        border-color: #94a3b8;
+    }
+
+    .btn-danger-solid {
+        background-color: #dc2626;
+        color: #ffffff;
+        border: none;
+        padding: 0.6rem 1.4rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+    }
+
+    .btn-danger-solid:hover {
+        background-color: #b91c1c;
+    }
+
     /* Empty state */
     .empty-state {
         text-align: center;
@@ -300,6 +412,13 @@
         <span class="page-subtitle">Tracked ACME domain authorizations and certificate timelines</span>
     </div>
 </div>
+
+{% if status_msg == 'domain_deleted' %}
+<div class="alert-banner" id="alert-banner" style="background-color: var(--status-valid-bg); color: var(--status-valid-text); border: 1px solid var(--status-valid-border); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; font-weight: 500;">
+    <span>Domain was deleted successfully and all associated authorizations, challenges, and error records were cleared.</span>
+    <button type="button" style="background: none; border: none; font-size: 1.25rem; color: inherit; cursor: pointer;" onclick="this.parentElement.style.display='none'">&times;</button>
+</div>
+{% endif %}
 
 <!-- Filter & Search Bar -->
 <div class="filter-card">
@@ -372,10 +491,22 @@
                     </span>
                 </td>
                 <td style="text-align: right;">
-                    <a href="/certificates?domainfilter={{domain.domain_name}}" class="btn-action">
-                        <span>View Certificates</span>
-                        <span>&rarr;</span>
-                    </a>
+                    <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                        <a href="/certificates?domainfilter={{domain.domain_name}}" class="btn-action">
+                            <span>View Certificates</span>
+                            <span>&rarr;</span>
+                        </a>
+                        {% if not domain.is_valid and domain.cert_count == 0 %}
+                        <button type="button" class="btn-action btn-action-danger open-delete-domain-modal"
+                                data-domain="{{ domain.domain_name }}"
+                                title="Delete Invalid Domain">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                            Delete
+                        </button>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -398,4 +529,78 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Delete Domain Confirmation Modal Dialog -->
+<dialog id="delete-domain-dialog" class="delete-domain-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-icon-badge">
+                <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 class="modal-title">Delete Invalid Domain</h3>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to permanently delete domain <strong id="delete-domain-name"></strong>?</p>
+            <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.88rem;">This will clear all ACME authorizations, challenges, associated orders, and failure logs for this domain. This action cannot be undone.</p>
+        </div>
+        <form method="post" id="delete-domain-form" action="">
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="delete-domain-cancel-btn">Cancel</button>
+                <button type="submit" class="btn-danger-solid">Delete Domain</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const dialog = document.getElementById('delete-domain-dialog');
+    const form = document.getElementById('delete-domain-form');
+    const nameEl = document.getElementById('delete-domain-name');
+    const cancelBtn = document.getElementById('delete-domain-cancel-btn');
+
+    if (dialog && form) {
+        document.querySelectorAll('.open-delete-domain-modal').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const domain = btn.dataset.domain;
+                if (nameEl) nameEl.textContent = domain;
+                form.action = `/domains/${encodeURIComponent(domain)}/delete`;
+                if (typeof dialog.showModal === 'function') {
+                    dialog.showModal();
+                } else {
+                    dialog.setAttribute('open', '');
+                }
+            });
+        });
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                if (typeof dialog.close === 'function') {
+                    dialog.close();
+                } else {
+                    dialog.removeAttribute('open');
+                }
+            });
+        }
+
+        dialog.addEventListener('click', (event) => {
+            const rect = dialog.getBoundingClientRect();
+            const isInDialog = (
+                rect.top <= event.clientY &&
+                event.clientY <= rect.top + rect.height &&
+                rect.left <= event.clientX &&
+                event.clientX <= rect.left + rect.width
+            );
+            if (!isInDialog) {
+                if (typeof dialog.close === 'function') {
+                    dialog.close();
+                } else {
+                    dialog.removeAttribute('open');
+                }
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

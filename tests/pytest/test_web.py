@@ -96,6 +96,120 @@ def test_download_and_revoke_certificate_web(signed_request, directory, testclie
     assert serial_hex in list_resp.text
     assert host in list_resp.text
 
+    # 6. Delete revoked certificate via Web endpoint
+    del_resp = testclient.post(f'/certificates/{serial_hex}/delete', headers={'Accept': 'application/json'})
+    assert del_resp.status_code == 200, del_resp.text
+    assert del_resp.json() == {'status': 'deleted', 'serial_number': serial_hex}
+
+    # Verify certificate row is removed
+    assert db.fetch_row('SELECT serial_number FROM certificates WHERE serial_number = $1', serial_hex) is None
+    # Verify order, authorization, and challenges are deleted
+    assert db.fetch_row('SELECT id FROM orders WHERE id = (SELECT order_id FROM certificates WHERE serial_number = $1)', serial_hex) is None
+
+
+def test_batch_revoke_and_batch_delete_certificates(signed_request, directory, testclient: TestClient, db, build_csr):
+    mail_address = 'mailto:batchuser@example.com'
+    domains = ['batch1.example.com', 'batch2.example.com']
+    serials = []
+
+    # Create account
+    response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [mail_address]})
+    account_id = response.headers['Location']
+
+    for domain in domains:
+        response = signed_request(directory['newOrder'], response.headers['Replay-Nonce'], {'identifiers': [{'type': 'dns', 'value': domain}]}, account_id)
+        authz_url = response.json()['authorizations'][0]
+        finalize_order_url = response.json()['finalize']
+
+        response = signed_request(authz_url, response.headers['Replay-Nonce'], '', account_id)
+        challenge_token = response.json()['challenges'][0]['token']
+        challenge_url = response.json()['challenges'][0]['url']
+        mock_contents = f'{challenge_token}.{signed_request.account_jwk.thumbprint()}'.rstrip()
+
+        with mock.patch('app.acme.challenge.service.httpx.AsyncClient.get', return_value=httpx.Response(200, text=mock_contents)):
+            response = signed_request(challenge_url, response.headers['Replay-Nonce'], '', account_id)
+
+        csr = build_csr([domain])
+        response = signed_request(finalize_order_url, response.headers['Replay-Nonce'], {'csr': jwcrypto.common.base64url_encode(csr.public_bytes(Encoding.DER))}, account_id)
+        cert_url = response.json()['certificate']
+        response = signed_request(cert_url, response.headers['Replay-Nonce'], {}, account_id)
+        signed_cert = x509.load_pem_x509_certificate(response.content)
+        serials.append(format(signed_cert.serial_number, 'X'))
+
+    assert len(serials) == 2
+
+    # Attempting batch delete before revocation should return 400
+    bad_del_resp = testclient.post('/certificates/batch-delete', data={'serials': ','.join(serials)}, headers={'Accept': 'application/json'})
+    assert bad_del_resp.status_code == 400
+
+    # Batch revoke
+    batch_rev_resp = testclient.post('/certificates/batch-revoke', data={'serials': ','.join(serials)}, headers={'Accept': 'application/json'})
+    assert batch_rev_resp.status_code == 200
+    assert batch_rev_resp.json() == {'status': 'revoked', 'count': 2}
+
+    # Verify both are revoked in DB
+    for sn in serials:
+        row = db.fetch_row('SELECT serial_number, revoked_at FROM certificates WHERE serial_number = $1', sn)
+        assert row is not None and row['revoked_at'] is not None
+
+    # Batch delete
+    batch_del_resp = testclient.post('/certificates/batch-delete', data={'serials': ','.join(serials)}, headers={'Accept': 'application/json'})
+    assert batch_del_resp.status_code == 200
+    assert batch_del_resp.json() == {'status': 'deleted', 'count': 2}
+
+    # Verify both certificates are deleted from DB
+    for sn in serials:
+        assert db.fetch_row('SELECT serial_number FROM certificates WHERE serial_number = $1', sn) is None
+
+
+def test_delete_invalid_domain_without_certs(signed_request, directory, testclient: TestClient, db):
+    mail_address = 'mailto:domainuser@example.com'
+    host = 'pending-del.example.com'
+
+    # Create account & order without finalizing
+    response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [mail_address]})
+    account_id = response.headers['Location']
+
+    response = signed_request(directory['newOrder'], response.headers['Replay-Nonce'], {'identifiers': [{'type': 'dns', 'value': host}]}, account_id)
+    assert response.status_code == 201
+
+    # Check domain appears in domains list
+    dom_page = testclient.get('/domains?domainstatus=all')
+    assert dom_page.status_code == 200
+    assert host in dom_page.text
+
+    # Delete domain
+    del_dom_resp = testclient.post(f'/domains/{host}/delete', headers={'Accept': 'application/json'})
+    assert del_dom_resp.status_code == 200, del_dom_resp.text
+    assert del_dom_resp.json() == {'status': 'deleted', 'domain': host}
+
+    # Verify domain authorization and order are gone
+    assert db.fetch_row('SELECT id FROM authorizations WHERE domain = $1', host) is None
+
+
+def test_delete_deactivated_account(signed_request, directory, testclient: TestClient, db):
+    mail_address = 'mailto:deact-del@example.com'
+
+    response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [mail_address]})
+    account_url = response.headers['Location']
+    account_id = account_url.split('/')[-1]
+
+    # Deleting active/valid account should be rejected
+    del_active = testclient.post(f'/accounts/{account_id}/delete')
+    assert del_active.status_code == 400
+
+    # Deactivate account
+    deact_resp = testclient.post(f'/accounts/{account_id}/status', data={'action': 'deactivate'})
+    assert deact_resp.status_code in (200, 303)
+
+    # Delete deactivated account
+    del_resp = testclient.post(f'/accounts/{account_id}/delete', headers={'Accept': 'application/json'})
+    assert del_resp.status_code == 200
+    assert del_resp.json() == {'status': 'deleted', 'account_id': account_id}
+
+    # Verify account is deleted from DB
+    assert db.fetch_row('SELECT id FROM accounts WHERE id = $1', account_id) is None
+
 
 def test_ca_view_and_download(testclient: TestClient):
     # 1. View CA Details Page

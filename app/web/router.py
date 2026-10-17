@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import json
 from pathlib import Path
 from typing import Literal
@@ -551,8 +552,140 @@ async def revoke_certificate(request: Request, serial_number: constr(pattern='^[
     return RedirectResponse(url='/certificates?status_msg=revoked_success', status_code=status.HTTP_303_SEE_OTHER)
 
 
+@api.post('/certificates/{serial_number}/delete')
+async def delete_certificate(request: Request, serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    async with db.transaction(readonly=True) as sql:
+        cert_record = await sql.record(
+            """select serial_number, order_id, revoked_at from certificates where serial_number = $1""",
+            serial_number,
+        )
+    if not cert_record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown certificate')
+    if cert_record['revoked_at'] is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='only revoked certificates can be deleted')
+
+    order_id = cert_record['order_id']
+    async with db.transaction() as sql:
+        await sql.exec('delete from certificates where serial_number = $1', serial_number)
+        await sql.exec(
+            'delete from challenges where authz_id in (select id from authorizations where order_id = $1)',
+            order_id,
+        )
+        await sql.exec('delete from authorizations where order_id = $1', order_id)
+        await sql.exec('delete from orders where id = $1', order_id)
+
+    if settings.ca.enabled:
+        async with db.transaction(readonly=True) as sql:
+            remaining_revocations = {(sn, rev_at) async for sn, rev_at in sql('select serial_number, revoked_at from certificates where revoked_at is not null')}
+        await ca_service.sync_crl(remaining_revocations)
+
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'deleted', 'serial_number': serial_number})
+
+    return RedirectResponse(url='/certificates?status_msg=cert_deleted', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/certificates/batch-revoke')
+async def batch_revoke_certificates(request: Request, serials: str = Form('')):
+    content_type = request.headers.get('content-type', '')
+    if 'application/json' in content_type:
+        try:
+            body = await request.json()
+            serial_list = body.get('serials', [])
+        except (json.JSONDecodeError, ValueError):
+            serial_list = []
+    else:
+        serial_list = [s.strip() for s in serials.split(',') if s.strip()]
+
+    if not serial_list:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No certificates selected')
+
+    async with db.transaction() as sql:
+        unrevoked = [
+            sn
+            async for (sn,) in sql(
+                'select serial_number from certificates where serial_number = any($1::text[]) and revoked_at is null',
+                serial_list,
+            )
+        ]
+        if unrevoked:
+            await sql.exec(
+                'update certificates set revoked_at = now() where serial_number = any($1::text[]) and revoked_at is null',
+                unrevoked,
+            )
+
+    if settings.ca.enabled and unrevoked:
+        async with db.transaction(readonly=True) as sql:
+            all_revoked = {(sn, rev_at) async for sn, rev_at in sql('select serial_number, revoked_at from certificates where revoked_at is not null')}
+        await ca_service.sync_crl(all_revoked)
+
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'revoked', 'count': len(unrevoked)})
+
+    return RedirectResponse(
+        url=f'/certificates?status_msg=batch_revoked_success&count={len(unrevoked)}',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@api.post('/certificates/batch-delete')
+async def batch_delete_certificates(request: Request, serials: str = Form('')):
+    content_type = request.headers.get('content-type', '')
+    if 'application/json' in content_type:
+        try:
+            body = await request.json()
+            serial_list = body.get('serials', [])
+        except (json.JSONDecodeError, ValueError):
+            serial_list = []
+    else:
+        serial_list = [s.strip() for s in serials.split(',') if s.strip()]
+
+    if not serial_list:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No certificates selected')
+
+    async with db.transaction() as sql:
+        records = [
+            (sn, ord_id)
+            async for sn, ord_id in sql(
+                'select serial_number, order_id from certificates where serial_number = any($1::text[]) and revoked_at is not null',
+                serial_list,
+            )
+        ]
+        if not records:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No revoked certificates found matching selection')
+
+        del_serials = [r[0] for r in records]
+        del_order_ids = [r[1] for r in records]
+
+        await sql.exec('delete from certificates where serial_number = any($1::text[])', del_serials)
+        await sql.exec(
+            'delete from challenges where authz_id in (select id from authorizations where order_id = any($1::text[]))',
+            del_order_ids,
+        )
+        await sql.exec('delete from authorizations where order_id = any($1::text[])', del_order_ids)
+        await sql.exec('delete from orders where id = any($1::text[])', del_order_ids)
+
+    if settings.ca.enabled:
+        async with db.transaction(readonly=True) as sql:
+            all_revoked = {(sn, rev_at) async for sn, rev_at in sql('select serial_number, revoked_at from certificates where revoked_at is not null')}
+        await ca_service.sync_crl(all_revoked)
+
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'deleted', 'count': len(del_serials)})
+
+    return RedirectResponse(
+        url=f'/certificates?status_msg=batch_deleted_success&count={len(del_serials)}',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @api.get('/domains', response_class=HTMLResponse)
-async def domain_log(request: Request, domainfilter: str = '', domainstatus: Literal['all', 'valid', 'invalid'] = 'valid'):
+async def domain_log(
+    request: Request,
+    domainfilter: str = '',
+    domainstatus: Literal['all', 'valid', 'invalid'] = 'valid',
+    status_msg: str = '',
+):
     async with db.transaction(readonly=True) as sql:
         domains = [
             record
@@ -561,12 +694,13 @@ async def domain_log(request: Request, domainfilter: str = '', domainstatus: Lit
                 with data as (
                     select
                         authz.domain as domain_name,
-                        min(cert.not_valid_before) as first_requested_at,
+                        min(coalesce(cert.not_valid_before, ord.expires_at - interval '60 minutes')) as first_requested_at,
                         max(cert.not_valid_after) as expires_at,
-                        (max(cert.not_valid_after) FILTER (WHERE revoked_at is null)) > now() AS is_valid
+                        coalesce((max(cert.not_valid_after) FILTER (WHERE cert.revoked_at is null)) > now(), false) AS is_valid,
+                        count(cert.serial_number) as cert_count
                     from orders ord
                     join authorizations authz on authz.order_id = ord.id
-                    join certificates cert on cert.order_id = ord.id
+                    left join certificates cert on cert.order_id = ord.id
                     where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
                     group by authz.domain
                 )
@@ -579,8 +713,63 @@ async def domain_log(request: Request, domainfilter: str = '', domainstatus: Lit
             )
         ]
     return await template_engine.get_template('domain-log.html').render_async(
-        **default_params, request=request, domains=domains, domainstatus=domainstatus, domainfilter=domainfilter
+        **default_params,
+        request=request,
+        domains=domains,
+        domainstatus=domainstatus,
+        domainfilter=domainfilter,
+        status_msg=status_msg,
     )
+
+
+@api.post('/domains/{domain_name}/delete')
+async def delete_domain(request: Request, domain_name: str):
+    async with db.transaction(readonly=True) as sql:
+        cert_count = await sql.value(
+            """
+            select count(cert.serial_number)
+            from authorizations authz
+            join certificates cert on cert.order_id = authz.order_id
+            where authz.domain = $1
+            """,
+            domain_name,
+        )
+    if cert_count and cert_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot delete domain because certificates are still associated with it. Please revoke and delete the certificates first.',
+        )
+
+    async with db.transaction() as sql:
+        authz_rows = [
+            (a_id, o_id)
+            async for a_id, o_id in sql(
+                'select id, order_id from authorizations where domain = $1',
+                domain_name,
+            )
+        ]
+        if not authz_rows:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Domain not found or has no authorizations')
+
+        authz_ids = [r[0] for r in authz_rows]
+        order_ids = list({r[1] for r in authz_rows})
+
+        await sql.exec('delete from challenges where authz_id = any($1::text[])', authz_ids)
+        await sql.exec('delete from authorizations where domain = $1', domain_name)
+        await sql.exec(
+            """
+            delete from orders o
+            where o.id = any($1::text[])
+              and not exists (select 1 from authorizations a where a.order_id = o.id)
+              and not exists (select 1 from certificates c where c.order_id = o.id)
+            """,
+            order_ids,
+        )
+
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'deleted', 'domain': domain_name})
+
+    return RedirectResponse(url='/domains?status_msg=domain_deleted', status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/accounts', response_class=HTMLResponse)
@@ -696,6 +885,58 @@ async def update_account_status(
         )
     msg = 'account_activated' if action == 'activate' else 'account_deactivated'
     return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/accounts/{account_id}/delete')
+async def delete_account(request: Request, account_id: str):
+    async with db.transaction(readonly=True) as sql:
+        acc = await sql.record('select id, mail, status from accounts where id = $1', account_id)
+    if not acc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='unknown account')
+    if acc['status'] != 'deactivated':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Only deactivated accounts can be deleted. Please deactivate the account first.',
+        )
+
+    async with db.transaction(readonly=True) as sql:
+        active_cert_count = await sql.value(
+            """
+            select count(cert.serial_number)
+            from orders ord
+            join certificates cert on cert.order_id = ord.id
+            where ord.account_id = $1 and cert.not_valid_after > now() and cert.revoked_at is null
+            """,
+            account_id,
+        )
+    if active_cert_count and active_cert_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot delete account while it still has active, valid certificates. Please revoke the certificates first.',
+        )
+
+    async with db.transaction() as sql:
+        order_ids = [o_id async for (o_id,) in sql('select id from orders where account_id = $1', account_id)]
+        if order_ids:
+            await sql.exec('delete from certificates where order_id = any($1::text[])', order_ids)
+            await sql.exec(
+                'delete from challenges where authz_id in (select id from authorizations where order_id = any($1::text[]))',
+                order_ids,
+            )
+            await sql.exec('delete from authorizations where order_id = any($1::text[])', order_ids)
+            await sql.exec('delete from orders where account_id = $1', account_id)
+
+        await sql.exec('delete from accounts where id = $1', account_id)
+
+    if settings.ca.enabled:
+        async with db.transaction(readonly=True) as sql:
+            remaining_revocations = {(sn, rev_at) async for sn, rev_at in sql('select serial_number, revoked_at from certificates where revoked_at is not null')}
+        await ca_service.sync_crl(remaining_revocations)
+
+    if 'application/json' in request.headers.get('accept', ''):
+        return JSONResponse({'status': 'deleted', 'account_id': account_id})
+
+    return RedirectResponse(url='/accounts?status_msg=account_deleted', status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/mail', response_class=HTMLResponse)

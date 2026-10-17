@@ -79,6 +79,8 @@ The active Certificate Authority screen with a **40% left / 60% right** proporti
 Comprehensive log of all certificates issued by the ACME server:
 - **Interactive Sortable Columns**: Multi-state 3-way cycle (Ascending ▲ ➔ Descending ▼ ➔ Original order ↕) for **Status**, **Primary FQDN**, **Serial Number**, **Issue Date**, and **Expiry Date**.
 - **User-Resizable Columns**: Draggable border handles on all column headers (including **Actions**) with double-click reset and `localStorage` persistence.
+- **Multi-Select & Batch Actions**: Select multiple certificates via checkboxes to perform **Batch Revoke** or **Batch Delete** with prominent top and floating action toolbars.
+- **Revoked Certificate Deletion**: Revoked certificates can be permanently removed with an explicit confirmation dialog detailing the impact on the Certificate Revocation List (CRL).
 - Filterable by status tabs: **All**, **Valid**, **Expiring**, **Revoked**, **Expired**.
 - Real-time client-side text search by domain, common name, or serial number.
 - Direct download of individual leaf certificates and certificate chains.
@@ -92,6 +94,7 @@ Comprehensive log of all certificates issued by the ACME server:
 Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 - **Interactive Sortable Columns**: Sortable by **Status**, **Domain Name**, **First Requested**, and **Certificate Valid Until**.
 - **User-Resizable Columns**: Interactive drag handles to adjust column widths with persistence across visits.
+- **Domain Deletion**: Allows safe deletion of invalid domains that no longer have associated active certificates, cleaning up old ACME authorizations and challenges with confirmation.
 - Tracks first request timestamp and current certificate expiration date.
 - Status badges indicating domain validity.
 - Direct link (`View Certificates →`) to inspect all certificates associated with a specific domain.
@@ -104,6 +107,7 @@ Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 Management center for all registered ACME client accounts:
 - **Interactive Sortable Columns**: Sortable by **Account & Key**, **Status**, **Certificates** count, **Order Requests** count, and **Registered** date.
 - **User-Resizable Columns**: Draggable column resize handles with automatic minimum-width protection and `localStorage` persistence.
+- **Account Deletion & Cleanup**: Deactivated accounts without active certificates can be permanently deleted with confirmation, removing associated ACME orders, challenges, and error logs.
 - Displays Account ID (`kid`), contact email, and public key type (RSA/ECDSA).
 - Certificate breakdown counters: **Valid**, **Revoked**, and **Expired**.
 - Order request breakdown counters: **Valid**, **Pending**, **Processing**, and **Errors**.

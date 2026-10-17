@@ -571,6 +571,11 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
     <span>Account has been activated and marked valid.</span>
 </div>
+{% elif status_msg == 'account_deleted' %}
+<div class="status-banner success">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <span>Account and all related orders and error logs were permanently deleted.</span>
+</div>
 {% endif %}
 
 <!-- Search & Status Filter Bar -->
@@ -704,6 +709,16 @@
                             </button>
                             {% endif %}
                         </form>
+
+                        {% if acc.account_status == 'deactivated' %}
+                        <button type="button" class="btn-action-outline btn-action-danger open-delete-account-modal"
+                                data-account-id="{{ acc.account_id }}"
+                                data-account-email="{{ acc.email }}"
+                                data-certs-valid="{{ acc.certs_valid }}"
+                                title="Delete Deactivated Account">
+                            Delete
+                        </button>
+                        {% endif %}
                     </div>
 
                     <!-- Hidden container storing orders JSON for modal -->
@@ -923,5 +938,113 @@ function escapeHtml(text) {
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return text.toString().replace(/[&<>"']/g, m => map[m]);
 }
+
+// Delete Account Modal Handling
+document.addEventListener('DOMContentLoaded', () => {
+    const dialog = document.getElementById('delete-account-dialog');
+    const form = document.getElementById('delete-account-form');
+    const emailEl = document.getElementById('delete-account-email');
+    const idEl = document.getElementById('delete-account-id');
+    const certsWarnEl = document.getElementById('delete-account-certs-warning');
+    const activeCertsCountEl = document.getElementById('delete-account-active-certs-count');
+    const safeWarnEl = document.getElementById('delete-account-safe-warning');
+    const submitBtn = document.getElementById('delete-account-submit-btn');
+    const cancelBtn = document.getElementById('delete-account-cancel-btn');
+
+    if (dialog && form) {
+        document.querySelectorAll('.open-delete-account-modal').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const accountId = btn.dataset.accountId;
+                const email = btn.dataset.accountEmail || 'this account';
+                const certsValid = parseInt(btn.dataset.certsValid || '0', 10);
+
+                if (emailEl) emailEl.textContent = email;
+                if (idEl) idEl.textContent = accountId;
+                form.action = `/accounts/${encodeURIComponent(accountId)}/delete`;
+
+                if (certsValid > 0) {
+                    if (certsWarnEl) certsWarnEl.style.display = 'block';
+                    if (activeCertsCountEl) activeCertsCountEl.textContent = certsValid;
+                    if (safeWarnEl) safeWarnEl.style.display = 'none';
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.style.opacity = '0.5';
+                        submitBtn.style.cursor = 'not-allowed';
+                    }
+                } else {
+                    if (certsWarnEl) certsWarnEl.style.display = 'none';
+                    if (safeWarnEl) safeWarnEl.style.display = 'block';
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '1';
+                        submitBtn.style.cursor = 'pointer';
+                    }
+                }
+
+                if (typeof dialog.showModal === 'function') {
+                    dialog.showModal();
+                } else {
+                    dialog.setAttribute('open', '');
+                }
+            });
+        });
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                if (typeof dialog.close === 'function') {
+                    dialog.close();
+                } else {
+                    dialog.removeAttribute('open');
+                }
+            });
+        }
+
+        dialog.addEventListener('click', (event) => {
+            const rect = dialog.getBoundingClientRect();
+            const isInDialog = (
+                rect.top <= event.clientY &&
+                event.clientY <= rect.top + rect.height &&
+                rect.left <= event.clientX &&
+                event.clientX <= rect.left + rect.width
+            );
+            if (!isInDialog) {
+                if (typeof dialog.close === 'function') {
+                    dialog.close();
+                } else {
+                    dialog.removeAttribute('open');
+                }
+            }
+        });
+    }
+});
 </script>
+
+<!-- Delete Account Confirmation Modal -->
+<dialog id="delete-account-dialog" class="delete-account-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #dc2626;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Delete Deactivated Account</h3>
+        </div>
+        <div id="delete-account-modal-body" style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
+            <p>Are you sure you want to permanently delete account <strong id="delete-account-email"></strong> (<code id="delete-account-id" style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;"></code>)?</p>
+            <div id="delete-account-certs-warning" style="display: none; margin-top: 0.85rem; padding: 0.75rem 1rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 0.86rem; line-height: 1.5;">
+                <strong>⚠️ Active Certificates Detected:</strong>
+                <p style="margin-top: 0.25rem;">This account still has <span id="delete-account-active-certs-count">0</span> valid certificate(s). Accounts cannot be deleted while they have active valid certificates. Please revoke or wait for the certificates to expire first.</p>
+            </div>
+            <p id="delete-account-safe-warning" style="margin-top: 0.85rem; color: var(--text-muted); font-size: 0.88rem;">
+                This will permanently purge this account, its public key JWK, and all associated order requests, authorizations, challenges, and error logs. This action cannot be undone.
+            </p>
+        </div>
+        <form method="post" id="delete-account-form" action="">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" id="delete-account-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" id="delete-account-submit-btn" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Account</button>
+            </div>
+        </form>
+    </div>
+</dialog>
 {% endblock %}
