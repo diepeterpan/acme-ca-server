@@ -370,8 +370,9 @@
     }
 
     dialog.revoke-modal::backdrop {
-        background: rgba(30, 27, 75, 0.4);
-        backdrop-filter: blur(4px);
+        background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
     }
 
     .modal-content {
@@ -549,11 +550,12 @@
         bottom: 1.5rem;
         left: 50%;
         transform: translateX(-50%);
-        background-color: #1e1b4b;
+        background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
         color: #ffffff;
         padding: 0.65rem 1.25rem;
         border-radius: var(--radius-pill);
-        box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.3), 0 4px 6px -4px rgba(15, 23, 42, 0.2);
+        box-shadow: 0 12px 30px -4px rgba(109, 40, 217, 0.42), 0 4px 10px -2px rgba(109, 40, 217, 0.25);
+        border: 1px solid rgba(221, 214, 254, 0.5);
         z-index: 90;
         display: flex;
         align-items: center;
@@ -588,7 +590,7 @@
     }
 
     .batch-badge {
-        background-color: var(--primary);
+        background-color: rgba(255, 255, 255, 0.25);
         color: #ffffff;
         font-weight: 700;
         padding: 0.15rem 0.5rem;
@@ -649,13 +651,13 @@
 
     /* Top Batch Action Toolbar */
     .batch-bar-top {
-        background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
+        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
         color: #ffffff;
         border-radius: var(--radius-lg);
         padding: 0.75rem 1.25rem;
         margin-bottom: 1rem;
-        box-shadow: 0 4px 14px rgba(30, 27, 75, 0.2);
-        border: 1px solid rgba(139, 92, 246, 0.35);
+        box-shadow: 0 8px 24px rgba(109, 40, 217, 0.32);
+        border: 1px solid rgba(221, 214, 254, 0.6);
         animation: fadeIn 0.15s ease-in-out;
     }
 
@@ -676,13 +678,13 @@
     }
 
     .batch-bar-top-badge {
-        background: var(--primary);
+        background: rgba(255, 255, 255, 0.25);
         color: #ffffff;
         font-weight: 700;
         padding: 0.18rem 0.6rem;
         border-radius: 9999px;
         font-size: 0.85rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     }
 
     .batch-bar-top-label {
@@ -854,8 +856,8 @@
                 <th data-col-key="status">Status</th>
                 <th data-col-key="fqdn">Primary FQDN</th>
                 <th data-col-key="serial">Serial Number</th>
-                <th class="cell-issue-date" data-col-key="issue_date">Issue Date</th>
-                <th class="cell-expiry-date" data-col-key="expiry_date">Expiry Date</th>
+                <th class="cell-issue-date" data-col-key="issue_date" title="Dates in local service time ({{ service_tz_label }})">Issue Date</th>
+                <th class="cell-expiry-date" data-col-key="expiry_date" title="Dates in local service time ({{ service_tz_label }})">Expiry Date</th>
                 <th data-no-sort data-col-key="actions">Actions</th>
             </tr>
         </thead>
@@ -903,14 +905,14 @@
                         </button>
                     </span>
                 </td>
-                <td class="cell-issue-date" data-sort-val="{{ cert.not_valid_before.isoformat() }}">
-                    <span class="date-text">{{cert.not_valid_before.strftime('%Y-%m-%d %H:%M')}}</span>
+                <td class="cell-issue-date" data-sort-val="{{ cert.not_valid_before|local_isoformat }}">
+                    <span class="date-text" title="{{ cert.not_valid_before|format_datetime('%Y-%m-%d %H:%M:%S %Z') }}">{{ cert.not_valid_before|format_datetime('%Y-%m-%d %H:%M') }}</span>
                 </td>
-                <td class="cell-expiry-date" data-sort-val="{{ cert.not_valid_after.isoformat() }}">
+                <td class="cell-expiry-date" data-sort-val="{{ cert.not_valid_after|local_isoformat }}">
                     <div class="expiry-date-cell">
-                        <span class="date-text">{{cert.not_valid_after.strftime('%Y-%m-%d %H:%M')}}</span>
+                        <span class="date-text" title="{{ cert.not_valid_after|format_datetime('%Y-%m-%d %H:%M:%S %Z') }}">{{ cert.not_valid_after|format_datetime('%Y-%m-%d %H:%M') }}</span>
                         {% if cert.is_revoked and cert.revoked_at %}
-                        <span class="badge badge-revoked">revoked {{cert.revoked_at.strftime('%Y-%m-%d %H:%M')}}</span>
+                        <span class="badge badge-revoked" title="{{ cert.revoked_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') }}">revoked {{ cert.revoked_at|format_datetime('%Y-%m-%d %H:%M') }}</span>
                         {% elif cert.is_expiring %}
                         <span class="badge badge-expiring">in {{cert.remaining.days}} days</span>
                         {% elif cert.is_valid %}
@@ -989,6 +991,9 @@
             Are you sure you want to revoke the certificate for <strong id="modal-domain"></strong> (Serial: <code id="modal-serial"></code>)? This will add the certificate to the CRL and cannot be undone.
         </p>
         <form method="post" id="revoke-form" action="">
+            <input type="hidden" name="current_status" value="{{ certstatus }}">
+            <input type="hidden" name="current_filter" value="{{ domainfilter }}">
+            <input type="hidden" name="current_account" value="{{ account_id }}">
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="modal-cancel-btn">Cancel</button>
                 <button type="submit" class="btn-primary-danger">Revoke Certificate</button>
@@ -1017,6 +1022,9 @@
             </div>
         </div>
         <form method="post" id="delete-form" action="">
+            <input type="hidden" name="current_status" value="{{ certstatus }}">
+            <input type="hidden" name="current_filter" value="{{ domainfilter }}">
+            <input type="hidden" name="current_account" value="{{ account_id }}">
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="delete-modal-cancel-btn">Cancel</button>
                 <button type="submit" class="btn-danger-solid">Delete Permanently</button>
@@ -1040,6 +1048,9 @@
         </div>
         <form method="post" id="batch-revoke-form" action="/certificates/batch-revoke">
             <input type="hidden" name="serials" id="batch-revoke-serials-input" value="">
+            <input type="hidden" name="current_status" value="{{ certstatus }}">
+            <input type="hidden" name="current_filter" value="{{ domainfilter }}">
+            <input type="hidden" name="current_account" value="{{ account_id }}">
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="batch-revoke-cancel-btn">Cancel</button>
                 <button type="submit" class="btn-primary-danger">Revoke Selected</button>
@@ -1069,6 +1080,9 @@
         </div>
         <form method="post" id="batch-delete-form" action="/certificates/batch-delete">
             <input type="hidden" name="serials" id="batch-delete-serials-input" value="">
+            <input type="hidden" name="current_status" value="{{ certstatus }}">
+            <input type="hidden" name="current_filter" value="{{ domainfilter }}">
+            <input type="hidden" name="current_account" value="{{ account_id }}">
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="batch-delete-cancel-btn">Cancel</button>
                 <button type="submit" class="btn-danger-solid">Delete Selected Permanently</button>

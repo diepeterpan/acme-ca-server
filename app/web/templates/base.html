@@ -24,6 +24,15 @@
             --status-valid-bg: #ecfdf5;
             --status-valid-text: #059669;
             --status-valid-border: #a7f3d0;
+            --status-error-bg: #fef2f2;
+            --status-error-text: #dc2626;
+            --status-error-border: #fecaca;
+            --status-info-bg: #eff6ff;
+            --status-info-text: #2563eb;
+            --status-info-border: #bfdbfe;
+            --status-warning-bg: #fffbeb;
+            --status-warning-text: #d97706;
+            --status-warning-border: #fde68a;
             --status-expiring-bg: #fffbeb;
             --status-expiring-text: #d97706;
             --status-expiring-border: #fde68a;
@@ -33,6 +42,7 @@
             --status-expired-bg: #fef2f2;
             --status-expired-text: #dc2626;
             --status-expired-border: #fecaca;
+            --dialog-backdrop: rgba(38, 16, 74, 0.68);
             --shadow-sm: 0 1px 2px 0 rgba(124, 58, 237, 0.05);
             --shadow-md: 0 4px 6px -1px rgba(124, 58, 237, 0.08), 0 2px 4px -2px rgba(124, 58, 237, 0.04);
             --shadow-lg: 0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -4px rgba(124, 58, 237, 0.05);
@@ -57,10 +67,17 @@
             -webkit-font-smoothing: antialiased;
         }
 
+        dialog::backdrop,
+        .modal-overlay {
+            background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68)) !important;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
         .navbar {
             background-color: var(--bg-card);
             border-bottom: 1px solid var(--border-card);
-            padding: 0.65rem 1.25rem;
+            padding: 0.65rem 0.75rem;
             position: sticky;
             top: 0;
             z-index: 50;
@@ -68,7 +85,7 @@
         }
 
         .navbar-container {
-            max-width: 1240px;
+            max-width: 1560px;
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -125,9 +142,9 @@
         }
 
         .container {
-            max-width: 1240px;
-            margin: 2rem auto;
-            padding: 0 1.5rem 3rem 1.5rem;
+            max-width: 1560px;
+            margin: 1.5rem auto;
+            padding: 0 0.75rem 2.5rem 0.75rem;
         }
 
         /* Flash message banner */

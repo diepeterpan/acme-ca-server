@@ -11,6 +11,7 @@ Captures high-resolution screenshots of all web UI screens:
   7. Domains Registry
   8. Accounts Management
   9. Account Orders & Error Details Modal
+  10. Mail Settings & Delivery Diagnostics
 
 Usage:
   python3 scripts/capture_ui_screens.py
@@ -161,12 +162,17 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
 
     loader = jinja2.FileSystemLoader(str(TEMPLATES_DIR))
     env = jinja2.Environment(loader=loader, enable_async=True)
+    env.filters['format_datetime'] = lambda dt, fmt='%Y-%m-%d %H:%M': dt.strftime(fmt) if hasattr(dt, 'strftime') else str(dt or '')
+    env.filters['to_local'] = lambda dt: dt
+    env.filters['local_isoformat'] = lambda dt: dt.isoformat() if hasattr(dt, 'isoformat') else str(dt or '')
 
     default_params = {
         'app_title': 'ACME CA Server',
         'is_authenticated': False,
         'current_user': None,
         'active_tab': '',
+        'service_tz_label': 'Local',
+        'service_tz_name': 'Local',
     }
 
     async with async_playwright() as p:

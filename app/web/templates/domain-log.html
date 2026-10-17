@@ -285,8 +285,9 @@
     }
 
     dialog.delete-domain-modal::backdrop {
-        background: rgba(30, 27, 75, 0.4);
-        backdrop-filter: blur(4px);
+        background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
     }
 
     .modal-content {
@@ -443,10 +444,10 @@
     <table class="domain-table" data-table-id="domains">
         <thead>
             <tr>
-                <th data-col-key="status" style="width: 95px;">Status</th>
+                <th data-col-key="status" style="width: 110px;">Status</th>
                 <th data-col-key="domain">Domain Name</th>
-                <th data-col-key="first_requested">First Requested</th>
-                <th data-col-key="expires">Certificate Valid Until</th>
+                <th data-col-key="first_requested" title="Dates in local service time ({{ service_tz_label }})">First Requested</th>
+                <th data-col-key="expires" title="Dates in local service time ({{ service_tz_label }})">Certificate Valid Until</th>
                 <th data-no-sort data-col-key="action" style="text-align: right;">Action</th>
             </tr>
         </thead>
@@ -472,19 +473,19 @@
                         {% endif %}
                     </div>
                 </td>
-                <td data-sort-val="{{ domain.first_requested_at.isoformat() if domain.first_requested_at else '' }}">
-                    <span class="date-text">
+                <td data-sort-val="{{ domain.first_requested_at|local_isoformat if domain.first_requested_at else '' }}">
+                    <span class="date-text" title="{{ domain.first_requested_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if domain.first_requested_at else '' }}">
                         {% if domain.first_requested_at %}
-                        {{ domain.first_requested_at.strftime('%Y-%m-%d %H:%M') }}
+                        {{ domain.first_requested_at|format_datetime('%Y-%m-%d %H:%M') }}
                         {% else %}
                         &mdash;
                         {% endif %}
                     </span>
                 </td>
-                <td data-sort-val="{{ domain.expires_at.isoformat() if domain.expires_at else '' }}">
-                    <span class="date-text">
+                <td data-sort-val="{{ domain.expires_at|local_isoformat if domain.expires_at else '' }}">
+                    <span class="date-text" title="{{ domain.expires_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if domain.expires_at else '' }}">
                         {% if domain.expires_at %}
-                        {{ domain.expires_at.strftime('%Y-%m-%d %H:%M') }}
+                        {{ domain.expires_at|format_datetime('%Y-%m-%d %H:%M') }}
                         {% else %}
                         &mdash;
                         {% endif %}
@@ -492,7 +493,7 @@
                 </td>
                 <td style="text-align: right;">
                     <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
-                        <a href="/certificates?domainfilter={{domain.domain_name}}" class="btn-action">
+                        <a href="/certificates?domainfilter={{domain.domain_name}}&certstatus=all" class="btn-action">
                             <span>View Certificates</span>
                             <span>&rarr;</span>
                         </a>
@@ -543,7 +544,10 @@
             <p>Are you sure you want to permanently delete domain <strong id="delete-domain-name"></strong>?</p>
             <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.88rem;">This will clear all ACME authorizations, challenges, associated orders, and failure logs for this domain. This action cannot be undone.</p>
         </div>
-        <form method="post" id="delete-domain-form" action="">
+        <form method="post" id="delete-domain-form" action="/domains/delete">
+            <input type="hidden" name="domain_name" id="delete-domain-name-input" value="">
+            <input type="hidden" name="current_status" value="{{ domainstatus }}">
+            <input type="hidden" name="current_filter" value="{{ domainfilter }}">
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="delete-domain-cancel-btn">Cancel</button>
                 <button type="submit" class="btn-danger-solid">Delete Domain</button>
@@ -565,7 +569,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const domain = btn.dataset.domain;
                 if (nameEl) nameEl.textContent = domain;
-                form.action = `/domains/${encodeURIComponent(domain)}/delete`;
+                const inputEl = document.getElementById('delete-domain-name-input');
+                if (inputEl) inputEl.value = domain;
+                form.action = '/domains/delete';
                 if (typeof dialog.showModal === 'function') {
                     dialog.showModal();
                 } else {

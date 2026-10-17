@@ -81,6 +81,9 @@ Comprehensive log of all certificates issued by the ACME server:
 - **User-Resizable Columns**: Draggable border handles on all column headers (including **Actions**) with double-click reset and `localStorage` persistence.
 - **Multi-Select & Batch Actions**: Select multiple certificates via checkboxes to perform **Batch Revoke** or **Batch Delete** with prominent top and floating action toolbars.
 - **Revoked Certificate Deletion**: Revoked certificates can be permanently removed with an explicit confirmation dialog detailing the impact on the Certificate Revocation List (CRL).
+- **State & Filter Preservation**: Actions (revocation, permanent deletion, batch revoke, batch delete) seamlessly preserve active tab filters (`certstatus`), search query (`domainfilter`), and account filters (`account_id`), preventing disruptive view resets.
+- **Local Service Timezone Tooltips**: Issue and expiration timestamps display formatted in local service time, with hover tooltips rendering the precise second and timezone designation (`YYYY-MM-DD HH:MM:SS TZ`).
+- **High-Density Expanded Layout**: Responsive 1560px max container with clean padding for enhanced visibility on widescreen displays.
 - Filterable by status tabs: **All**, **Valid**, **Expiring**, **Revoked**, **Expired**.
 - Real-time client-side text search by domain, common name, or serial number.
 - Direct download of individual leaf certificates and certificate chains.
@@ -94,10 +97,10 @@ Comprehensive log of all certificates issued by the ACME server:
 Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 - **Interactive Sortable Columns**: Sortable by **Status**, **Domain Name**, **First Requested**, and **Certificate Valid Until**.
 - **User-Resizable Columns**: Interactive drag handles to adjust column widths with persistence across visits.
-- **Domain Deletion**: Allows safe deletion of invalid domains that no longer have associated active certificates, cleaning up old ACME authorizations and challenges with confirmation.
-- Tracks first request timestamp and current certificate expiration date.
+- **Cross-View Navigation**: The `View Certificates →` action links directly to `/certificates?domainfilter=<domain>&certstatus=all`, ensuring all matching leaf certificates are displayed regardless of the active status tab.
+- **Safe Domain Deletion**: Allows safe deletion of invalid domains that no longer have associated active certificates, cleaning up old ACME authorizations, challenges, orders, and failure logs with modal confirmation and filter state retention.
+- **Local Timezone Display**: First requested and validity timestamps feature hover tooltips detailing exact seconds and active server timezone.
 - Status badges indicating domain validity.
-- Direct link (`View Certificates →`) to inspect all certificates associated with a specific domain.
 
 ![Domains Registry](screenshots/07_domains_log.png)
 
@@ -107,11 +110,12 @@ Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 Management center for all registered ACME client accounts:
 - **Interactive Sortable Columns**: Sortable by **Account & Key**, **Status**, **Certificates** count, **Order Requests** count, and **Registered** date.
 - **User-Resizable Columns**: Draggable column resize handles with automatic minimum-width protection and `localStorage` persistence.
-- **Account Deletion & Cleanup**: Deactivated accounts without active certificates can be permanently deleted with confirmation, removing associated ACME orders, challenges, and error logs.
+- **Dedicated Activation & Deactivation Confirmation Modals**: Purpose-built modal dialogs with visual accents and clear severity styling (Emerald Green for activation, Amber for deactivation) to prevent accidental status alterations.
+- **Guarded Account Deletion**: Deactivated accounts without active certificates can be permanently deleted with confirmation, removing associated ACME orders, challenges, and error logs. Client and server-side safety checks dynamically disable deletion if valid certificates are tied to the account.
+- **Preserved Filter Navigation**: Filter query strings (`accountstatus`, `accountfilter`) remain preserved upon status toggles and account deletion.
 - Displays Account ID (`kid`), contact email, and public key type (RSA/ECDSA).
 - Certificate breakdown counters: **Valid**, **Revoked**, and **Expired**.
 - Order request breakdown counters: **Valid**, **Pending**, **Processing**, and **Errors**.
-- Administrative actions to toggle account status between **Valid** and **Deactivated**.
 
 ![Accounts Management](screenshots/08_accounts_log.png)
 
@@ -124,6 +128,7 @@ Triggered by clicking on the order error pill or the **Orders** button for any a
 - **Domain Pills**: Lists all domain identifiers associated with each order request.
 - **Clear Expiration Display**: Shows formatted timestamp (`YYYY-MM-DD HH:MM`) with real-time expired status badges.
 - **Detailed Error Box**: Pinpoints validation failures (e.g., DNS NXDOMAIN, connection refused, unauthorized) directly from the underlying ACME challenges.
+- **Frosted Glass Backdrop**: High-contrast modern modal overlay with frosted glass blur effect (`backdrop-filter: blur(5px)`).
 
 ![Account Orders & Error Details Modal](screenshots/09_account_orders_modal.png)
 
@@ -137,4 +142,5 @@ Dedicated management interface for outbound email delivery and automated notific
 - **Live Connection & Delivery Test**: Interactive "Send Test Email" test suite that runs via AJAX against current form inputs before saving, displaying immediate real-time diagnostics (success confirmation, connection refusal, authentication rejection, or SSL/TLS handshake errors).
 
 ![Mail Settings & Delivery Diagnostics](screenshots/10_mail_settings.png)
+
 

@@ -208,25 +208,72 @@
         gap: 0.15rem;
     }
 
+    .account-cell-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
     .account-email {
         font-weight: 700;
         color: var(--text-heading);
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        font-size: 12px;
+        font-size: 13px;
+        cursor: default;
+        padding: 0.2rem 0;
+        transition: color 0.15s ease;
     }
 
     .account-email svg {
         width: 14px;
         height: 14px;
         fill: var(--text-muted);
+        flex-shrink: 0;
+        transition: fill 0.15s ease;
     }
 
-    .account-id-row {
+    .account-cell-wrapper:hover .account-email {
+        color: var(--primary);
+    }
+
+    .account-cell-wrapper:hover .account-email svg {
+        fill: var(--primary);
+    }
+
+    .account-popover {
+        position: absolute;
+        top: calc(100% - 2px);
+        left: 0;
+        z-index: 60;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+        transform: translateY(4px);
+        padding-top: 6px;
+    }
+
+    .account-cell-wrapper:hover .account-popover,
+    .account-popover:hover,
+    .account-cell-wrapper:focus-within .account-popover {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+
+    .account-popover-content {
         display: flex;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.4rem;
+        background: #ffffff;
+        border: 1px solid var(--border-card, #e2e8f0);
+        border-radius: 6px;
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        padding: 0.35rem 0.55rem;
+        white-space: nowrap;
     }
 
     .account-id-badge {
@@ -258,11 +305,12 @@
         display: inline-flex;
         align-items: center;
         border-radius: 4px;
-        transition: color 0.15s ease;
+        transition: color 0.15s ease, transform 0.1s ease;
     }
 
     .btn-copy-mini:hover {
         color: var(--primary);
+        transform: scale(1.15);
     }
 
     /* Status Badges */
@@ -296,8 +344,9 @@
     /* Breakdown Grouping */
     .breakdown-group {
         display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.35rem;
     }
 
     .pill-counter {
@@ -329,8 +378,8 @@
     }
 
     .pill-order-valid {
-        background-color: #f0fdf4;
-        color: #166534;
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
     }
 
     .pill-order-pending {
@@ -415,12 +464,21 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: rgba(15, 23, 42, 0.55);
-        backdrop-filter: blur(4px);
+        background-color: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
         z-index: 100;
         align-items: center;
         justify-content: center;
         padding: 1.5rem;
+    }
+
+    dialog.activate-account-modal::backdrop,
+    dialog.deactivate-account-modal::backdrop,
+    dialog.delete-account-modal::backdrop {
+        background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
     }
 
     .modal-overlay.open {
@@ -605,7 +663,7 @@
                 <th data-col-key="status" style="width: 95px;">Status</th>
                 <th data-col-key="certificates">Certificates</th>
                 <th data-col-key="orders">Order Requests</th>
-                <th class="cell-registered" data-col-key="registered">Registered</th>
+                <th class="cell-registered" data-col-key="registered" title="Dates in local service time ({{ service_tz_label }})">Registered</th>
                 <th data-no-sort data-col-key="actions" style="text-align: right;">Actions</th>
             </tr>
         </thead>
@@ -613,19 +671,21 @@
             {% for acc in accounts %}
             <tr>
                 <td data-sort-val="{{ acc.email|lower }} {{ acc.account_id }}">
-                    <div class="account-meta">
-                        <div class="account-email">
+                    <div class="account-cell-wrapper">
+                        <div class="account-email" tabindex="0">
                             <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                             <span>{{ acc.email }}</span>
                         </div>
-                        <div class="account-id-row">
-                            <span class="account-id-badge" title="Account ID (kid)">{{ acc.account_id }}</span>
-                            <button class="btn-copy-mini" onclick="copyText('{{ acc.account_id }}', this)" title="Copy Account ID">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                                </svg>
-                            </button>
-                            <span class="key-badge">{{ acc.key_info }}</span>
+                        <div class="account-popover">
+                            <div class="account-popover-content">
+                                <span class="account-id-badge" title="Account ID (kid)">{{ acc.account_id }}</span>
+                                <button type="button" class="btn-copy-mini" onclick="copyText('{{ acc.account_id }}', this)" title="Copy Account ID">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                    </svg>
+                                </button>
+                                <span class="key-badge">{{ acc.key_info }}</span>
+                            </div>
                         </div>
                     </div>
                 </td>
@@ -658,26 +718,24 @@
                 </td>
                 <td data-sort-val="{{ acc.total_orders }}">
                     <div class="breakdown-group">
-                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                            <span class="pill-counter pill-order-valid">{{ acc.orders_valid }} Valid</span>
-                            {% if acc.orders_pending > 0 %}
-                            <span class="pill-counter pill-order-pending">{{ acc.orders_pending }} Pending</span>
-                            {% endif %}
-                            {% if acc.orders_processing > 0 %}
-                            <span class="pill-counter pill-order-processing">{{ acc.orders_processing }} Processing</span>
-                            {% endif %}
-                            {% if acc.orders_invalid > 0 %}
-                            <span class="pill-counter pill-order-error" onclick="openOrderModal('{{ acc.account_id }}', '{{ acc.email }}')" title="Click to view error details">
-                                {{ acc.orders_invalid }} Errors &bull;
-                            </span>
-                            {% endif %}
-                        </div>
+                        <span class="pill-counter pill-order-valid">{{ acc.orders_valid }} Valid</span>
+                        {% if acc.orders_pending > 0 %}
+                        <span class="pill-counter pill-order-pending">{{ acc.orders_pending }} Pending</span>
+                        {% endif %}
+                        {% if acc.orders_processing > 0 %}
+                        <span class="pill-counter pill-order-processing">{{ acc.orders_processing }} Processing</span>
+                        {% endif %}
+                        {% if acc.orders_invalid > 0 %}
+                        <span class="pill-counter pill-order-error" onclick="openOrderModal('{{ acc.account_id }}', '{{ acc.email }}')" title="Click to view error details">
+                            {{ acc.orders_invalid }} Errors &bull;
+                        </span>
+                        {% endif %}
                     </div>
                 </td>
-                <td class="cell-registered" data-sort-val="{{ acc.created_at.isoformat() if acc.created_at else '' }}">
-                    <span style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+                <td class="cell-registered" data-sort-val="{{ acc.created_at|local_isoformat if acc.created_at else '' }}">
+                    <span style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-muted); white-space: nowrap;" title="{{ acc.created_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if acc.created_at else '' }}">
                         {% if acc.created_at %}
-                        {{ acc.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {{ acc.created_at|format_datetime('%Y-%m-%d %H:%M') }}
                         {% else %}
                         &mdash;
                         {% endif %}
@@ -696,19 +754,21 @@
                         </a>
 
                         <!-- Activate / Deactivate Toggle -->
-                        <form method="post" action="/accounts/{{ acc.account_id }}/status" style="margin: 0;">
-                            {% if acc.account_status == 'valid' %}
-                            <input type="hidden" name="action" value="deactivate">
-                            <button type="submit" class="btn-action-outline btn-action-danger" onclick="return confirm('Are you sure you want to DEACTIVATE account {{ acc.email }}?')">
-                                Deactivate
-                            </button>
-                            {% else %}
-                            <input type="hidden" name="action" value="activate">
-                            <button type="submit" class="btn-action-outline btn-action-success" onclick="return confirm('Reactivate account {{ acc.email }} as valid?')">
-                                Activate
-                            </button>
-                            {% endif %}
-                        </form>
+                        {% if acc.account_status == 'valid' %}
+                        <button type="button" class="btn-action-outline btn-action-danger open-deactivate-account-modal"
+                                data-account-id="{{ acc.account_id }}"
+                                data-account-email="{{ acc.email }}"
+                                title="Deactivate Account {{ acc.email }}">
+                            Deactivate
+                        </button>
+                        {% else %}
+                        <button type="button" class="btn-action-outline btn-action-success open-activate-account-modal"
+                                data-account-id="{{ acc.account_id }}"
+                                data-account-email="{{ acc.email }}"
+                                title="Activate Account {{ acc.email }}">
+                            Activate
+                        </button>
+                        {% endif %}
 
                         {% if acc.account_status == 'deactivated' %}
                         <button type="button" class="btn-action-outline btn-action-danger open-delete-account-modal"
@@ -829,7 +889,7 @@ function openOrderModal(accountId, email) {
             const tr = document.createElement('tr');
 
             const isFailed = (order.is_failed || order.status === 'invalid' || order.error_type || order.error_detail);
-            const statusColor = order.status === 'valid' ? '#16a34a' : (isFailed ? '#dc2626' : '#d97706');
+            const statusColor = order.status === 'valid' ? '#059669' : (isFailed ? '#dc2626' : (order.status === 'processing' ? '#2563eb' : '#d97706'));
 
             // 1. Status cell
             const tdStatus = document.createElement('td');
@@ -867,29 +927,27 @@ function openOrderModal(accountId, email) {
 
             // 4. Expires cell
             const tdExpires = document.createElement('td');
-            tdExpires.dataset.sortVal = order.expires_at || '';
             let expiryHtml = '&mdash;';
             if (order.expires_at) {
                 try {
-                    const expDate = new Date(order.expires_at);
-                    if (!isNaN(expDate.getTime())) {
+                    const formatted = order.expires_at_formatted || (() => {
+                        const expDate = new Date(order.expires_at);
                         const pad = (n) => String(n).padStart(2, '0');
-                        const y = expDate.getFullYear();
-                        const m = pad(expDate.getMonth() + 1);
-                        const d = pad(expDate.getDate());
-                        const hh = pad(expDate.getHours());
-                        const mm = pad(expDate.getMinutes());
-                        const formatted = `${y}-${m}-${d} ${hh}:${mm}`;
-                        const isExpired = expDate.getTime() < Date.now();
-                        const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 12px; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
-                        expiryHtml = `<div style="font-size: 12px; font-family: ui-monospace, monospace; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
-                            <span>${formatted}</span>
-                            ${expBadge}
-                        </div>`;
-                    }
+                        return `${expDate.getFullYear()}-${pad(expDate.getMonth() + 1)}-${pad(expDate.getDate())} ${pad(expDate.getHours())}:${pad(expDate.getMinutes())}`;
+                    })();
+                    tdExpires.dataset.sortVal = order.expires_at_formatted || order.expires_at || '';
+                    const expTime = new Date(order.expires_at).getTime();
+                    const isExpired = !isNaN(expTime) && expTime < Date.now();
+                    const expBadge = isExpired ? '<span style="color: #dc2626; font-size: 12px; font-weight: 700; background: #fee2e2; padding: 0.1rem 0.3rem; border-radius: 3px; text-transform: uppercase;">Expired</span>' : '';
+                    expiryHtml = `<div style="font-size: 12px; font-family: ui-monospace, monospace; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                        <span>${escapeHtml(formatted)}</span>
+                        ${expBadge}
+                    </div>`;
                 } catch (e) {
-                    expiryHtml = escapeHtml(order.expires_at);
+                    expiryHtml = escapeHtml(String(order.expires_at));
                 }
+            } else {
+                tdExpires.dataset.sortVal = '';
             }
             tdExpires.innerHTML = expiryHtml;
             tr.appendChild(tdExpires);
@@ -939,47 +997,27 @@ function escapeHtml(text) {
     return text.toString().replace(/[&<>"']/g, m => map[m]);
 }
 
-// Delete Account Modal Handling
-document.addEventListener('DOMContentLoaded', () => {
-    const dialog = document.getElementById('delete-account-dialog');
-    const form = document.getElementById('delete-account-form');
-    const emailEl = document.getElementById('delete-account-email');
-    const idEl = document.getElementById('delete-account-id');
-    const certsWarnEl = document.getElementById('delete-account-certs-warning');
-    const activeCertsCountEl = document.getElementById('delete-account-active-certs-count');
-    const safeWarnEl = document.getElementById('delete-account-safe-warning');
-    const submitBtn = document.getElementById('delete-account-submit-btn');
-    const cancelBtn = document.getElementById('delete-account-cancel-btn');
+// Helper function for confirmation dialogs with backdrop dismissal
+function initConfirmDialog(config) {
+    const dialog = document.getElementById(config.dialogId);
+    const form = document.getElementById(config.formId);
+    const emailEl = document.getElementById(config.emailId);
+    const idEl = document.getElementById(config.idId);
+    const cancelBtn = document.getElementById(config.cancelBtnId);
 
     if (dialog && form) {
-        document.querySelectorAll('.open-delete-account-modal').forEach((btn) => {
+        document.querySelectorAll(config.triggerSelector).forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const accountId = btn.dataset.accountId;
                 const email = btn.dataset.accountEmail || 'this account';
-                const certsValid = parseInt(btn.dataset.certsValid || '0', 10);
 
                 if (emailEl) emailEl.textContent = email;
                 if (idEl) idEl.textContent = accountId;
-                form.action = `/accounts/${encodeURIComponent(accountId)}/delete`;
+                form.action = config.getActionUrl(accountId);
 
-                if (certsValid > 0) {
-                    if (certsWarnEl) certsWarnEl.style.display = 'block';
-                    if (activeCertsCountEl) activeCertsCountEl.textContent = certsValid;
-                    if (safeWarnEl) safeWarnEl.style.display = 'none';
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.style.opacity = '0.5';
-                        submitBtn.style.cursor = 'not-allowed';
-                    }
-                } else {
-                    if (certsWarnEl) certsWarnEl.style.display = 'none';
-                    if (safeWarnEl) safeWarnEl.style.display = 'block';
-                    if (submitBtn) {
-                        submitBtn.disabled = false;
-                        submitBtn.style.opacity = '1';
-                        submitBtn.style.cursor = 'pointer';
-                    }
+                if (config.onBeforeOpen) {
+                    config.onBeforeOpen(btn);
                 }
 
                 if (typeof dialog.showModal === 'function') {
@@ -1017,8 +1055,128 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+}
+
+// Account Modal Dialog Handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Activate Account Modal
+    initConfirmDialog({
+        dialogId: 'activate-account-dialog',
+        formId: 'activate-account-form',
+        emailId: 'activate-account-email',
+        idId: 'activate-account-id',
+        cancelBtnId: 'activate-account-cancel-btn',
+        triggerSelector: '.open-activate-account-modal',
+        getActionUrl: (id) => `/accounts/${encodeURIComponent(id)}/status`
+    });
+
+    // 2. Deactivate Account Modal
+    initConfirmDialog({
+        dialogId: 'deactivate-account-dialog',
+        formId: 'deactivate-account-form',
+        emailId: 'deactivate-account-email',
+        idId: 'deactivate-account-id',
+        cancelBtnId: 'deactivate-account-cancel-btn',
+        triggerSelector: '.open-deactivate-account-modal',
+        getActionUrl: (id) => `/accounts/${encodeURIComponent(id)}/status`
+    });
+
+    // 3. Delete Account Modal (with active certs check)
+    const certsWarnEl = document.getElementById('delete-account-certs-warning');
+    const activeCertsCountEl = document.getElementById('delete-account-active-certs-count');
+    const safeWarnEl = document.getElementById('delete-account-safe-warning');
+    const submitBtn = document.getElementById('delete-account-submit-btn');
+
+    initConfirmDialog({
+        dialogId: 'delete-account-dialog',
+        formId: 'delete-account-form',
+        emailId: 'delete-account-email',
+        idId: 'delete-account-id',
+        cancelBtnId: 'delete-account-cancel-btn',
+        triggerSelector: '.open-delete-account-modal',
+        getActionUrl: (id) => `/accounts/${encodeURIComponent(id)}/delete`,
+        onBeforeOpen: (btn) => {
+            const certsValid = parseInt(btn.dataset.certsValid || '0', 10);
+            if (certsValid > 0) {
+                if (certsWarnEl) certsWarnEl.style.display = 'block';
+                if (activeCertsCountEl) activeCertsCountEl.textContent = certsValid;
+                if (safeWarnEl) safeWarnEl.style.display = 'none';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.5';
+                    submitBtn.style.cursor = 'not-allowed';
+                }
+            } else {
+                if (certsWarnEl) certsWarnEl.style.display = 'none';
+                if (safeWarnEl) safeWarnEl.style.display = 'block';
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.cursor = 'pointer';
+                }
+            }
+        }
+    });
 });
 </script>
+
+<!-- Activate Account Confirmation Modal -->
+<dialog id="activate-account-dialog" class="activate-account-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(5, 150, 105, 0.2), 0 10px 10px -5px rgba(5, 150, 105, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #059669;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #ecfdf5; display: flex; align-items: center; justify-content: center; color: #059669;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Activate Account</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
+            <p>Reactivate account <strong id="activate-account-email"></strong> (<code id="activate-account-id" style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;"></code>) as valid?</p>
+            <p style="margin-top: 0.85rem; color: var(--text-muted); font-size: 0.88rem;">
+                This will immediately restore the account to active valid status, allowing it to issue new certificates and request authorizations.
+            </p>
+        </div>
+        <form method="post" id="activate-account-form" action="">
+            <input type="hidden" name="action" value="activate">
+            <input type="hidden" name="current_status" value="{{ accountstatus }}">
+            <input type="hidden" name="current_filter" value="{{ accountfilter }}">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" id="activate-account-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" id="activate-account-submit-btn" style="background-color: #059669; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);">Activate Account</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Deactivate Account Confirmation Modal -->
+<dialog id="deactivate-account-dialog" class="deactivate-account-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(217, 119, 6, 0.2), 0 10px 10px -5px rgba(217, 119, 6, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #d97706;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fffbeb; display: flex; align-items: center; justify-content: center; color: #d97706;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Deactivate Account</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
+            <p>Are you sure you want to deactivate account <strong id="deactivate-account-email"></strong> (<code id="deactivate-account-id" style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;"></code>)?</p>
+            <p style="margin-top: 0.85rem; color: var(--text-muted); font-size: 0.88rem;">
+                Deactivating will prevent new certificate orders or renewals from being processed for this account until it is reactivated.
+            </p>
+        </div>
+        <form method="post" id="deactivate-account-form" action="">
+            <input type="hidden" name="action" value="deactivate">
+            <input type="hidden" name="current_status" value="{{ accountstatus }}">
+            <input type="hidden" name="current_filter" value="{{ accountfilter }}">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" id="deactivate-account-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" id="deactivate-account-submit-btn" style="background-color: #d97706; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.35);">Deactivate Account</button>
+            </div>
+        </form>
+    </div>
+</dialog>
 
 <!-- Delete Account Confirmation Modal -->
 <dialog id="delete-account-dialog" class="delete-account-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #dc2626;">
@@ -1040,6 +1198,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </p>
         </div>
         <form method="post" id="delete-account-form" action="">
+            <input type="hidden" name="current_status" value="{{ accountstatus }}">
+            <input type="hidden" name="current_filter" value="{{ accountfilter }}">
             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
                 <button type="button" id="delete-account-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
                 <button type="submit" id="delete-account-submit-btn" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Account</button>

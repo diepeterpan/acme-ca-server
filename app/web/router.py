@@ -1,7 +1,9 @@
 # pylint: disable=too-many-lines
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlencode
 
 import ca
 import db
@@ -17,11 +19,66 @@ from . import auth as web_auth
 
 template_engine = Environment(loader=FileSystemLoader(Path(__file__).parent / 'templates'), enable_async=True, autoescape=True)
 
+
+def to_local(dt: datetime | str | None) -> datetime | None:
+    if not dt:
+        return None
+    if isinstance(dt, str):
+        try:
+            dt = datetime.fromisoformat(dt)
+        except ValueError:
+            return None
+    if not isinstance(dt, datetime):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone()
+
+
+def format_datetime(dt: datetime | str | None, fmt: str = '%Y-%m-%d %H:%M') -> str:
+    if not dt:
+        return ''
+    loc = to_local(dt)
+    if not loc:
+        return str(dt) if dt else ''
+    return loc.strftime(fmt)
+
+
+def local_isoformat(dt: datetime | str | None) -> str:
+    if not dt:
+        return ''
+    loc = to_local(dt)
+    if not loc:
+        return str(dt) if dt else ''
+    return loc.isoformat()
+
+
+def get_service_tz_label() -> str:
+    now = datetime.now().astimezone()
+    tz_name = now.tzname() or ''
+    offset = now.strftime('%z')
+    formatted_offset = f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
+    return f"{tz_name} ({formatted_offset})" if tz_name else formatted_offset
+
+
+
+def make_redirect_url(base_path: str, params: dict[str, str | None]) -> str:
+    query = {k: v for k, v in params.items() if v is not None and v != ''}
+    qs = urlencode(query)
+    return f'{base_path}?{qs}' if qs else base_path
+
+
+template_engine.filters['to_local'] = to_local
+template_engine.filters['format_datetime'] = format_datetime
+template_engine.filters['local_isoformat'] = local_isoformat
+
 default_params = {  # pylint: disable=duplicate-code
     'app_title': settings.web.app_title,
     'app_desc': settings.web.app_description,
     'web_url': str(settings.external_url),
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
+    'service_tz_label': get_service_tz_label(),
+    'service_tz_name': datetime.now().astimezone().tzname() or 'Local',
 }
 
 
@@ -519,7 +576,13 @@ async def download_certificate(serial_number: constr(pattern='^[0-9A-F]+$')):  #
 
 
 @api.post('/certificates/{serial_number}/revoke')
-async def revoke_certificate(request: Request, serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+async def revoke_certificate(
+    request: Request,
+    serial_number: constr(pattern='^[0-9A-F]+$'),  # type: ignore[valid-type]
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+    current_account: str = Form(''),
+):
     async with db.transaction(readonly=True) as sql:
         cert_record = await sql.record(
             """select serial_number, revoked_at from certificates where serial_number = $1""",
@@ -549,11 +612,26 @@ async def revoke_certificate(request: Request, serial_number: constr(pattern='^[
     if 'application/json' in request.headers.get('accept', ''):
         return JSONResponse({'status': 'revoked', 'serial_number': serial_number})
 
-    return RedirectResponse(url='/certificates?status_msg=revoked_success', status_code=status.HTTP_303_SEE_OTHER)
+    redirect_url = make_redirect_url(
+        '/certificates',
+        {
+            'certstatus': current_status or 'all',
+            'domainfilter': current_filter,
+            'account_id': current_account,
+            'status_msg': 'Certificate revoked successfully',
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.post('/certificates/{serial_number}/delete')
-async def delete_certificate(request: Request, serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+async def delete_certificate(
+    request: Request,
+    serial_number: constr(pattern='^[0-9A-F]+$'),  # type: ignore[valid-type]
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+    current_account: str = Form(''),
+):
     async with db.transaction(readonly=True) as sql:
         cert_record = await sql.record(
             """select serial_number, order_id, revoked_at from certificates where serial_number = $1""",
@@ -582,11 +660,26 @@ async def delete_certificate(request: Request, serial_number: constr(pattern='^[
     if 'application/json' in request.headers.get('accept', ''):
         return JSONResponse({'status': 'deleted', 'serial_number': serial_number})
 
-    return RedirectResponse(url='/certificates?status_msg=cert_deleted', status_code=status.HTTP_303_SEE_OTHER)
+    redirect_url = make_redirect_url(
+        '/certificates',
+        {
+            'certstatus': current_status or 'revoked',
+            'domainfilter': current_filter,
+            'account_id': current_account,
+            'status_msg': 'Certificate deleted successfully',
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.post('/certificates/batch-revoke')
-async def batch_revoke_certificates(request: Request, serials: str = Form('')):
+async def batch_revoke_certificates(
+    request: Request,
+    serials: str = Form(''),
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+    current_account: str = Form(''),
+):
     content_type = request.headers.get('content-type', '')
     if 'application/json' in content_type:
         try:
@@ -622,14 +715,26 @@ async def batch_revoke_certificates(request: Request, serials: str = Form('')):
     if 'application/json' in request.headers.get('accept', ''):
         return JSONResponse({'status': 'revoked', 'count': len(unrevoked)})
 
-    return RedirectResponse(
-        url=f'/certificates?status_msg=batch_revoked_success&count={len(unrevoked)}',
-        status_code=status.HTTP_303_SEE_OTHER,
+    redirect_url = make_redirect_url(
+        '/certificates',
+        {
+            'certstatus': current_status or 'all',
+            'domainfilter': current_filter,
+            'account_id': current_account,
+            'status_msg': f'Successfully revoked {len(unrevoked)} certificates',
+        },
     )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.post('/certificates/batch-delete')
-async def batch_delete_certificates(request: Request, serials: str = Form('')):
+async def batch_delete_certificates(
+    request: Request,
+    serials: str = Form(''),
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+    current_account: str = Form(''),
+):
     content_type = request.headers.get('content-type', '')
     if 'application/json' in content_type:
         try:
@@ -673,10 +778,16 @@ async def batch_delete_certificates(request: Request, serials: str = Form('')):
     if 'application/json' in request.headers.get('accept', ''):
         return JSONResponse({'status': 'deleted', 'count': len(del_serials)})
 
-    return RedirectResponse(
-        url=f'/certificates?status_msg=batch_deleted_success&count={len(del_serials)}',
-        status_code=status.HTTP_303_SEE_OTHER,
+    redirect_url = make_redirect_url(
+        '/certificates',
+        {
+            'certstatus': current_status or 'revoked',
+            'domainfilter': current_filter,
+            'account_id': current_account,
+            'status_msg': f'Successfully deleted {len(del_serials)} certificates',
+        },
     )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/domains', response_class=HTMLResponse)
@@ -722,8 +833,21 @@ async def domain_log(
     )
 
 
-@api.post('/domains/{domain_name}/delete')
-async def delete_domain(request: Request, domain_name: str):
+@api.post('/domains/delete')
+@api.post('/domains/{domain_name:path}/delete')
+async def delete_domain(
+    request: Request,
+    domain_name: str | None = None,
+    domain_name_form: str | None = Form(None, alias='domain_name'),
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+):
+    target_domain = (domain_name_form or domain_name or '').strip()
+    if not target_domain:
+        target_domain = (request.query_params.get('domain_name') or '').strip()
+    if not target_domain:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing domain name to delete')
+
     async with db.transaction(readonly=True) as sql:
         cert_count = await sql.value(
             """
@@ -732,7 +856,7 @@ async def delete_domain(request: Request, domain_name: str):
             join certificates cert on cert.order_id = authz.order_id
             where authz.domain = $1
             """,
-            domain_name,
+            target_domain,
         )
     if cert_count and cert_count > 0:
         raise HTTPException(
@@ -745,7 +869,7 @@ async def delete_domain(request: Request, domain_name: str):
             (a_id, o_id)
             async for a_id, o_id in sql(
                 'select id, order_id from authorizations where domain = $1',
-                domain_name,
+                target_domain,
             )
         ]
         if not authz_rows:
@@ -755,7 +879,7 @@ async def delete_domain(request: Request, domain_name: str):
         order_ids = list({r[1] for r in authz_rows})
 
         await sql.exec('delete from challenges where authz_id = any($1::text[])', authz_ids)
-        await sql.exec('delete from authorizations where domain = $1', domain_name)
+        await sql.exec('delete from authorizations where domain = $1', target_domain)
         await sql.exec(
             """
             delete from orders o
@@ -767,9 +891,17 @@ async def delete_domain(request: Request, domain_name: str):
         )
 
     if 'application/json' in request.headers.get('accept', ''):
-        return JSONResponse({'status': 'deleted', 'domain': domain_name})
+        return JSONResponse({'status': 'deleted', 'domain': target_domain})
 
-    return RedirectResponse(url='/domains?status_msg=domain_deleted', status_code=status.HTTP_303_SEE_OTHER)
+    redirect_url = make_redirect_url(
+        '/domains',
+        {
+            'domainstatus': current_status or 'all',
+            'domainfilter': current_filter,
+            'status_msg': f'Domain {target_domain} and associated records deleted successfully',
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/accounts', response_class=HTMLResponse)
@@ -859,6 +991,10 @@ async def account_log(
                     item['orders_info'] = json.loads(orders_raw)
                 except (json.JSONDecodeError, TypeError):
                     item['orders_info'] = []
+            if isinstance(item.get('orders_info'), list):
+                for ord_info in item['orders_info']:
+                    if isinstance(ord_info, dict) and ord_info.get('expires_at'):
+                        ord_info['expires_at_formatted'] = format_datetime(ord_info['expires_at'], '%Y-%m-%d %H:%M')
             accounts.append(item)
 
     return await template_engine.get_template('account-log.html').render_async(
@@ -875,6 +1011,8 @@ async def account_log(
 async def update_account_status(
     account_id: str,
     action: Literal['activate', 'deactivate'] = Form(...),
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
 ):
     new_status = 'valid' if action == 'activate' else 'deactivated'
     async with db.transaction() as sql:
@@ -883,12 +1021,25 @@ async def update_account_status(
             account_id,
             new_status,
         )
-    msg = 'account_activated' if action == 'activate' else 'account_deactivated'
-    return RedirectResponse(url=f'/accounts?status_msg={msg}', status_code=status.HTTP_303_SEE_OTHER)
+    msg = 'Account activated successfully' if action == 'activate' else 'Account deactivated successfully'
+    redirect_url = make_redirect_url(
+        '/accounts',
+        {
+            'accountstatus': current_status or 'all',
+            'accountfilter': current_filter,
+            'status_msg': msg,
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.post('/accounts/{account_id}/delete')
-async def delete_account(request: Request, account_id: str):
+async def delete_account(
+    request: Request,
+    account_id: str,
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+):
     async with db.transaction(readonly=True) as sql:
         acc = await sql.record('select id, mail, status from accounts where id = $1', account_id)
     if not acc:
@@ -936,7 +1087,15 @@ async def delete_account(request: Request, account_id: str):
     if 'application/json' in request.headers.get('accept', ''):
         return JSONResponse({'status': 'deleted', 'account_id': account_id})
 
-    return RedirectResponse(url='/accounts?status_msg=account_deleted', status_code=status.HTTP_303_SEE_OTHER)
+    redirect_url = make_redirect_url(
+        '/accounts',
+        {
+            'accountstatus': current_status or 'all',
+            'accountfilter': current_filter,
+            'status_msg': 'Account and all associated data deleted successfully',
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/mail', response_class=HTMLResponse)
