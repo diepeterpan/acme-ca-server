@@ -45,14 +45,14 @@
         background: var(--bg-card);
         border: 1px solid var(--border-card);
         border-radius: var(--radius-lg);
-        padding: 1.25rem 1.5rem;
-        margin-bottom: 1.5rem;
+        padding: 0.85rem 1.25rem;
+        margin-bottom: 1rem;
         box-shadow: var(--shadow-sm);
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: 0.75rem;
     }
 
     .search-wrapper {
@@ -64,10 +64,10 @@
 
     .search-input {
         width: 100%;
-        padding: 0.65rem 1rem 0.65rem 2.6rem;
+        padding: 0.48rem 0.9rem 0.48rem 2.4rem;
         border: 1px solid var(--border-card);
         border-radius: var(--radius-pill);
-        font-size: 0.95rem;
+        font-size: 0.88rem;
         background-color: #ffffff;
         color: var(--text-body);
         outline: none;
@@ -95,15 +95,15 @@
         align-items: center;
         gap: 0.35rem;
         background: var(--bg-page);
-        padding: 0.3rem;
+        padding: 0.25rem;
         border-radius: var(--radius-pill);
         border: 1px solid var(--border-card);
     }
 
     .filter-tab {
-        padding: 0.45rem 1.1rem;
+        padding: 0.35rem 0.9rem;
         border-radius: var(--radius-pill);
-        font-size: 0.88rem;
+        font-size: 0.82rem;
         font-weight: 600;
         text-decoration: none;
         color: var(--text-muted);
@@ -136,32 +136,32 @@
         width: 100%;
         border-collapse: collapse;
         text-align: left;
-        font-size: 0.92rem;
+        font-size: 0.84rem;
     }
 
     table.domain-table th {
         background-color: #faf5ff;
         color: var(--text-heading);
         font-weight: 600;
-        padding: 0.55rem 0.65rem;
-        border-bottom: 1px solid var(--border-card);
+        padding: 0.40rem 0.55rem;
+        border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
-        font-size: 0.85rem;
+        font-size: 0.77rem;
     }
 
     table.domain-table th:first-child,
     table.domain-table td:first-child {
-        padding-left: 0.85rem;
+        padding-left: 0.75rem;
     }
 
     table.domain-table th:last-child,
     table.domain-table td:last-child {
-        padding-right: 0.85rem;
+        padding-right: 0.75rem;
     }
 
     table.domain-table td {
-        padding: 0.55rem 0.65rem;
-        border-bottom: 1px solid var(--border-card);
+        padding: 0.40rem 0.55rem;
+        border-bottom: 1px solid #f1f5f9;
         vertical-align: middle;
     }
 
@@ -182,25 +182,23 @@
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-        padding: 0.18rem 0.5rem;
+        padding: 0.12rem 0.45rem;
         border-radius: var(--radius-pill);
-        font-size: 0.78rem;
+        font-size: 0.70rem;
         font-weight: 600;
         line-height: 1.2;
-        border: 1px solid transparent;
+        border: none;
         white-space: nowrap;
     }
 
     .badge-valid {
         background-color: var(--status-valid-bg);
         color: var(--status-valid-text);
-        border-color: var(--status-valid-border);
     }
 
     .badge-invalid {
         background-color: var(--status-expired-bg);
         color: var(--status-expired-text);
-        border-color: var(--status-expired-border);
     }
 
     .domain-cell {
@@ -231,7 +229,7 @@
 
     .date-text {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.86rem;
+        font-size: 0.78rem;
         color: var(--text-body);
         white-space: nowrap;
     }
@@ -240,14 +238,14 @@
         display: inline-flex;
         align-items: center;
         gap: 0.3rem;
-        padding: 0.32rem 0.65rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
+        padding: 0.24rem 0.52rem;
+        border-radius: 5px;
+        font-size: 0.72rem;
         font-weight: 600;
         text-decoration: none;
         background-color: var(--primary-light);
         color: var(--primary);
-        border: 1px solid var(--primary-border);
+        border: none;
         transition: all 0.15s ease;
         white-space: nowrap;
     }
@@ -356,7 +354,7 @@
                 <td data-sort-val="{{ domain.first_requested_at.isoformat() if domain.first_requested_at else '' }}">
                     <span class="date-text">
                         {% if domain.first_requested_at %}
-                        {{ domain.first_requested_at.strftime('%Y-%m-%d') }}
+                        {{ domain.first_requested_at.strftime('%Y-%m-%d %H:%M') }}
                         {% else %}
                         &mdash;
                         {% endif %}
@@ -365,7 +363,7 @@
                 <td data-sort-val="{{ domain.expires_at.isoformat() if domain.expires_at else '' }}">
                     <span class="date-text">
                         {% if domain.expires_at %}
-                        {{ domain.expires_at.strftime('%Y-%m-%d') }}
+                        {{ domain.expires_at.strftime('%Y-%m-%d %H:%M') }}
                         {% else %}
                         &mdash;
                         {% endif %}
