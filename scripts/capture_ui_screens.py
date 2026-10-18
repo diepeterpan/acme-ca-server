@@ -330,6 +330,10 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
                 await orders_btn.click()
                 await page_auth.wait_for_selector("#orderModal.open", timeout=3000)
                 await asyncio.sleep(0.5)  # Allow smooth fade-in
+                chk_boxes = page_auth.locator('.order-select-chk:not(:disabled)')
+                if await chk_boxes.count() > 0:
+                    await chk_boxes.first.check()
+                    await asyncio.sleep(0.3)
                 if obfuscate:
                     await obfuscate_page(page_auth)
                 await page_auth.screenshot(path=str(output_dir / "09_account_orders_modal.png"), full_page=False)

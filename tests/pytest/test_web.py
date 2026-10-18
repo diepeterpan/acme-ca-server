@@ -211,6 +211,98 @@ def test_delete_deactivated_account(signed_request, directory, testclient: TestC
     assert db.fetch_row('SELECT id FROM accounts WHERE id = $1', account_id) is None
 
 
+def test_batch_delete_orders(signed_request, directory, testclient: TestClient, db):
+    mail_address = 'mailto:orders-del@example.com'
+    host_pending = 'ord-pending.example.com'
+
+    # Create account
+    response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [mail_address]})
+    account_url = response.headers['Location']
+
+    # Create pending order 1
+    resp_order1 = signed_request(directory['newOrder'], response.headers['Replay-Nonce'], {'identifiers': [{'type': 'dns', 'value': host_pending}]}, account_url)
+    assert resp_order1.status_code == 201
+    order1_id = resp_order1.headers['Location'].split('/')[-1]
+
+    # Create pending order 2
+    resp_order2 = signed_request(directory['newOrder'], resp_order1.headers['Replay-Nonce'], {'identifiers': [{'type': 'dns', 'value': 'ord2.example.com'}]}, account_url)
+    assert resp_order2.status_code == 201
+    order2_id = resp_order2.headers['Location'].split('/')[-1]
+
+    # Check orders appear in account list
+    acc_page = testclient.get('/accounts')
+    assert acc_page.status_code == 200
+    assert order1_id in acc_page.text
+    assert order2_id in acc_page.text
+
+    # Batch delete empty list should return 400
+    bad_req = testclient.post('/accounts/orders/batch-delete', json={'order_ids': []}, headers={'Accept': 'application/json'})
+    assert bad_req.status_code == 400
+
+    # Delete non-existent orders should return 404
+    not_found = testclient.post('/accounts/orders/batch-delete', json={'order_ids': ['nonexistent123']}, headers={'Accept': 'application/json'})
+    assert not_found.status_code == 404
+
+    # Batch delete both orders via JSON
+    del_resp = testclient.post('/accounts/orders/batch-delete', json={'order_ids': [order1_id, order2_id]}, headers={'Accept': 'application/json'})
+    assert del_resp.status_code == 200
+    assert del_resp.json()['status'] == 'deleted'
+    assert set(del_resp.json()['deleted_order_ids']) == {order1_id, order2_id}
+
+    # Verify orders are deleted from database
+    assert db.fetch_row('SELECT id FROM orders WHERE id = $1', order1_id) is None
+    assert db.fetch_row('SELECT id FROM orders WHERE id = $1', order2_id) is None
+    # Verify authorizations are deleted
+    assert db.fetch_row('SELECT id FROM authorizations WHERE order_id = $1', order1_id) is None
+    assert db.fetch_row('SELECT id FROM authorizations WHERE order_id = $1', order2_id) is None
+
+
+def test_batch_delete_orders_safeguard_active_cert(signed_request, directory, testclient: TestClient, db, build_csr):
+    mail_address = 'mailto:orders-cert@example.com'
+    domain = 'active-cert-ord.example.com'
+
+    # Create account
+    response = signed_request(directory['newAccount'], signed_request.nonce, {'contact': [mail_address]})
+    account_url = response.headers['Location']
+
+    # Create order & finalize cert
+    response = signed_request(directory['newOrder'], response.headers['Replay-Nonce'], {'identifiers': [{'type': 'dns', 'value': domain}]}, account_url)
+    order_id = response.headers['Location'].split('/')[-1]
+    authz_url = response.json()['authorizations'][0]
+    finalize_url = response.json()['finalize']
+
+    response = signed_request(authz_url, response.headers['Replay-Nonce'], '', account_url)
+    challenge_token = response.json()['challenges'][0]['token']
+    challenge_url = response.json()['challenges'][0]['url']
+    mock_contents = f'{challenge_token}.{signed_request.account_jwk.thumbprint()}'.rstrip()
+
+    with mock.patch('app.acme.challenge.service.httpx.AsyncClient.get', return_value=httpx.Response(200, text=mock_contents)):
+        response = signed_request(challenge_url, response.headers['Replay-Nonce'], '', account_url)
+
+    csr = build_csr([domain])
+    response = signed_request(finalize_url, response.headers['Replay-Nonce'], {'csr': jwcrypto.common.base64url_encode(csr.public_bytes(Encoding.DER))}, account_url)
+    cert_url = response.json()['certificate']
+    response = signed_request(cert_url, response.headers['Replay-Nonce'], {}, account_url)
+    signed_cert = x509.load_pem_x509_certificate(response.content)
+    serial_number = format(signed_cert.serial_number, 'X')
+
+    # Deleting order with active certificate must be rejected with 400
+    del_resp = testclient.post('/accounts/orders/batch-delete', json={'order_ids': [order_id]}, headers={'Accept': 'application/json'})
+    assert del_resp.status_code == 400
+    assert 'active valid certificates' in del_resp.json()['detail']
+
+    # Revoke certificate
+    rev_resp = testclient.post('/certificates/batch-revoke', data={'serials': serial_number}, headers={'Accept': 'application/json'})
+    assert rev_resp.status_code == 200
+
+    # Deleting order after revocation must succeed
+    del_resp2 = testclient.post('/accounts/orders/batch-delete', json={'order_ids': [order_id]}, headers={'Accept': 'application/json'})
+    assert del_resp2.status_code == 200
+    assert del_resp2.json()['status'] == 'deleted'
+    assert db.fetch_row('SELECT id FROM orders WHERE id = $1', order_id) is None
+    assert db.fetch_row('SELECT serial_number FROM certificates WHERE serial_number = $1', serial_number) is None
+
+
 def test_ca_view_and_download(testclient: TestClient):
     # 1. View CA Details Page
     ca_page_resp = testclient.get('/ca')

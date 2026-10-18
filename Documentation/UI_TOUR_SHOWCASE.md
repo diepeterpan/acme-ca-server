@@ -124,6 +124,10 @@ Management center for all registered ACME client accounts:
 ### 09. Account Orders & Error Details Modal
 Triggered by clicking on the order error pill or the **Orders** button for any account:
 - **Sortable & Resizable Data Table**: Rendered as a structured table with interactive 3-way sorting and draggable column width resizing.
+- **Multi-Select & Batch Deletion**: Select one or more orders via row checkboxes or the "Select All" header toggle. A prominent batch action bar (`Delete Selected (N)`) appears dynamically when entries are selected.
+- **Active Certificate Protection**: Orders with active, valid certificates automatically disable selection with an explanatory hover tooltip to prevent accidental deletion of valid credentials.
+- **Explicit Confirmation Dialog**: Displays a dedicated deletion confirmation dialog with warning alerts and a preview of selected order IDs and domain scopes.
+- **In-Place Dynamic Updates & Smart Refresh**: Deleted orders are smoothly animated out and removed from internal client-side state with immediate counter updates. When the modal is closed, the Accounts list automatically refreshes if any deletions took place.
 - **Status & Order ID**: Instant status badges and one-click copy button for each ACME Order ID.
 - **Domain Pills**: Lists all domain identifiers associated with each order request.
 - **Clear Expiration Display**: Shows formatted timestamp (`YYYY-MM-DD HH:MM`) with real-time expired status badges.

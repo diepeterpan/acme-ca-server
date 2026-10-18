@@ -475,7 +475,8 @@
 
     dialog.activate-account-modal::backdrop,
     dialog.deactivate-account-modal::backdrop,
-    dialog.delete-account-modal::backdrop {
+    dialog.delete-account-modal::backdrop,
+    dialog.delete-orders-modal::backdrop {
         background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
         backdrop-filter: blur(5px);
         -webkit-backdrop-filter: blur(5px);
@@ -529,6 +530,105 @@
 
     table.order-table tbody tr:last-child td {
         border-bottom: none;
+    }
+
+    .orders-batch-bar {
+        background-color: #fef2f2;
+        border: 1px solid #fee2e2;
+        border-radius: var(--radius-md);
+        padding: 0.65rem 1rem;
+        margin-bottom: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .orders-batch-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .orders-batch-badge {
+        background-color: #dc2626;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0.15rem 0.55rem;
+        border-radius: 9999px;
+    }
+
+    .orders-batch-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #991b1b;
+    }
+
+    .orders-batch-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-batch-delete-orders {
+        background-color: #dc2626;
+        color: #ffffff;
+        border: none;
+        padding: 0.4rem 0.85rem;
+        border-radius: 6px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-batch-delete-orders:hover {
+        background-color: #b91c1c;
+    }
+
+    .btn-batch-cancel-orders {
+        background-color: #ffffff;
+        color: var(--text-body);
+        border: 1px solid #cbd5e1;
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-batch-cancel-orders:hover {
+        background-color: #f1f5f9;
+    }
+
+    .order-toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background-color: #064e3b;
+        color: #ecfdf5;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        pointer-events: none;
+    }
+
+    .order-toast.show {
+        opacity: 1;
+        transform: translateY(0);
     }
 
     .modal-header {
@@ -717,7 +817,7 @@
                     </div>
                 </td>
                 <td data-sort-val="{{ acc.total_orders }}">
-                    <div class="breakdown-group">
+                    <div class="breakdown-group" id="account-orders-breakdown-{{ acc.account_id }}">
                         <span class="pill-counter pill-order-valid">{{ acc.orders_valid }} Valid</span>
                         {% if acc.orders_pending > 0 %}
                         <span class="pill-counter pill-order-pending">{{ acc.orders_pending }} Pending</span>
@@ -835,7 +935,15 @@ function copyText(text, btn) {
     });
 }
 
+let currentModalAccountId = '';
+let currentModalAccountEmail = '';
+let ordersDeletedInCurrentModalSession = false;
+
 function openOrderModal(accountId, email) {
+    ordersDeletedInCurrentModalSession = false;
+    currentModalAccountId = accountId;
+    currentModalAccountEmail = email;
+
     const subtitle = document.getElementById('modalAccountSubtitle');
     subtitle.innerText = `${email} (ID: ${accountId})`;
 
@@ -860,6 +968,26 @@ function openOrderModal(accountId, email) {
     if (!orders || orders.length === 0) {
         modalBody.innerHTML = '<div style="text-align:center; padding: 2.5rem; color: var(--text-muted); font-size: 0.95rem;">No orders recorded for this account.</div>';
     } else {
+        // 1. Batch action bar
+        const batchBar = document.createElement('div');
+        batchBar.id = 'orders-batch-bar';
+        batchBar.className = 'orders-batch-bar';
+        batchBar.style.display = 'none';
+        batchBar.innerHTML = `
+            <div class="orders-batch-info">
+                <span class="orders-batch-badge" id="orders-selected-count">0</span>
+                <span class="orders-batch-label">order(s) selected</span>
+            </div>
+            <div class="orders-batch-actions">
+                <button type="button" class="btn-batch-delete-orders" id="btn-modal-delete-orders" title="Delete selected orders">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    Delete Selected (<span id="orders-delete-count">0</span>)
+                </button>
+                <button type="button" class="btn-batch-cancel-orders" id="btn-modal-cancel-orders">Clear</button>
+            </div>
+        `;
+        modalBody.appendChild(batchBar);
+
         const tableContainer = document.createElement('div');
         tableContainer.className = 'table-container';
         tableContainer.style.overflowX = 'auto';
@@ -873,6 +1001,9 @@ function openOrderModal(accountId, email) {
         table.innerHTML = `
             <thead>
                 <tr>
+                    <th data-no-sort style="width: 38px; text-align: center;">
+                        <input type="checkbox" id="select-all-orders" title="Select all deletable orders" aria-label="Select all deletable orders" style="cursor: pointer; width: 15px; height: 15px;">
+                    </th>
                     <th data-col-key="status" style="width: 95px;">Status</th>
                     <th data-col-key="order_id">Order ID</th>
                     <th data-col-key="domains">Domains</th>
@@ -887,6 +1018,19 @@ function openOrderModal(accountId, email) {
 
         orders.forEach(order => {
             const tr = document.createElement('tr');
+            tr.id = `order-row-${order.order_id}`;
+
+            // 0. Checkbox cell
+            const tdChk = document.createElement('td');
+            tdChk.style.textAlign = 'center';
+            tdChk.style.width = '38px';
+            const hasActiveCert = !!order.has_active_cert;
+            if (hasActiveCert) {
+                tdChk.innerHTML = `<input type="checkbox" disabled title="Cannot delete: Order has an active certificate (${escapeHtml(order.cert_serial || '')})" aria-label="Cannot delete order with active certificate" style="cursor: not-allowed; width: 15px; height: 15px; opacity: 0.35;">`;
+            } else {
+                tdChk.innerHTML = `<input type="checkbox" class="order-select-chk" value="${escapeHtml(order.order_id || '')}" data-domains="${escapeHtml((order.domains || []).join(', '))}" data-status="${escapeHtml(order.status || '')}" aria-label="Select order ${escapeHtml(order.order_id || '')}" style="cursor: pointer; width: 15px; height: 15px;">`;
+            }
+            tr.appendChild(tdChk);
 
             const isFailed = (order.is_failed || order.status === 'invalid' || order.error_type || order.error_detail);
             const statusColor = order.status === 'valid' ? '#059669' : (isFailed ? '#dc2626' : (order.status === 'processing' ? '#2563eb' : '#d97706'));
@@ -973,6 +1117,8 @@ function openOrderModal(accountId, email) {
         tableContainer.appendChild(table);
         modalBody.appendChild(tableContainer);
 
+        bindOrderSelectionEvents(table);
+
         if (window.initTableFeatures) {
             window.initTableFeatures(table, 'account_orders');
         }
@@ -981,8 +1127,145 @@ function openOrderModal(accountId, email) {
     document.getElementById('orderModal').classList.add('open');
 }
 
+function updateOrdersBatchBar() {
+    const selected = Array.from(document.querySelectorAll('.order-select-chk:checked'));
+    const allDeletable = Array.from(document.querySelectorAll('.order-select-chk:not(:disabled)'));
+    const bar = document.getElementById('orders-batch-bar');
+    const selectAll = document.getElementById('select-all-orders');
+    const countBadge = document.getElementById('orders-selected-count');
+    const deleteCount = document.getElementById('orders-delete-count');
+
+    if (selectAll) {
+        selectAll.checked = allDeletable.length > 0 && selected.length === allDeletable.length;
+        selectAll.indeterminate = selected.length > 0 && selected.length < allDeletable.length;
+    }
+
+    if (selected.length === 0) {
+        if (bar) bar.style.display = 'none';
+        return;
+    }
+
+    if (bar) bar.style.display = 'flex';
+    if (countBadge) countBadge.textContent = selected.length;
+    if (deleteCount) deleteCount.textContent = selected.length;
+}
+
+function bindOrderSelectionEvents(table) {
+    const selectAll = document.getElementById('select-all-orders');
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            const checkBoxes = Array.from(document.querySelectorAll('.order-select-chk:not(:disabled)'));
+            checkBoxes.forEach(cb => { cb.checked = selectAll.checked; });
+            updateOrdersBatchBar();
+        });
+    }
+
+    table.addEventListener('change', (e) => {
+        if (e.target.classList.contains('order-select-chk')) {
+            updateOrdersBatchBar();
+        }
+    });
+
+    const btnCancel = document.getElementById('btn-modal-cancel-orders');
+    if (btnCancel) {
+        btnCancel.addEventListener('click', () => {
+            document.querySelectorAll('.order-select-chk:checked').forEach(cb => { cb.checked = false; });
+            updateOrdersBatchBar();
+        });
+    }
+
+    const btnDelete = document.getElementById('btn-modal-delete-orders');
+    if (btnDelete) {
+        btnDelete.addEventListener('click', () => {
+            const selected = Array.from(document.querySelectorAll('.order-select-chk:checked'));
+            if (selected.length === 0) return;
+
+            const countText = document.getElementById('delete-orders-count-text');
+            const emailText = document.getElementById('delete-orders-account-email');
+            const previewEl = document.getElementById('delete-orders-items-preview');
+            const errEl = document.getElementById('delete-orders-error-msg');
+
+            if (countText) countText.textContent = selected.length;
+            if (emailText) emailText.textContent = currentModalAccountEmail || 'this account';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+            if (previewEl) {
+                previewEl.innerHTML = selected.map(cb => {
+                    const doms = cb.dataset.domains ? `(${cb.dataset.domains})` : '';
+                    const st = cb.dataset.status ? `[${cb.dataset.status.toUpperCase()}]` : '';
+                    return `<div style="padding: 2px 0;"><strong>${cb.value}</strong> ${st} <span style="color:#64748b;">${doms}</span></div>`;
+                }).join('');
+            }
+
+            const dlg = document.getElementById('delete-orders-dialog');
+            if (dlg) {
+                if (typeof dlg.showModal === 'function') {
+                    dlg.showModal();
+                } else {
+                    dlg.setAttribute('open', '');
+                }
+            }
+        });
+    }
+}
+
+function updateAccountRowBreakdown(accountId, email, remainingOrders) {
+    const breakdownEl = document.getElementById(`account-orders-breakdown-${accountId}`);
+    if (!breakdownEl) return;
+
+    let validCount = 0;
+    let pendingCount = 0;
+    let processingCount = 0;
+    let invalidCount = 0;
+
+    remainingOrders.forEach(o => {
+        const isFailed = (o.is_failed || o.status === 'invalid' || o.error_type || o.error_detail);
+        if (o.status === 'valid') {
+            validCount++;
+        } else if (isFailed) {
+            invalidCount++;
+        } else if (o.status === 'pending') {
+            pendingCount++;
+        } else if (o.status === 'ready' || o.status === 'processing') {
+            processingCount++;
+        }
+    });
+
+    let html = `<span class="pill-counter pill-order-valid">${validCount} Valid</span>`;
+    if (pendingCount > 0) {
+        html += ` <span class="pill-counter pill-order-pending">${pendingCount} Pending</span>`;
+    }
+    if (processingCount > 0) {
+        html += ` <span class="pill-counter pill-order-processing">${processingCount} Processing</span>`;
+    }
+    if (invalidCount > 0) {
+        html += ` <span class="pill-counter pill-order-error" onclick="openOrderModal('${escapeHtml(accountId)}', '${escapeHtml(email)}')" title="Click to view error details">${invalidCount} Errors &bull;</span>`;
+    }
+    breakdownEl.innerHTML = html;
+}
+
+function showOrderToast(message) {
+    let toast = document.getElementById('order-action-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'order-action-toast';
+        toast.className = 'order-toast';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> <span>${escapeHtml(message)}</span>`;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3500);
+}
+
 function closeOrderModal() {
-    document.getElementById('orderModal').classList.remove('open');
+    const modal = document.getElementById('orderModal');
+    if (modal) modal.classList.remove('open');
+    if (ordersDeletedInCurrentModalSession) {
+        ordersDeletedInCurrentModalSession = false;
+        window.location.reload();
+    }
 }
 
 function closeModalOnBackdrop(e) {
@@ -990,6 +1273,18 @@ function closeModalOnBackdrop(e) {
         closeOrderModal();
     }
 }
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('orderModal');
+        if (modal && modal.classList.contains('open')) {
+            const confirmDlg = document.getElementById('delete-orders-dialog');
+            if (!confirmDlg || !confirmDlg.open) {
+                closeOrderModal();
+            }
+        }
+    }
+});
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -1117,6 +1412,131 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // 4. Delete Orders Dialog Handlers
+    const ordersDlg = document.getElementById('delete-orders-dialog');
+    const ordersCancelBtn = document.getElementById('delete-orders-cancel-btn');
+    const ordersSubmitBtn = document.getElementById('delete-orders-submit-btn');
+
+    if (ordersCancelBtn && ordersDlg) {
+        ordersCancelBtn.addEventListener('click', () => {
+            if (typeof ordersDlg.close === 'function') ordersDlg.close();
+            else ordersDlg.removeAttribute('open');
+        });
+    }
+
+    if (ordersDlg) {
+        ordersDlg.addEventListener('click', (event) => {
+            const rect = ordersDlg.getBoundingClientRect();
+            const isInDialog = (
+                rect.top <= event.clientY &&
+                event.clientY <= rect.top + rect.height &&
+                rect.left <= event.clientX &&
+                event.clientX <= rect.left + rect.width
+            );
+            if (!isInDialog) {
+                if (typeof ordersDlg.close === 'function') ordersDlg.close();
+                else ordersDlg.removeAttribute('open');
+            }
+        });
+    }
+
+    if (ordersSubmitBtn && ordersDlg) {
+        ordersSubmitBtn.addEventListener('click', async () => {
+            const selected = Array.from(document.querySelectorAll('.order-select-chk:checked'));
+            const orderIds = selected.map(cb => cb.value);
+            if (orderIds.length === 0) return;
+
+            const spinner = document.getElementById('delete-orders-submit-spinner');
+            const submitText = document.getElementById('delete-orders-submit-text');
+            const errEl = document.getElementById('delete-orders-error-msg');
+
+            ordersSubmitBtn.disabled = true;
+            if (spinner) spinner.style.display = 'inline-block';
+            if (submitText) submitText.textContent = 'Deleting...';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+            try {
+                const resp = await fetch('/accounts/orders/batch-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ order_ids: orderIds })
+                });
+
+                if (!resp.ok) {
+                    let msg = 'Failed to delete orders';
+                    try {
+                        const data = await resp.json();
+                        if (data.detail) msg = data.detail;
+                    } catch (_) {}
+                    throw new Error(msg);
+                }
+
+                const result = await resp.json();
+                const deletedIds = result.deleted_order_ids || orderIds;
+                if (deletedIds && deletedIds.length > 0) {
+                    ordersDeletedInCurrentModalSession = true;
+                }
+
+                if (typeof ordersDlg.close === 'function') ordersDlg.close();
+                else ordersDlg.removeAttribute('open');
+
+                deletedIds.forEach(id => {
+                    const row = document.getElementById(`order-row-${id}`);
+                    if (row) {
+                        row.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+                        row.style.opacity = '0';
+                        row.style.transform = 'translateX(10px)';
+                        setTimeout(() => {
+                            row.remove();
+                            updateOrdersBatchBar();
+                        }, 250);
+                    }
+                });
+
+                const scriptTag = document.getElementById(`orders-data-${currentModalAccountId}`);
+                let remainingOrders = [];
+                if (scriptTag) {
+                    try {
+                        let parsed = JSON.parse(scriptTag.textContent.trim());
+                        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+                        if (Array.isArray(parsed)) {
+                            remainingOrders = parsed.filter(o => !deletedIds.includes(o.order_id));
+                            scriptTag.textContent = JSON.stringify(remainingOrders);
+                        }
+                    } catch (e) {
+                        console.error('Failed to update script tag json', e);
+                    }
+                }
+
+                setTimeout(() => {
+                    const remainingRows = document.querySelectorAll('.order-table tbody tr');
+                    if (remainingRows.length === 0) {
+                        const modalBody = document.getElementById('modalOrdersBody');
+                        if (modalBody) {
+                            modalBody.innerHTML = '<div style="text-align:center; padding: 2.5rem; color: var(--text-muted); font-size: 0.95rem;">No orders recorded for this account.</div>';
+                        }
+                    }
+                }, 300);
+
+                updateAccountRowBreakdown(currentModalAccountId, currentModalAccountEmail, remainingOrders);
+                showOrderToast(`Successfully deleted ${deletedIds.length} order(s)`);
+
+            } catch (err) {
+                if (errEl) {
+                    errEl.textContent = err.message || 'An error occurred while deleting orders';
+                    errEl.style.display = 'block';
+                }
+            } finally {
+                ordersSubmitBtn.disabled = false;
+                if (spinner) spinner.style.display = 'none';
+                if (submitText) submitText.textContent = 'Delete Selected Permanently';
+            }
+        });
+    }
 });
 </script>
 
@@ -1205,6 +1625,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button type="submit" id="delete-account-submit-btn" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Account</button>
             </div>
         </form>
+    </div>
+</dialog>
+
+<!-- Delete Orders Confirmation Modal -->
+<dialog id="delete-orders-dialog" class="delete-orders-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1); max-width: 540px; width: 90vw; border-top: 4px solid #dc2626;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Delete Selected Orders</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.6;">
+            <p>Are you sure you want to permanently delete <strong id="delete-orders-count-text">0</strong> selected order(s) for account <strong id="delete-orders-account-email"></strong>?</p>
+            <div id="delete-orders-items-preview" style="max-height: 140px; overflow-y: auto; margin: 0.85rem 0; padding: 0.6rem 0.85rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-family: ui-monospace, monospace; font-size: 12px; color: #334155;">
+            </div>
+            <div style="padding: 0.75rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; color: #92400e; font-size: 0.86rem; line-height: 1.5;">
+                <strong>⚠️ Warning:</strong>
+                All associated challenges, domain authorizations, and error logs for these orders will be permanently deleted. This action cannot be undone.
+            </div>
+        </div>
+        <div id="delete-orders-error-msg" style="display: none; margin-bottom: 1rem; padding: 0.6rem 0.85rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #dc2626; font-size: 0.86rem;"></div>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" id="delete-orders-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+            <button type="button" id="delete-orders-submit-btn" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35); display: inline-flex; align-items: center; gap: 0.4rem;">
+                <span id="delete-orders-submit-spinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                <span id="delete-orders-submit-text">Delete Selected Permanently</span>
+            </button>
+        </div>
     </div>
 </dialog>
 {% endblock %}

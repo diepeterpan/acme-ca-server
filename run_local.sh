@@ -259,12 +259,221 @@ fi
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8080}"
 
+# 10. Port conflict detection and process termination helpers
+get_port_pids() {
+    local port="$1"
+    local pids=""
+
+    if command -v lsof &>/dev/null; then
+        pids=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+    fi
+
+    if [ -z "$pids" ] && command -v fuser &>/dev/null; then
+        pids=$(fuser "$port"/tcp 2>/dev/null || true)
+    fi
+
+    if [ -z "$pids" ] && command -v ss &>/dev/null; then
+        pids=$(ss -lptn "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+    fi
+
+    echo "$pids" | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -u || true
+}
+
+is_port_in_use() {
+    local port="$1"
+    local pids
+    pids=$(get_port_pids "$port")
+    if [ -n "$pids" ]; then
+        return 0
+    fi
+
+    # Fallback to python socket bind check
+    python3 -c "
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    s.bind(('${HOST:-0.0.0.0}', int('$port')))
+    s.close()
+    sys.exit(1)
+except OSError:
+    sys.exit(0)
+" 2>/dev/null
+}
+
+show_port_conflict_info() {
+    local port="$1"
+    local pids
+    pids=$(get_port_pids "$port")
+
+    echo ""
+    echo "=========================================================="
+    echo " Port Conflict Detected on port ${port}"
+    echo " [Errno 98] Address already in use"
+    echo "=========================================================="
+
+    if [ -z "$pids" ]; then
+        echo " Port ${port} is currently bound, but the process ID could"
+        echo " not be determined (it may be owned by root or another user)."
+        echo " Check manually with: sudo ss -lptn 'sport = :${port}'"
+        return 0
+    fi
+
+    echo " The following process(es) are currently listening on port ${port}:"
+    for pid in $pids; do
+        if [ -d "/proc/$pid" ]; then
+            local user comm age cmdline
+            user=$(ps -p "$pid" -o user= 2>/dev/null | xargs || echo "unknown")
+            comm=$(ps -p "$pid" -o comm= 2>/dev/null | xargs || cat "/proc/$pid/comm" 2>/dev/null || echo "unknown")
+            age=$(ps -p "$pid" -o etime= 2>/dev/null | xargs || echo "unknown")
+            cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || ps -ww -p "$pid" -o args= 2>/dev/null || echo "unknown")
+            cmdline="${cmdline% }"
+
+            echo ""
+            echo "   PID:          ${pid}"
+            echo "   Process:      ${comm}"
+            echo "   User:         ${user}"
+            echo "   Age (uptime): ${age}"
+            echo "   Command line: ${cmdline}"
+        fi
+    done
+    echo ""
+}
+
+kill_conflicting_processes() {
+    local port="$1"
+    local pids
+    pids=$(get_port_pids "$port")
+
+    if [ -z "$pids" ]; then
+        echo "--> No process IDs found to terminate automatically."
+        return 1
+    fi
+
+    for pid in $pids; do
+        if [ -d "/proc/$pid" ]; then
+            local comm
+            comm=$(ps -p "$pid" -o comm= 2>/dev/null | xargs || echo "process")
+            echo "--> Sending SIGTERM to PID ${pid} (${comm})..."
+            if ! kill -15 "$pid" 2>/dev/null; then
+                echo "--> Permission denied. Attempting with sudo kill -15 ${pid}..."
+                sudo kill -15 "$pid" 2>/dev/null || true
+            fi
+        fi
+    done
+
+    # Wait up to 3 seconds for processes to terminate gracefully
+    local attempts=0
+    while [ $attempts -lt 6 ]; do
+        sleep 0.5
+        attempts=$((attempts + 1))
+        local still_alive=false
+        for pid in $pids; do
+            if [ -d "/proc/$pid" ]; then
+                still_alive=true
+                break
+            fi
+        done
+        if [ "$still_alive" = false ]; then
+            break
+        fi
+    done
+
+    # Escalate to SIGKILL (-9) if any process is still running
+    for pid in $pids; do
+        if [ -d "/proc/$pid" ]; then
+            echo "--> Process ${pid} did not terminate gracefully. Escalating to SIGKILL (-9)..."
+            if ! kill -9 "$pid" 2>/dev/null; then
+                sudo kill -9 "$pid" 2>/dev/null || true
+            fi
+        fi
+    done
+
+    # Verify port is released
+    sleep 0.5
+    if is_port_in_use "$port"; then
+        echo "Warning: Port ${port} appears to still be in use."
+        return 1
+    else
+        echo "--> Successfully terminated conflicting process(es). Port ${port} is now free!"
+        return 0
+    fi
+}
+
+handle_port_conflict() {
+    local port="$1"
+    show_port_conflict_info "$port"
+
+    local pids
+    pids=$(get_port_pids "$port")
+    if [ -z "$pids" ]; then
+        read -r -p "Port ${port} is in use. Would you like to retry starting anyway? [y/N]: " retry_resp
+        retry_resp="${retry_resp:-N}"
+        if [[ "$retry_resp" =~ ^[Yy]$ ]]; then
+            return 0
+        fi
+        return 1
+    fi
+
+    read -r -p "Terminate conflicting process(es) and retry starting the server? [y/N]: " kill_resp
+    kill_resp="${kill_resp:-N}"
+    if [[ "$kill_resp" =~ ^[Yy]$ ]]; then
+        if kill_conflicting_processes "$port"; then
+            return 0
+        else
+            echo "--> Failed to free port ${port}."
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+# 11. Proactive port availability check before launch
+while is_port_in_use "$PORT"; do
+    if ! handle_port_conflict "$PORT"; then
+        echo "--> Server startup cancelled. Port ${PORT} is in use."
+        exit 1
+    fi
+    echo "--> Retrying server startup on http://${HOST}:${PORT}..."
+    sleep 1
+done
+
 echo "=========================================================="
 echo " Starting ACME CA Server at http://${HOST}:${PORT}"
 echo " External URL: ${EXTERNAL_URL:-http://localhost:8080}"
 echo " Database:     ${DB_DSN}"
 echo "=========================================================="
 
-# 10. Start Uvicorn from the app directory with reload enabled
 cd "$REPO_DIR/app"
-exec uvicorn main:app --host "$HOST" --port "$PORT" --reload
+
+# 12. Run Uvicorn in a resilient startup loop with reactive Errno 98 handling
+while true; do
+    UVICORN_LOG=$(mktemp)
+    set +e
+    uvicorn main:app --host "$HOST" --port "$PORT" --reload 2>&1 | tee "$UVICORN_LOG"
+    UVICORN_EXIT="${PIPESTATUS[0]}"
+    set -e
+
+    # Exit cleanly if normal shutdown (0) or interrupted by Ctrl+C (130)
+    if [ "$UVICORN_EXIT" -eq 0 ] || [ "$UVICORN_EXIT" -eq 130 ]; then
+        rm -f "$UVICORN_LOG"
+        exit 0
+    fi
+
+    # Check if failed with [Errno 98] Address already in use
+    if grep -qE "\[Errno 98\]|Address already in use" "$UVICORN_LOG" 2>/dev/null; then
+        rm -f "$UVICORN_LOG"
+        if handle_port_conflict "$PORT"; then
+            echo ""
+            echo "--> Retrying server startup on http://${HOST}:${PORT}..."
+            sleep 1
+            continue
+        else
+            echo "--> Server startup aborted by user."
+            exit 1
+        fi
+    else
+        rm -f "$UVICORN_LOG"
+        exit "$UVICORN_EXIT"
+    fi
+done

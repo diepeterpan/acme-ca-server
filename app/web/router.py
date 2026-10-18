@@ -928,10 +928,14 @@ async def account_log(
                         (array_agg((chal.error).detail) filter (where chal.error is not null))[1],
                         (ord.error).detail
                     ) as error_detail,
-                    array_agg(distinct authz.domain) filter (where authz.domain is not null) as domains
+                    array_agg(distinct authz.domain) filter (where authz.domain is not null) as domains,
+                    coalesce(bool_or(cert.not_valid_after > now() and cert.revoked_at is null), false) as has_active_cert,
+                    (array_agg(cert.serial_number) filter (where cert.serial_number is not null))[1] as cert_serial,
+                    coalesce(bool_or(cert.revoked_at is not null), false) as cert_is_revoked
                 from orders ord
                 left join authorizations authz on authz.order_id = ord.id
                 left join challenges chal on chal.authz_id = authz.id
+                left join certificates cert on cert.order_id = ord.id
                 group by ord.id, ord.account_id, ord.status, ord.expires_at, ord.error
             )
             select
@@ -966,7 +970,10 @@ async def account_log(
                             'error_detail', o.error_detail,
                             'domains', coalesce(to_json(o.domains), '[]'::json),
                             'expires_at', o.expires_at,
-                            'is_failed', (o.status = 'invalid' or o.error_type is not null)
+                            'is_failed', (o.status = 'invalid' or o.error_type is not null),
+                            'has_active_cert', coalesce(o.has_active_cert, false),
+                            'cert_serial', o.cert_serial,
+                            'cert_is_revoked', coalesce(o.cert_is_revoked, false)
                         ) order by o.expires_at desc nulls last
                     ) filter (where o.order_id is not null),
                     '[]'::json
@@ -1092,6 +1099,95 @@ async def delete_account(
             'accountstatus': current_status or 'all',
             'accountfilter': current_filter,
             'status_msg': 'Account and all associated data deleted successfully',
+        },
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/accounts/orders/batch-delete')
+async def batch_delete_orders(
+    request: Request,
+    order_ids: str = Form(''),
+    current_status: str = Form(''),
+    current_filter: str = Form(''),
+):
+    content_type = request.headers.get('content-type', '')
+    if 'application/json' in content_type:
+        try:
+            body = await request.json()
+            order_list = body.get('order_ids', [])
+        except (json.JSONDecodeError, ValueError):
+            order_list = []
+    else:
+        order_list = [o.strip() for o in order_ids.split(',') if o.strip()]
+
+    if not order_list:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='No orders selected')
+
+    async with db.transaction(readonly=True) as sql:
+        existing_orders = [
+            o_id
+            async for (o_id,) in sql(
+                'select id from orders where id = any($1::text[])',
+                order_list,
+            )
+        ]
+        if not existing_orders:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No matching orders found')
+
+        # Safeguard: Check if any of these orders have active valid certificates
+        active_certs = [
+            (ord_id, sn)
+            async for ord_id, sn in sql(
+                """
+                select ord.id, cert.serial_number
+                from orders ord
+                join certificates cert on cert.order_id = ord.id
+                where ord.id = any($1::text[])
+                  and cert.not_valid_after > now()
+                  and cert.revoked_at is null
+                """,
+                existing_orders,
+            )
+        ]
+        if active_certs:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Cannot delete orders with active valid certificates. Please revoke the certificates first.',
+            )
+
+        certs_to_delete = [
+            sn
+            async for (sn,) in sql(
+                'select serial_number from certificates where order_id = any($1::text[])',
+                existing_orders,
+            )
+        ]
+
+    async with db.transaction() as sql:
+        if certs_to_delete:
+            await sql.exec('delete from certificates where order_id = any($1::text[])', existing_orders)
+        await sql.exec(
+            'delete from challenges where authz_id in (select id from authorizations where order_id = any($1::text[]))',
+            existing_orders,
+        )
+        await sql.exec('delete from authorizations where order_id = any($1::text[])', existing_orders)
+        await sql.exec('delete from orders where id = any($1::text[])', existing_orders)
+
+    if settings.ca.enabled and certs_to_delete:
+        async with db.transaction(readonly=True) as sql:
+            remaining_revocations = {(sn, rev_at) async for sn, rev_at in sql('select serial_number, revoked_at from certificates where revoked_at is not null')}
+        await ca_service.sync_crl(remaining_revocations)
+
+    if 'application/json' in request.headers.get('accept', '') or 'application/json' in content_type:
+        return JSONResponse({'status': 'deleted', 'deleted_order_ids': existing_orders, 'count': len(existing_orders)})
+
+    redirect_url = make_redirect_url(
+        '/accounts',
+        {
+            'accountstatus': current_status or 'all',
+            'accountfilter': current_filter,
+            'status_msg': f'Successfully deleted {len(existing_orders)} order(s)',
         },
     )
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
