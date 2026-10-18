@@ -1318,3 +1318,9 @@ async def mail_test_post(request: Request):
         status_code=200 if ok else 400,
         content={'ok': ok, 'message' if ok else 'error': msg},
     )
+
+
+@api.get('/maintenance/status', tags=['web'])
+async def maintenance_status():
+    """Return status of maintenance mode for UI polling."""
+    return JSONResponse({'maintenance': False, 'status': 'ready'})

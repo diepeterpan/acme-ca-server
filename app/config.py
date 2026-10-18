@@ -21,6 +21,13 @@ class WebSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='web_', secrets_dir='/run/secrets')
 
 
+class DbIntegritySettings(BaseSettings):
+    enabled: bool = True
+    prompt_timeout: int = 60
+    auto_repair: bool = False
+    model_config = SettingsConfigDict(env_prefix='db_integrity_', secrets_dir='/run/secrets')
+
+
 class CaSettings(BaseSettings):
     enabled: bool = True
     cert_lifetime: timedelta = timedelta(days=60)
@@ -122,6 +129,7 @@ class Settings(BaseSettings):
     ca: CaSettings = CaSettings()
     mail: MailSettings = MailSettings()
     web: WebSettings = WebSettings()
+    db_integrity: DbIntegritySettings = DbIntegritySettings()
 
     model_config = SettingsConfigDict(secrets_dir='/run/secrets')
 

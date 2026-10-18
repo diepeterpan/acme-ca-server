@@ -1,11 +1,13 @@
 __version__ = '0.0.0'  # replaced during build, do not change
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import acme
 import ca
 import db
+import db.integrity
 import db.migrations
 import web
 from acme.exceptions import ACMEException
@@ -16,11 +18,25 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from logger import logger
 from pydantic import ValidationError
 
 
+async def _run_startup_integrity_audit(app_instance: FastAPI) -> None:
+    try:
+        await db.integrity.run_integrity_check_workflow()
+    except Exception as exc:  # noqa: BLE001
+        logger.error('Error during startup database integrity audit: %s', exc)
+    finally:
+        app_instance.state.maintenance_mode = False
+        if settings.ca.enabled and not ca.is_initialized:
+            await ca.init()
+            if ca.is_initialized:
+                await acme.start_cronjobs()
+
+
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app_instance: FastAPI):
     await db.connect()
     await db.migrations.run()
     if settings.web.enabled:
@@ -28,6 +44,13 @@ async def lifespan(_: FastAPI):
     await ca.init()
     if ca.is_initialized:
         await acme.start_cronjobs()
+
+    if settings.db_integrity.enabled:
+        app_instance.state.maintenance_mode = True
+        asyncio.create_task(_run_startup_integrity_audit(app_instance))
+    else:
+        app_instance.state.maintenance_mode = False
+
     yield
     await db.disconnect()
 
@@ -51,6 +74,8 @@ app.add_middleware(
 if settings.web.enabled:
     app.add_middleware(web.middleware.CaSetupRedirectMiddleware)  # type: ignore[arg-type]
     app.add_middleware(web.middleware.WebAuthMiddleware)  # type: ignore[arg-type]
+
+app.add_middleware(web.middleware.MaintenanceModeMiddleware)  # type: ignore[arg-type]
 
 if settings.web.enabled:
 

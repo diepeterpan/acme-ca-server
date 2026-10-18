@@ -3,10 +3,56 @@ from urllib.parse import quote
 import ca
 from config import settings
 from fastapi import FastAPI, Request, Response, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from . import auth as web_auth
+
+
+class MaintenanceModeMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-methods
+    """Enforce Maintenance Mode veil when database integrity check is running."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        is_maintenance = getattr(request.app.state, 'maintenance_mode', False)
+        if not is_maintenance:
+            return await call_next(request)
+
+        path = request.url.path
+
+        # 1. Allow static assets so maintenance veil can load styles, icons, fonts
+        public_static_prefixes = (
+            '/libs/',
+            '/static/',
+            '/favicon.png',
+            '/favicon.svg',
+        )
+        if any(path.startswith(prefix) for prefix in public_static_prefixes):
+            return await call_next(request)
+
+        # 2. Check if maintenance status poll endpoint
+        if path == '/maintenance/status':
+            return JSONResponse({'maintenance': True, 'detail': 'Database integrity check in progress'}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # 3. For ACME protocol endpoints, return 503 Service Unavailable with Retry-After header
+        if path.startswith(('/acme/', '/.well-known/')) or path == '/directory':
+            return JSONResponse(
+                {
+                    'type': 'urn:ietf:params:acme:error:serverInternal',
+                    'detail': 'Server is undergoing database integrity verification during startup. Please retry shortly.',
+                },
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={'Retry-After': '5'},
+            )
+
+        # 4. For HTML browser requests, render the maintenance veil
+        from .router import template_engine  # pylint: disable=import-outside-toplevel
+
+        template = template_engine.get_template('maintenance.html')
+        content = await template.render_async(
+            app_title=settings.web.app_title,
+            app_description=settings.web.app_description,
+        )
+        return HTMLResponse(content, status_code=status.HTTP_503_SERVICE_UNAVAILABLE, headers={'Retry-After': '3'})
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-methods
