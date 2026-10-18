@@ -4,6 +4,7 @@ import json
 import secrets
 import select
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -326,6 +327,8 @@ async def inspect_database() -> IntegrityAuditReport:
             JOIN orders o ON c.order_id = o.id
             LEFT JOIN accounts a ON o.account_id = a.id
             WHERE o.status IN ('invalid', 'pending', 'processing')
+              AND (a.status IS NULL OR a.status <> 'deactivated')
+              AND ((o.error).detail IS NULL OR (o.error).detail <> 'account deactivated')
             """
         )
         if invalid_order_certs:
@@ -532,9 +535,9 @@ async def prompt_for_repair(timeout_seconds: int | None = 60) -> bool:
     loop = asyncio.get_running_loop()
 
     def _read_with_timeout(sec: int) -> str | None:
-        start = asyncio.get_event_loop().time()
-        while (asyncio.get_event_loop().time() - start) < sec:
-            remaining = sec - (asyncio.get_event_loop().time() - start)
+        start = time.monotonic()
+        while (time.monotonic() - start) < sec:
+            remaining = sec - (time.monotonic() - start)
             ready, _, _ = select.select([sys.stdin], [], [], min(1.0, max(0.1, remaining)))
             if ready:
                 line = sys.stdin.readline()
