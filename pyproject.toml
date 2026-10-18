@@ -11,10 +11,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/knrdl/acme-ca-server"
-Documentation = "https://github.com/knrdl/acme-ca-server"
-Repository = "https://github.com/knrdl/acme-ca-server.git"
-Issues = "https://github.com/knrdl/acme-ca-server/issues"
+Homepage = "https://github.com/diepeterpan/acme-ca-server"
+Documentation = "https://github.com/diepeterpan/acme-ca-server"
+Repository = "https://github.com/diepeterpan/acme-ca-server.git"
+Issues = "https://github.com/diepeterpan/acme-ca-server/issues"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

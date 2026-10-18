@@ -397,7 +397,7 @@ def test_login_page_renders_version_and_github(anon_client: httpx.Client):
     assert 'login-footer' in response.text
     assert 'login-version-badge' in response.text
     assert 'v0.0.0' in response.text or 'edge' in response.text
-    assert 'https://github.com/knrdl/acme-ca-server' in response.text
+    assert 'https://github.com/diepeterpan/acme-ca-server' in response.text
     assert 'justify-content: center' in response.text
 
 
@@ -406,7 +406,7 @@ def test_navbar_renders_version_and_github(testclient: TestClient):
     assert response.status_code == 200, response.text
     assert 'navbar-version-badge' in response.text
     assert 'navbar-github-link' in response.text
-    assert 'https://github.com/knrdl/acme-ca-server' in response.text
+    assert 'https://github.com/diepeterpan/acme-ca-server' in response.text
 
 
 def test_ca_details_page_renders_strict_compliance(testclient: TestClient):

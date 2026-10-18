@@ -97,7 +97,7 @@ default_params = {  # pylint: disable=duplicate-code
     'app_title': settings.web.app_title,
     'app_desc': settings.web.app_description,
     'app_version': get_app_version(),
-    'github_url': getattr(settings.web, 'github_url', 'https://github.com/knrdl/acme-ca-server'),
+    'github_url': getattr(settings.web, 'github_url', 'https://github.com/diepeterpan/acme-ca-server'),
     'web_url': str(settings.external_url),
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
     'service_tz_label': get_service_tz_label(),

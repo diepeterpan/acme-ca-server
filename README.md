@@ -1,6 +1,6 @@
 # ACME CA Server
 
-[![Build](https://github.com/knrdl/acme-ca-server/actions/workflows/docker-image.yml/badge.svg)](https://github.com/knrdl/acme-ca-server/actions/workflows/docker-image.yml)
+[![Build](https://github.com/diepeterpan/acme-ca-server/actions/workflows/docker-image.yml/badge.svg)](https://github.com/diepeterpan/acme-ca-server/actions/workflows/docker-image.yml)
 
 A self-hosted ACME server with a built-in CA and optional web interface.
 
@@ -65,7 +65,7 @@ Docker Compose snippet:
 services:
 
   acme-ca-server:
-    image: knrdl/acme-ca-server
+    image: diepeterpan/acme-ca-server
     restart: always
     environment:
       EXTERNAL_URL: https://acme.mydomain.org
@@ -232,7 +232,7 @@ Template parameters:
 
 If you want to integrate your own CA logic, you can replace the default implementation used by the application.
 
-> 💡 A complete example that retrieves certificates from an HTTP endpoint is available [here](https://github.com/knrdl/acme-ca-server/issues/247#issuecomment-3783583560)
+> 💡 A complete example that retrieves certificates from an HTTP endpoint is available [here](https://github.com/diepeterpan/acme-ca-server/issues/247#issuecomment-3783583560)
 
 First set env var `CA_ENABLED=False` to disable the built-in CA. *(Note: When the internal CA is disabled, internal CA Web UI routes `/ca` and `/ca/setup` return 404, while all certificate audit logs, domain registry, accounts & orders diagnostics, and mail settings remain fully active).*
 
