@@ -10,6 +10,9 @@ import db
 import mail.service
 from ca import service as ca_service
 from config import settings
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
@@ -71,9 +74,30 @@ template_engine.filters['to_local'] = to_local
 template_engine.filters['format_datetime'] = format_datetime
 template_engine.filters['local_isoformat'] = local_isoformat
 
+
+def format_app_version(ver: str | None) -> str:
+    ver_str = str(ver or '').strip()
+    if not ver_str:
+        return 'v0.0.0'
+    if ver_str.startswith('v') or ver_str == 'edge':
+        return ver_str
+    return f'v{ver_str}'
+
+
+def get_app_version() -> str:
+    try:
+        import main  # pylint: disable=import-outside-toplevel
+
+        return format_app_version(getattr(main, '__version__', '0.0.0'))
+    except (ImportError, AttributeError):
+        return 'v0.0.0'
+
+
 default_params = {  # pylint: disable=duplicate-code
     'app_title': settings.web.app_title,
     'app_desc': settings.web.app_description,
+    'app_version': get_app_version(),
+    'github_url': getattr(settings.web, 'github_url', 'https://github.com/knrdl/acme-ca-server'),
     'web_url': str(settings.external_url),
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
     'service_tz_label': get_service_tz_label(),
@@ -571,6 +595,250 @@ async def download_certificate(serial_number: constr(pattern='^[0-9A-F]+$')):  #
         content=record['chain_pem'],
         media_type='application/pem-certificate-chain',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@api.get('/certificates/{serial_number}/details', response_class=JSONResponse)
+async def certificate_details(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            """
+            select c.serial_number, c.chain_pem, c.not_valid_before, c.not_valid_after, c.revoked_at,
+                   c.order_id, ord.account_id, acc.mail as account_email,
+                   array_agg(distinct a.domain order by a.domain) as domains
+            from certificates c
+            join orders ord on ord.id = c.order_id
+            left join accounts acc on acc.id = ord.account_id
+            left join authorizations a on a.order_id = c.order_id
+            where c.serial_number = $1
+            group by c.serial_number, c.chain_pem, c.not_valid_before, c.not_valid_after, c.revoked_at, c.order_id, ord.account_id, acc.mail
+            """,
+            serial_number,
+        )
+
+    if not record or not record['chain_pem']:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Certificate not found')
+
+    try:
+        cert_pem = record['chain_pem'].strip()
+        cert = x509.load_pem_x509_certificate(cert_pem.encode('utf-8'))
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Failed to parse certificate: {exc}') from exc
+
+    subject_cn = ''
+    cn_attrs = cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+    if cn_attrs:
+        subject_cn = str(cn_attrs[0].value)
+
+    issuer_cn = ''
+    issuer_attrs = cert.issuer.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+    if issuer_attrs:
+        issuer_cn = str(issuer_attrs[0].value)
+
+    sans: list[str] = []
+    try:
+        san_ext = cert.extensions.get_extension_for_oid(x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        if isinstance(san_ext.value, x509.SubjectAlternativeName):
+            sans = [str(item.value) for item in san_ext.value]
+    except x509.ExtensionNotFound:
+        pass
+    if not sans and record['domains']:
+        sans = list(record['domains'])
+
+    now_utc = datetime.now(timezone.utc)
+    nvb_utc = cert.not_valid_before_utc if hasattr(cert, 'not_valid_before_utc') else cert.not_valid_before.replace(tzinfo=timezone.utc)
+    nva_utc = cert.not_valid_after_utc if hasattr(cert, 'not_valid_after_utc') else cert.not_valid_after.replace(tzinfo=timezone.utc)
+
+    total_validity_sec = max(1, int((nva_utc - nvb_utc).total_seconds()))
+    elapsed_sec = max(0, int((now_utc - nvb_utc).total_seconds()))
+    percent_elapsed = min(100, max(0, int((elapsed_sec / total_validity_sec) * 100)))
+
+    is_revoked = record['revoked_at'] is not None
+    is_expired = nva_utc <= now_utc and not is_revoked
+    days_remaining = (nva_utc - now_utc).days
+    is_expiring = not is_revoked and not is_expired and days_remaining <= 20
+    is_valid = not is_revoked and not is_expired and not is_expiring
+
+    status_label = 'revoked' if is_revoked else ('expired' if is_expired else ('expiring' if is_expiring else 'valid'))
+
+    pubkey = cert.public_key()
+    key_type = 'Unknown'
+    key_size = 0
+    if isinstance(pubkey, rsa.RSAPublicKey):
+        key_type = 'RSA'
+        key_size = pubkey.key_size
+    elif isinstance(pubkey, ec.EllipticCurvePublicKey):
+        key_type = 'ECDSA'
+        key_size = pubkey.curve.key_size
+    elif isinstance(pubkey, ed25519.Ed25519PublicKey):
+        key_type = 'Ed25519'
+        key_size = 256
+
+    sig_algo = key_type
+    if cert.signature_hash_algorithm is not None:
+        sig_algo = f'{cert.signature_hash_algorithm.name.upper()} with {key_type}'
+
+    fp_bytes = cert.fingerprint(hashes.SHA256())
+    fingerprint_sha256 = ':'.join(f'{b:02X}' for b in fp_bytes)
+
+    capabilities: list[dict[str, str]] = []
+    key_usages: list[str] = []
+    try:
+        ku_ext = cert.extensions.get_extension_for_oid(x509.ExtensionOID.KEY_USAGE)
+        if isinstance(ku_ext.value, x509.KeyUsage):
+            ku = ku_ext.value
+            if ku.digital_signature:
+                key_usages.append('Digital Signature')
+            if ku.key_encipherment:
+                key_usages.append('Key Encipherment')
+            if ku.key_agreement:
+                key_usages.append('Key Agreement')
+    except x509.ExtensionNotFound:
+        pass
+
+    try:
+        eku_ext = cert.extensions.get_extension_for_oid(x509.ExtensionOID.EXTENDED_KEY_USAGE)
+        if isinstance(eku_ext.value, x509.ExtendedKeyUsage):
+            for usage in eku_ext.value:
+                if usage == x509.ExtendedKeyUsageOID.SERVER_AUTH:
+                    capabilities.append(
+                        {
+                            'icon': 'globe',
+                            'title': 'TLS / HTTPS Web Server',
+                            'desc': 'Secures web servers, APIs, and microservices for HTTPS and encrypted TLS connections.',
+                            'badge': 'Server Authentication',
+                        }
+                    )
+                elif usage == x509.ExtendedKeyUsageOID.CLIENT_AUTH:
+                    capabilities.append(
+                        {
+                            'icon': 'lock',
+                            'title': 'TLS Client Authentication (mTLS)',
+                            'desc': 'Authenticates client machines and services in zero-trust and mutual-TLS architectures.',
+                            'badge': 'Client Authentication',
+                        }
+                    )
+                elif usage == x509.ExtendedKeyUsageOID.CODE_SIGNING:
+                    capabilities.append(
+                        {
+                            'icon': 'shield',
+                            'title': 'Code Signing',
+                            'desc': 'Verifies the integrity and publisher identity of software binaries and packages.',
+                            'badge': 'Code Signing',
+                        }
+                    )
+                elif usage == x509.ExtendedKeyUsageOID.EMAIL_PROTECTION:
+                    capabilities.append(
+                        {
+                            'icon': 'mail',
+                            'title': 'Secure Email (S/MIME)',
+                            'desc': 'Cryptographically signs and encrypts email messages.',
+                            'badge': 'Email Protection',
+                        }
+                    )
+    except x509.ExtensionNotFound:
+        pass
+
+    if not capabilities:
+        capabilities.append(
+            {
+                'icon': 'globe',
+                'title': 'TLS / HTTPS Web Server',
+                'desc': 'Secures incoming HTTPS, TLS, and gRPC traffic for validated domain names.',
+                'badge': 'Server Authentication',
+            }
+        )
+
+    if 'Digital Signature' in key_usages and not any(c['title'].startswith('Digital Signature') for c in capabilities):
+        capabilities.append(
+            {
+                'icon': 'shield',
+                'title': 'Digital Signatures & Integrity',
+                'desc': 'Provides cryptographic proof of message authenticity and non-repudiation.',
+                'badge': 'Digital Signature',
+            }
+        )
+
+    problems = []
+    if is_revoked:
+        rev_dt_str = format_datetime(record['revoked_at'])
+        problems.append(
+            {
+                'level': 'critical',
+                'title': 'Certificate is Revoked',
+                'detail': f'Revoked on {rev_dt_str}. This certificate has been published to the CRL and will be rejected by clients.',
+            }
+        )
+
+    if is_expired:
+        exp_dt_str = format_datetime(nva_utc)
+        problems.append(
+            {
+                'level': 'critical',
+                'title': 'Certificate has Expired',
+                'detail': f'Expired on {exp_dt_str}. Browsers and ACME clients will block connections using this certificate.',
+            }
+        )
+    elif is_expiring:
+        exp_dt_str = format_datetime(nva_utc)
+        problems.append(
+            {
+                'level': 'warning',
+                'title': f'Expiring in {days_remaining} Days',
+                'detail': f'Validity ends on {exp_dt_str}. Automated or manual certificate renewal should be performed now.',
+            }
+        )
+
+    if key_type == 'RSA' and key_size < 2048:
+        problems.append(
+            {
+                'level': 'warning',
+                'title': 'Weak Key Length',
+                'detail': f'Key length is {key_size}-bit RSA. Industry security standards require at least 2048-bit.',
+            }
+        )
+
+    primary_domain = record['domains'][0] if record['domains'] else (subject_cn or '')
+    if primary_domain and sans and primary_domain not in sans:
+        problems.append(
+            {
+                'level': 'warning',
+                'title': 'Common Name Missing from SANs',
+                'detail': f'The primary hostname "{primary_domain}" is not listed in the Subject Alternative Names extension (RFC 5280).',
+            }
+        )
+
+    return JSONResponse(
+        {
+            'serial_number': record['serial_number'],
+            'serial_number_formatted': ':'.join(
+                f'{b:02X}' for b in bytes.fromhex(record['serial_number'] if len(record['serial_number']) % 2 == 0 else '0' + record['serial_number'])
+            ),
+            'subject_cn': subject_cn or primary_domain,
+            'primary_domain': primary_domain,
+            'issuer_cn': issuer_cn,
+            'domains': sans,
+            'not_valid_before': format_datetime(nvb_utc),
+            'not_valid_after': format_datetime(nva_utc),
+            'days_remaining': days_remaining,
+            'percent_elapsed': percent_elapsed,
+            'status': status_label,
+            'is_valid': is_valid,
+            'is_expiring': is_expiring,
+            'is_expired': is_expired,
+            'is_revoked': is_revoked,
+            'revoked_at': format_datetime(record['revoked_at']) if record['revoked_at'] else None,
+            'key_type': key_type,
+            'key_size': key_size,
+            'signature_algorithm': sig_algo,
+            'fingerprint_sha256': fingerprint_sha256,
+            'account_id': record['account_id'],
+            'account_email': record['account_email'],
+            'order_id': record['order_id'],
+            'capabilities': capabilities,
+            'problems': problems,
+            'healthy': len(problems) == 0,
+        }
     )
 
 

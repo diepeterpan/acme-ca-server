@@ -50,13 +50,16 @@
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        padding: 0.35rem 0.85rem;
+        padding: 0 0.85rem;
+        height: 32px;
+        box-sizing: border-box;
         border-radius: var(--radius-pill);
-        font-size: 0.85rem;
+        font-size: 0.84rem;
         font-weight: 700;
         background-color: var(--status-valid-bg);
         color: var(--status-valid-text);
         border: 1px solid var(--status-valid-border);
+        line-height: 1;
     }
 
     .badge-dot {
@@ -241,6 +244,211 @@
         max-height: 280px;
         user-select: all;
     }
+
+    /* Interactive Strict Compliance Pill */
+    .btn-strict-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0 0.85rem;
+        height: 32px;
+        box-sizing: border-box;
+        border-radius: var(--radius-pill);
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid;
+        text-decoration: none;
+        outline: none;
+        line-height: 1;
+    }
+
+    .btn-strict-pill:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .btn-strict-pill.strict-compliant {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .btn-strict-pill.strict-compliant:hover {
+        background-color: #dcfce7;
+    }
+
+    .btn-strict-pill.strict-warning {
+        background-color: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border-color: var(--status-warning-border);
+    }
+
+    .btn-strict-pill.strict-warning:hover {
+        background-color: #fef3c7;
+    }
+
+    .pill-chevron {
+        transition: transform 0.25s ease;
+        margin-left: 2px;
+    }
+
+    /* Strict Diagnostic Details Banner */
+    .strict-banner-container {
+        margin-bottom: 2rem;
+        border-radius: var(--radius-md);
+        padding: 1.25rem 1.5rem;
+        border: 1px solid;
+    }
+
+    .strict-compliant-banner {
+        background-color: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+
+    .strict-warning-banner {
+        background-color: #fffbeb;
+        border-color: #fde68a;
+    }
+
+    .strict-banner-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .strict-banner-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+        color: var(--text-heading);
+    }
+
+    .strict-status-pill {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.15rem 0.55rem;
+        border-radius: var(--radius-pill);
+        letter-spacing: 0.04em;
+    }
+
+    .strict-status-pill.pill-pass {
+        background: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .strict-status-pill.pill-fail {
+        background: var(--status-error-bg);
+        color: var(--status-error-text);
+        border: 1px solid var(--status-error-border);
+    }
+
+    .strict-close-btn {
+        background: none;
+        border: none;
+        font-size: 1.35rem;
+        line-height: 1;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+    }
+
+    .strict-close-btn:hover {
+        color: var(--text-heading);
+    }
+
+    .strict-banner-desc {
+        font-size: 0.85rem;
+        color: var(--text-body);
+        margin-bottom: 1rem;
+        line-height: 1.45;
+    }
+
+    .strict-issues-section {
+        background: var(--status-error-bg);
+        border: 1px solid var(--status-error-border);
+        border-radius: var(--radius-md);
+        padding: 0.85rem 1.15rem;
+        margin-bottom: 1rem;
+    }
+
+    .strict-issues-heading {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--status-error-text);
+        margin-bottom: 0.45rem;
+    }
+
+    .strict-issues-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        font-size: 0.82rem;
+        color: #991b1b;
+        margin: 0;
+        padding: 0;
+    }
+
+    .strict-issues-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.45rem;
+        line-height: 1.4;
+    }
+
+    .strict-checklist-heading {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .strict-checklist-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 0.65rem;
+    }
+
+    .strict-check-card {
+        background: #ffffff;
+        border-radius: var(--radius-md);
+        padding: 0.65rem 0.85rem;
+        border: 1px solid var(--border-card);
+    }
+
+    .strict-check-card.check-passed {
+        border-left: 3px solid var(--status-valid-text);
+    }
+
+    .strict-check-card.check-failed {
+        border-left: 3px solid var(--status-error-text);
+    }
+
+    .strict-check-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin-bottom: 0.2rem;
+    }
+
+    .strict-check-detail {
+        font-size: 0.76rem;
+        color: var(--text-muted);
+        word-break: break-word;
+    }
 </style>
 {% endblock %}
 
@@ -265,6 +473,24 @@
                 <span class="badge-dot"></span>
                 Active
             </span>
+            {% if ca.x509_strict is defined %}
+            <button type="button" class="btn-strict-pill {% if ca.x509_strict.is_compliant %}strict-compliant{% else %}strict-warning{% endif %}" id="btnToggleStrict" onclick="toggleStrictDetails()" title="Click to view RFC 5280 / X.509 Strict compliance details" aria-expanded="false" aria-controls="strictDetailsBanner">
+                {% if ca.x509_strict.is_compliant %}
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span>{{ ca.x509_strict.badge_text }}</span>
+                {% else %}
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+                <span>{{ ca.x509_strict.badge_text }}</span>
+                {% endif %}
+                <svg class="pill-chevron" id="strictChevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            {% endif %}
         </div>
         <div class="actions-bar" style="margin-bottom: 0;">
             <a href="/ca/download" class="btn-primary">
@@ -281,6 +507,68 @@
             </a>
         </div>
     </div>
+
+    {% if ca.x509_strict is defined %}
+    <div id="strictDetailsBanner" class="strict-banner-container {% if ca.x509_strict.is_compliant %}strict-compliant-banner{% else %}strict-warning-banner{% endif %}" style="display: none;">
+        <div class="strict-banner-header">
+            <div class="strict-banner-title">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    {% if ca.x509_strict.is_compliant %}
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    {% else %}
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    {% endif %}
+                </svg>
+                <strong>RFC 5280 &amp; OpenSSL X509_STRICT Evaluation:</strong>
+                <span class="strict-status-pill {% if ca.x509_strict.is_compliant %}pill-pass{% else %}pill-fail{% endif %}">
+                    {% if ca.x509_strict.is_compliant %}COMPLIANT ✓{% else %}NON-COMPLIANT ⚠{% endif %}
+                </span>
+            </div>
+            <button type="button" class="strict-close-btn" onclick="toggleStrictDetails()" title="Close details">&times;</button>
+        </div>
+
+        <p class="strict-banner-desc">{{ ca.x509_strict.summary }}</p>
+
+        {% if not ca.x509_strict.is_compliant and ca.x509_strict.issues %}
+        <div class="strict-issues-section">
+            <div class="strict-issues-heading">Missing / Failing Requirements:</div>
+            <ul class="strict-issues-list">
+                {% for issue in ca.x509_strict.issues %}
+                <li>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="#dc2626" style="flex-shrink:0; margin-top: 2px;">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                    <span>{{ issue }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="strict-checklist-section">
+            <div class="strict-checklist-heading">Validation Checklist:</div>
+            <div class="strict-checklist-grid">
+                {% for chk in ca.x509_strict.checks %}
+                <div class="strict-check-card {% if chk.passed %}check-passed{% else %}check-failed{% endif %}">
+                    <div class="strict-check-header">
+                        {% if chk.passed %}
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--status-valid-text)">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        {% else %}
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--status-error-text)">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                        {% endif %}
+                        <span class="strict-check-title">{{ chk.name }}</span>
+                    </div>
+                    <div class="strict-check-detail">{{ chk.detail }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Details Grid -->
     <div class="details-grid">
@@ -349,6 +637,23 @@
                 btn.innerHTML = originalHTML;
             }, 2000);
         });
+    }
+
+    function toggleStrictDetails() {
+        const banner = document.getElementById('strictDetailsBanner');
+        const btn = document.getElementById('btnToggleStrict');
+        const chevron = document.getElementById('strictChevron');
+        if (!banner) return;
+        const isHidden = banner.style.display === 'none' || !banner.style.display;
+        if (isHidden) {
+            banner.style.display = 'block';
+            if (btn) btn.setAttribute('aria-expanded', 'true');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        } else {
+            banner.style.display = 'none';
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
     }
 </script>
 {% endblock %}

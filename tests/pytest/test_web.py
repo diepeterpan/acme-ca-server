@@ -12,6 +12,10 @@ def test_get_certificates_page(testclient: TestClient):
     assert response.status_code == 200, response.text
     assert 'Certificates' in response.text
     assert 'revoke-dialog' in response.text
+    assert 'cert-details-dialog' in response.text
+    assert 'cert-modal-container' in response.text
+    assert 'dialog.cert-details-dialog:not([open])' in response.text
+    assert 'btn-action-details' in response.text
     assert 'filter-tabs' in response.text
 
 
@@ -30,6 +34,11 @@ def test_get_domains_page(testclient: TestClient):
 
 def test_download_non_existent_cert(testclient: TestClient):
     response = testclient.get('/certificates/DEADBEEF')
+    assert response.status_code == 404, response.text
+
+
+def test_details_non_existent_cert(testclient: TestClient):
+    response = testclient.get('/certificates/DEADBEEF/details')
     assert response.status_code == 404, response.text
 
 
@@ -75,6 +84,15 @@ def test_download_and_revoke_certificate_web(signed_request, directory, testclie
     assert dl_resp.status_code == 200, dl_resp.text
     assert 'Content-Disposition' in dl_resp.headers
     assert f'{host}_{serial_hex[:8]}.crt' in dl_resp.headers['Content-Disposition']
+
+    # 2b. Test Certificate Details JSON via Web endpoint
+    details_resp = testclient.get(f'/certificates/{serial_hex}/details')
+    assert details_resp.status_code == 200, details_resp.text
+    details_data = details_resp.json()
+    assert details_data['serial_number'] == serial_hex
+    assert details_data['primary_domain'] == host
+    assert details_data['healthy'] is True
+    assert len(details_data['capabilities']) > 0
 
     # 3. Test Revoke via Web endpoint (JSON request)
     revoke_resp = testclient.post(f'/certificates/{serial_hex}/revoke', headers={'Accept': 'application/json'})
@@ -371,3 +389,96 @@ def test_ca_setup_validation(testclient: TestClient):
         assert ca.is_initialized is True
     finally:
         ca.is_initialized = True
+
+
+def test_login_page_renders_version_and_github(anon_client: httpx.Client):
+    response = anon_client.get('/login')
+    assert response.status_code == 200, response.text
+    assert 'login-footer' in response.text
+    assert 'login-version-badge' in response.text
+    assert 'v0.0.0' in response.text or 'edge' in response.text
+    assert 'https://github.com/knrdl/acme-ca-server' in response.text
+    assert 'justify-content: center' in response.text
+
+
+def test_navbar_renders_version_and_github(testclient: TestClient):
+    response = testclient.get('/certificates')
+    assert response.status_code == 200, response.text
+    assert 'navbar-version-badge' in response.text
+    assert 'navbar-github-link' in response.text
+    assert 'https://github.com/knrdl/acme-ca-server' in response.text
+
+
+def test_ca_details_page_renders_strict_compliance(testclient: TestClient):
+    response = testclient.get('/ca')
+    assert response.status_code == 200, response.text
+    assert 'btn-strict-pill' in response.text
+    assert 'strictDetailsBanner' in response.text
+    assert 'toggleStrictDetails()' in response.text
+
+
+def test_home_page_renders_ca_strict_badge(testclient: TestClient):
+    response = testclient.get('/')
+    assert response.status_code == 200, response.text
+    assert 'ca-strict-pill' in response.text
+    assert 'X.509 Strict' in response.text or 'Non-Strict' in response.text
+
+
+def test_x509_strict_evaluator():
+    import datetime
+
+    from ca.compliance import evaluate_ca_x509_strict_compliance
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    # 1. Compliant CA
+    ca_key = rsa.generate_private_key(65537, 2048)
+    name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'Compliant Root CA')])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert_builder = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(ca_key.public_key())
+        .serial_number(1)
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=365))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False)
+    )
+    compliant_cert = cert_builder.sign(ca_key, hashes.SHA256())
+    eval_res = evaluate_ca_x509_strict_compliance(compliant_cert)
+    assert eval_res['is_compliant'] is True
+    assert len(eval_res['issues']) == 0
+    assert eval_res['badge_class'] == 'badge-strict-valid'
+
+    # 2. Non-compliant CA (missing Key Usage and non-critical basic constraints)
+    bad_cert_builder = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(ca_key.public_key())
+        .serial_number(2)
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=365))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=False)
+    )
+    bad_cert = bad_cert_builder.sign(ca_key, hashes.SHA256())
+    bad_res = evaluate_ca_x509_strict_compliance(bad_cert)
+    assert bad_res['is_compliant'] is False
+    assert any('Basic Constraints extension is not marked critical' in iss for iss in bad_res['issues'])
+    assert any('Key Usage extension is missing' in iss for iss in bad_res['issues'])

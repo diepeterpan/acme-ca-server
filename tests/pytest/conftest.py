@@ -19,6 +19,7 @@ os.environ['acme_mail_required'] = 'False'
 os.environ['web_admin_username'] = 'admin'
 os.environ['web_admin_password'] = 'adminpassword123'
 os.environ['ca_import_dir'] = str(ca_dir)
+os.environ['db_integrity_enabled'] = 'False'
 
 # Ensure test CA keys and certificates exist before any module imports Settings
 shutil.rmtree(ca_dir, ignore_errors=True)
@@ -36,6 +37,7 @@ def testclient() -> Generator[TestClient, None, None]:
     import main
 
     config.settings.ca.import_dir = ca_dir
+    config.settings.db_integrity.enabled = False
 
     # cronjobs are disabled because they would keep the test run going even if all tests are done
     import acme
@@ -50,7 +52,10 @@ def testclient() -> Generator[TestClient, None, None]:
     main.ca.cronjob.start = noop
     main.acme.start_cronjobs = noop
 
+    main.app.state.maintenance_mode = False
+
     with TestClient(main.app) as tc:
+        main.app.state.maintenance_mode = False
         # Authenticate web testclient with signed session cookie
         import web.auth
 

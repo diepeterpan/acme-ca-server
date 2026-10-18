@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from logger import logger
 
+from .compliance import evaluate_ca_x509_strict_compliance
 from .model import SignedCertInfo
 
 
@@ -356,6 +357,7 @@ async def get_active_ca_details() -> dict | None:
         key_info = 'Public Key'
 
     sig_algo = cert.signature_hash_algorithm.name.upper() if cert.signature_hash_algorithm else 'SHA'
+    strict_eval = evaluate_ca_x509_strict_compliance(cert)
 
     return {
         'serial_number': serial_number,
@@ -370,4 +372,5 @@ async def get_active_ca_details() -> dict | None:
         'fingerprint_sha256': fingerprint,
         'key_info': f'{key_info} / {sig_algo}',
         'signature_algorithm': cert.signature_algorithm_oid._name,  # pylint: disable=protected-access
+        'x509_strict': strict_eval,
     }

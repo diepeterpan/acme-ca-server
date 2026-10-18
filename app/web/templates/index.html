@@ -52,6 +52,45 @@
         border: 1px solid var(--primary-border);
     }
 
+    .ca-strict-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0 0.8rem;
+        height: 32px;
+        box-sizing: border-box;
+        font-weight: 700;
+        font-size: 0.84rem;
+        letter-spacing: 0.03em;
+        border-radius: var(--radius-pill);
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border: 1px solid;
+        line-height: 1;
+    }
+
+    .ca-strict-pill.badge-strict-valid {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .ca-strict-pill.badge-strict-valid:hover {
+        background-color: #dcfce7;
+        transform: translateY(-1px);
+    }
+
+    .ca-strict-pill.badge-strict-warning {
+        background-color: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border-color: var(--status-warning-border);
+    }
+
+    .ca-strict-pill.badge-strict-warning:hover {
+        background-color: #fef3c7;
+        transform: translateY(-1px);
+    }
+
     .hero-title {
         font-size: 1.75rem;
         font-weight: 800;
@@ -251,6 +290,13 @@
         background-color: var(--status-valid-bg);
         color: var(--status-valid-text);
         border: 1px solid var(--status-valid-border);
+        height: 32px;
+        padding: 0 0.8rem;
+        box-sizing: border-box;
+        font-weight: 700;
+        font-size: 0.84rem;
+        letter-spacing: 0.03em;
+        line-height: 1;
     }
 
     .status-dot {
@@ -382,6 +428,35 @@
 
     <!-- Statistics KPI Grid -->
     <div class="kpi-grid">
+        <!-- Registered Accounts KPI -->
+        <a href="/accounts" class="kpi-card" style="text-decoration: none; color: inherit; cursor: pointer;">
+            <div class="kpi-top">
+                <span class="kpi-label">Registered Accounts</span>
+                <div class="kpi-icon-wrap">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </div>
+            </div>
+            <div class="kpi-value">{{stats.accounts_count}}</div>
+            <div class="kpi-sub" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>ACME accounts registered</span>
+                <span style="font-weight: 600; color: var(--primary); font-size: 0.8rem;">View &rarr;</span>
+            </div>
+        </a>
+
+        <!-- Active Domains KPI -->
+        <div class="kpi-card">
+            <div class="kpi-top">
+                <span class="kpi-label">Active Domains</span>
+                <div class="kpi-icon-wrap">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </div>
+            </div>
+            <div class="kpi-value">{{stats.active_domains}}</div>
+            <div class="kpi-sub">
+                <span>{{stats.total_domains}} total domains tracked</span>
+            </div>
+        </div>
+
         <!-- Certificates KPI -->
         <div class="kpi-card">
             <div class="kpi-top">
@@ -402,35 +477,6 @@
             </div>
         </div>
 
-        <!-- Active Domains KPI -->
-        <div class="kpi-card">
-            <div class="kpi-top">
-                <span class="kpi-label">Active Domains</span>
-                <div class="kpi-icon-wrap">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                </div>
-            </div>
-            <div class="kpi-value">{{stats.active_domains}}</div>
-            <div class="kpi-sub">
-                <span>{{stats.total_domains}} total domains tracked</span>
-            </div>
-        </div>
-
-        <!-- Registered Accounts KPI -->
-        <a href="/accounts" class="kpi-card" style="text-decoration: none; color: inherit; cursor: pointer;">
-            <div class="kpi-top">
-                <span class="kpi-label">Registered Accounts</span>
-                <div class="kpi-icon-wrap">
-                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                </div>
-            </div>
-            <div class="kpi-value">{{stats.accounts_count}}</div>
-            <div class="kpi-sub" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>ACME accounts registered</span>
-                <span style="font-weight: 600; color: var(--primary); font-size: 0.8rem;">View &rarr;</span>
-            </div>
-        </a>
-
         <!-- Root CA Health KPI -->
         <div class="kpi-card">
             <div class="kpi-top">
@@ -440,10 +486,24 @@
                 </div>
             </div>
             {% if ca_details %}
-            <div class="kpi-value" style="font-size: 1.6rem; color: var(--status-valid-text);">
-                <span class="kpi-pill ca-ok" style="font-size: 0.95rem; padding: 0.35rem 0.8rem;">
+            <div class="kpi-value" style="font-size: 1.6rem; color: var(--status-valid-text); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="kpi-pill ca-ok">
                     <span class="status-dot"></span> Operational
                 </span>
+                {% if ca_details.x509_strict %}
+                <a href="/ca" class="ca-strict-pill {{ ca_details.x509_strict.badge_class }}" title="Click to view Root CA X.509 Strict compliance details">
+                    {% if ca_details.x509_strict.is_compliant %}
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {% else %}
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    {% endif %}
+                    <span>{{ ca_details.x509_strict.home_badge_text }}</span>
+                </a>
+                {% endif %}
             </div>
             <div class="kpi-sub">
                 <span style="font-weight: 600; color: var(--text-heading);">{{ca_details.common_name}}</span>
@@ -464,19 +524,19 @@
         <h2 class="section-title">Navigation & Management</h2>
         <div class="nav-grid" style="margin-top: 1rem;">
 
-            <!-- Certificates Log -->
-            <a href="/certificates" class="nav-card">
+            <!-- Accounts Management -->
+            <a href="/accounts" class="nav-card">
                 <div>
                     <div class="nav-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm-4 8H7v-2h6v2z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     </div>
-                    <h3 class="nav-card-title">Certificates Log</h3>
+                    <h3 class="nav-card-title">Accounts Management</h3>
                     <p class="nav-card-desc">
-                        Browse, filter, and inspect issued certificates. Check validity timelines, download full chains (PEM), and perform certificate revocations.
+                        Explore registered ACME accounts, contact details, public key identities, and check orders associated with each client account.
                     </p>
                 </div>
                 <div class="nav-card-btn">
-                    <span>View Certificates</span>
+                    <span>Manage Accounts</span>
                     <span>&rarr;</span>
                 </div>
             </a>
@@ -494,6 +554,23 @@
                 </div>
                 <div class="nav-card-btn">
                     <span>Explore Domains</span>
+                    <span>&rarr;</span>
+                </div>
+            </a>
+
+            <!-- Certificates Log -->
+            <a href="/certificates" class="nav-card">
+                <div>
+                    <div class="nav-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm-4 8H7v-2h6v2z"/></svg>
+                    </div>
+                    <h3 class="nav-card-title">Certificates Log</h3>
+                    <p class="nav-card-desc">
+                        Browse, filter, and inspect issued certificates. Check validity timelines, download full chains (PEM), and perform certificate revocations.
+                    </p>
+                </div>
+                <div class="nav-card-btn">
+                    <span>View Certificates</span>
                     <span>&rarr;</span>
                 </div>
             </a>

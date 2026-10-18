@@ -1,7 +1,7 @@
+import asyncio
 import secrets
 
 import db
-import pytest
 from config import settings
 from db.integrity import (
     Discrepancy,
@@ -61,20 +61,18 @@ def test_render_report(capsys):
     assert 'Create dummy Order' in captured.out
 
 
-@pytest.mark.asyncio
-async def test_prompt_for_repair_non_tty():
+def test_prompt_for_repair_non_tty():
     """Verify non-interactive terminal skips prompt automatically."""
     settings.db_integrity.auto_repair = False
     # In pytest, sys.stdin is not a TTY or is mocked
-    res = await prompt_for_repair(timeout_seconds=1)
+    res = asyncio.run(prompt_for_repair(timeout_seconds=1))
     assert res is False
 
 
-@pytest.mark.asyncio
-async def test_prompt_for_repair_auto_setting():
+def test_prompt_for_repair_auto_setting():
     """Verify auto-repair setting returns True immediately."""
     settings.db_integrity.auto_repair = True
-    res = await prompt_for_repair(timeout_seconds=1)
+    res = asyncio.run(prompt_for_repair(timeout_seconds=1))
     assert res is True
     settings.db_integrity.auto_repair = False
 
@@ -138,63 +136,79 @@ def test_maintenance_mode_middleware():
         assert resp_poll_off.json()['maintenance'] is False
 
 
-@pytest.mark.asyncio
-async def test_db_integrity_inspection_and_repair():
+def test_db_integrity_inspection_and_repair():
     """Test full database inspection and auto-repair logic against PostgreSQL."""
-    # Ensure database connection is active
-    await db.connect()
 
-    async with db.transaction() as sql:
-        # Create a test account
-        test_acc_id = _generate_random_id('test_acc')
-        test_mail = f'test-{secrets.token_hex(4)}@example.com'
-        jwk = _generate_dummy_jwk(test_acc_id)
-        await sql.exec(
-            'INSERT INTO accounts (id, mail, jwk, status, created_at) VALUES ($1, $2, $3, $4, NOW())',
-            test_acc_id,
-            test_mail,
-            jwk,
-            'valid',
-        )
+    async def _test():
+        # Ensure database connection is active
+        await db.connect()
 
-        # 1. Insert a Valid Order missing Certificate
-        ord_missing_cert = _generate_random_id('ord_nocert')
-        await sql.exec(
-            "INSERT INTO orders (id, account_id, status, expires_at) VALUES ($1, $2, 'valid', NOW() + interval '1 day')",
-            ord_missing_cert,
-            test_acc_id,
-        )
+        async with db.transaction() as sql:
+            # Create a test account
+            test_acc_id = _generate_random_id('test_acc')
+            test_mail = f'test-{secrets.token_hex(4)}@example.com'
+            jwk = _generate_dummy_jwk(test_acc_id)
+            await sql.exec(
+                'INSERT INTO accounts (id, mail, jwk, status, created_at) VALUES ($1, $2, $3, $4, NOW())',
+                test_acc_id,
+                test_mail,
+                jwk,
+                'valid',
+            )
 
-        # 2. Insert an Expired Pending Order
-        ord_expired = _generate_random_id('ord_exp')
-        await sql.exec(
-            "INSERT INTO orders (id, account_id, status, expires_at) VALUES ($1, $2, 'pending', NOW() - interval '2 hours')",
-            ord_expired,
-            test_acc_id,
-        )
+            # 1. Insert a Valid Order missing Certificate
+            ord_missing_cert = _generate_random_id('ord_nocert')
+            await sql.exec(
+                "INSERT INTO orders (id, account_id, status, expires_at) VALUES ($1, $2, 'valid', NOW() + interval '1 day')",
+                ord_missing_cert,
+                test_acc_id,
+            )
 
-    # Run inspection
-    report = await inspect_database()
-    assert report.has_issues is True
+            # 2. Insert an Expired Pending Order
+            ord_expired = _generate_random_id('ord_exp')
+            await sql.exec(
+                "INSERT INTO orders (id, account_id, status, expires_at) VALUES ($1, $2, 'pending', NOW() - interval '2 hours')",
+                ord_expired,
+                test_acc_id,
+            )
 
-    # Verify both issues are caught
-    types = [d.issue_type for d in report.discrepancies]
-    assert 'Valid Order Missing Certificate' in types
-    assert 'Expired Pending Order' in types
+        # Run inspection
+        report = await inspect_database()
+        assert report.has_issues is True
 
-    # Apply repairs
-    repaired_count = await apply_repairs(report)
-    assert repaired_count >= 2
+        # Verify both issues are caught
+        types = [d.issue_type for d in report.discrepancies]
+        assert 'Valid Order Missing Certificate' in types
+        assert 'Expired Pending Order' in types
 
-    # Verify orders are repaired
-    async with db.transaction(readonly=True) as sql:
-        row1 = await sql.record('SELECT status, error FROM orders WHERE id = $1', ord_missing_cert)
-        assert row1['status'] == 'invalid'
+        # Apply repairs
+        repaired_count = await apply_repairs(report)
+        assert repaired_count >= 2
 
-        row2 = await sql.record('SELECT status, error FROM orders WHERE id = $1', ord_expired)
-        assert row2['status'] == 'invalid'
+        # Verify orders are repaired
+        async with db.transaction(readonly=True) as sql:
+            row1 = await sql.record('SELECT status, error FROM orders WHERE id = $1', ord_missing_cert)
+            assert row1['status'] == 'invalid'
 
-    # Clean up test records
-    async with db.transaction() as sql:
-        await sql.exec('DELETE FROM orders WHERE id IN ($1, $2)', ord_missing_cert, ord_expired)
-        await sql.exec('DELETE FROM accounts WHERE id = $1', test_acc_id)
+            row2 = await sql.record('SELECT status, error FROM orders WHERE id = $1', ord_expired)
+            assert row2['status'] == 'invalid'
+
+        # Clean up test records
+        async with db.transaction() as sql:
+            await sql.exec(
+                'DELETE FROM challenges WHERE authz_id IN (SELECT id FROM authorizations WHERE order_id IN ($1, $2))',
+                ord_missing_cert,
+                ord_expired,
+            )
+            await sql.exec('DELETE FROM authorizations WHERE order_id IN ($1, $2)', ord_missing_cert, ord_expired)
+            await sql.exec('DELETE FROM orders WHERE id IN ($1, $2)', ord_missing_cert, ord_expired)
+            await sql.exec('DELETE FROM accounts WHERE id = $1', test_acc_id)
+
+        await db.disconnect()
+
+    old_pool = db._POOL
+    db._POOL = None
+    try:
+        asyncio.run(_test())
+    finally:
+        db._POOL = old_pool

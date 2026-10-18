@@ -8,6 +8,7 @@ Captures high-resolution screenshots of all web UI screens:
   4. Home Dashboard
   5. Root CA Certificate Details (40% / 60% layout)
   6. Certificates Audit Log
+  6b. Certificate Details & Capability Inspection Modal
   7. Domains Registry
   8. Accounts Management
   9. Account Orders & Error Details Modal
@@ -168,6 +169,7 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
 
     default_params = {
         'app_title': 'ACME CA Server',
+        'app_version': 'v0.9.1',
         'is_authenticated': False,
         'current_user': None,
         'active_tab': '',
@@ -301,6 +303,28 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             await page_auth.screenshot(path=str(output_dir / "06_certificates_log.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture certificates: {e}")
+
+        # 06b: Certificate Details & Capability Inspection Modal
+        print("--> Capturing 06b_certificate_details_modal.png...")
+        try:
+            details_btn = page_auth.locator(".open-details-modal").first
+            if await details_btn.count() > 0:
+                await details_btn.click()
+                await page_auth.wait_for_selector("#modalCertContent", state='visible', timeout=5000)
+                await asyncio.sleep(0.5)
+                if obfuscate:
+                    await obfuscate_page(page_auth)
+                await page_auth.screenshot(path=str(output_dir / "06b_certificate_details_modal.png"), full_page=False)
+                print("    Certificate details modal captured successfully!")
+                # Dismiss modal
+                close_btn = page_auth.locator("#cert-details-close-btn")
+                if await close_btn.count() > 0:
+                    await close_btn.click()
+                    await asyncio.sleep(0.3)
+            else:
+                print("    Notice: No details button found on certificates page.")
+        except Exception as e:
+            print(f"    Warning: Could not capture certificate details modal: {e}")
 
         # 07: Domains Log
         print("--> Capturing 07_domains_log.png...")

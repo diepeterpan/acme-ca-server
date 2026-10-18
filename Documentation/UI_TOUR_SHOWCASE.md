@@ -18,6 +18,7 @@ To re-generate or update these captures at any time, run:
    - [04. Home Dashboard](#04-home-dashboard)
    - [05. Root CA Certificate Details](#05-root-ca-certificate-details)
    - [06. Certificates Audit Log](#06-certificates-audit-log)
+   - [06b. Certificate Details & Capability Inspection Modal](#06b-certificate-details--capability-inspection-modal)
    - [07. Domains Registry](#07-domains-registry)
    - [08. Accounts Management](#08-accounts-management)
    - [09. Account Orders & Error Details Modal](#09-account-orders--error-details-modal)
@@ -28,7 +29,7 @@ To re-generate or update these captures at any time, run:
 ## 1. Authentication & Onboarding
 
 ### 01. Login Screen
-The entry authentication gateway features a branded purple shield icon, floating credential inputs, persistent "Remember Me" session support, styled feedback alerts, and public one-click downloads for the active Root CA Certificate (in both `.crt` and `.pem` formats) alongside the Certificate Revocation List (`.crl`).
+The entry authentication gateway features a branded purple shield icon, floating credential inputs, persistent "Remember Me" session support, styled feedback alerts, public one-click downloads for the active Root CA Certificate (in both `.crt` and `.pem` formats) alongside the Certificate Revocation List (`.crl`), and consistent release version pill and GitHub repository links in the footer.
 
 ![Login Screen](screenshots/01_login_screen.png)
 
@@ -54,10 +55,10 @@ If the internal Certificate Authority has not yet been initialized, navigating t
 ## 2. Administrative Views & Audit Logs
 
 ### 04. Home Dashboard
-The central operational overview for operators:
+The central operational overview for operators, structured logically to mirror administrative workflows:
 - **ACME Entrypoint Hero Card**: Instant one-click copy of the active ACME directory URL (`http://localhost:8080/directory` or configured external domain) for configuring Certbot, Caddy, Traefik, or the bundled bash test harness.
-- **Live KPI Counter Cards**: Real-time totals for Valid Certificates, Monitored Domains, Active Accounts, and Pending Orders.
-- **Quick Links**: Direct shortcuts to inspect certificates, domains, CA details, and accounts.
+- **Live KPI Counter Cards**: Reordered to prioritize entities: **Registered Accounts**, **Active Domains**, **Total Certificates**, and **Root CA Status** (featuring real-time X.509 Strict Compliance pill).
+- **Navigation Feature Cards**: Ordered directly as **Accounts Management**, **Domain Management**, **Certificate Management**, **CA Setup & Diagnostics**, and **ACME Directory Endpoints**.
 
 ![Home Dashboard](screenshots/04_home_dashboard.png)
 
@@ -65,6 +66,8 @@ The central operational overview for operators:
 
 ### 05. Root CA Certificate Details
 The active Certificate Authority screen with a **40% left / 60% right** proportional layout:
+- **Header Status Pills**: Harmonized 32px height status pills for **Active** and **X.509 Strict Compliant** (evaluating RFC 5280 Key Usage, critical Basic Constraints, Subject Key Identifier, time ranges, and hash strength).
+- **Interactive Compliance Diagnosis Banner**: Clicking the X.509 Strict pill toggles an in-depth audit diagnosis banner listing all RFC 5280 compliance checks and issues.
 - **Left Column (40%)**: Serial Number and Cryptographic Key & Digest.
 - **Right Column (60%)**: Subject Distinguished Name and Validity Period countdown.
 - **Full Width**: SHA-256 Fingerprint.
@@ -77,6 +80,7 @@ The active Certificate Authority screen with a **40% left / 60% right** proporti
 
 ### 06. Certificates Audit Log
 Comprehensive log of all certificates issued by the ACME server:
+- **Details Inspection Action**: A dedicated "Details" action button on the far left of each row that opens the in-depth Certificate Details Inspection Modal.
 - **Interactive Sortable Columns**: Multi-state 3-way cycle (Ascending ▲ ➔ Descending ▼ ➔ Original order ↕) for **Status**, **Primary FQDN**, **Serial Number**, **Issue Date**, and **Expiry Date**.
 - **User-Resizable Columns**: Draggable border handles on all column headers (including **Actions**) with double-click reset and `localStorage` persistence.
 - **Multi-Select & Batch Actions**: Select multiple certificates via checkboxes to perform **Batch Revoke** or **Batch Delete** with prominent top and floating action toolbars.
@@ -90,6 +94,24 @@ Comprehensive log of all certificates issued by the ACME server:
 - Revocation management with confirmation dialog and CRL synchronization.
 
 ![Certificates Audit Log](screenshots/06_certificates_log.png)
+
+---
+
+### 06b. Certificate Details & Capability Inspection Modal
+Clicking the certificate icon (**Details**) on the far left of any certificate row opens an interactive, native `<dialog>` inspection modal that performs deep analysis of the issued leaf certificate:
+- **Status Ribbon**: Active/Expiring/Expired/Revoked status pill badge, validity timeline with dynamic color-coded percentage progress bar, and days remaining countdown.
+- **"What It Can Be Used For" (Capabilities Grid)**: Colorful, iconised capability cards parsed directly from X.509 Key Usage and Extended Key Usage extensions:
+  - 🌐 **TLS / HTTPS Web Server**: Server Authentication (RFC 5280) for securing web servers, microservices, and APIs.
+  - 🔒 **TLS Client Authentication (mTLS)**: Zero-trust machine and mutual-TLS service authentication.
+  - 🛡️ **Code Signing**: Verifying binaries and package publisher identity.
+  - ✉️ **Secure Email (S/MIME)**: Cryptographically signing and encrypting email messages.
+  - 🔏 **Digital Signatures & Integrity**: Authenticity and non-repudiation.
+- **Covered Hostnames & Domains (SANs)**: Interactive chip badges showing all hostnames and wildcard patterns covered by the Subject Alternative Names extension.
+- **Health & Security Audit**: Real-time evaluation banner that audits against CRL revocation status, expiration windows, weak RSA key lengths (< 2048-bit), or missing CN in SANs, displaying a prominent green checkmark when all security audits pass.
+- **Cryptographic Specifications**: Key Algorithm & Size (e.g. RSA 2048-bit, ECDSA P-256), Signature Hash Algorithm, Issuer CA, Issued Date, Expiration Date, Associated Account ID, and full SHA-256 Fingerprint with 1-click clipboard copy.
+- **Direct Chain Download**: One-click download button for the active PEM certificate chain.
+
+![Certificate Details & Capability Inspection Modal](screenshots/06b_certificate_details_modal.png)
 
 ---
 

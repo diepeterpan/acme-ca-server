@@ -15,6 +15,7 @@ class WebSettings(BaseSettings):
     enabled: bool = True
     app_title: str = 'ACME CA Server'
     app_description: str = 'Self-hosted ACME CA Server'
+    github_url: str = 'https://github.com/knrdl/acme-ca-server'
     admin_username: str | None = None
     admin_password: SecretStr | None = None
     session_secret: SecretStr | None = None

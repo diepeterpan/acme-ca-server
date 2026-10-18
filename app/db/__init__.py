@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any
 
@@ -15,7 +16,19 @@ async def connect():
 
 
 async def disconnect():
-    await _POOL.close()
+    global _POOL  # pylint: disable=global-statement
+    if _POOL is not None:
+        pool_loop = getattr(_POOL, '_loop', None)  # pylint: disable=protected-access
+        if not _POOL.is_closing() and (pool_loop is None or not pool_loop.is_closed()):
+            await _POOL.close()
+        _POOL = None
+
+
+def _is_pool_healthy(pool: asyncpg.pool.Pool | None, current_loop: asyncio.AbstractEventLoop) -> bool:
+    if pool is None or pool.is_closing():
+        return False
+    pool_loop = getattr(pool, '_loop', None)  # pylint: disable=protected-access
+    return pool_loop is not None and not pool_loop.is_closed() and pool_loop == current_loop
 
 
 async def init_connection(conn: asyncpg.Connection):
@@ -38,7 +51,8 @@ class transaction:  # pylint: disable=invalid-name
         self.trans: asyncpg.connection.transaction = None
 
     async def __aenter__(self, *args, **kwargs):
-        if _POOL is None or _POOL._closed or _POOL.is_closing():
+        current_loop = asyncio.get_running_loop()
+        if not _is_pool_healthy(_POOL, current_loop):
             await connect()
         self.conn = await _POOL.acquire()
         self.trans = self.conn.transaction(readonly=self.readonly)

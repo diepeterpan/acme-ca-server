@@ -113,6 +113,7 @@ async def acme_exception_handler(request: Request, exc: Exception):
 
 
 if settings.web.enabled:
+    web.router_module.default_params['app_version'] = web.router_module.format_app_version(__version__)
     app.include_router(web.router)
 
 app.include_router(acme.router)
