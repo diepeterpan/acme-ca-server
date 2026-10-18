@@ -97,6 +97,37 @@ networks:
   reverse_proxy_net:  # see next step
 ```
 
+#### Container Administration & Maintenance Commands
+
+The Docker image bundles administrative scripts into `/app` (also symlinked to `/usr/local/bin`), so you can execute them directly inside the container using `docker compose exec` (or `docker run` for ephemeral operations):
+
+* **Reset Web Administrator Password**:
+  ```shell
+  # Interactive password reset in running compose container
+  docker compose exec -it acme-ca-server ./run_pwd_reset.sh
+
+  # Target a specific username directly
+  docker compose exec -it acme-ca-server ./run_pwd_reset.sh admin
+
+  # Standalone / ephemeral container
+  docker run -it --rm --network db_net -e DB_DSN="postgresql://postgres:secret@db/postgres" diepeterpan/acme-ca-server ./run_pwd_reset.sh
+  ```
+
+* **Database Integrity Verification & Repair**:
+  ```shell
+  # Interactive verification and repair prompt in running container
+  docker compose exec -it acme-ca-server ./run_db_integrity.sh
+
+  # Automatically apply repairs without interactive confirmation
+  docker compose exec -it acme-ca-server ./run_db_integrity.sh --repair
+
+  # Audit report only (no repairs applied)
+  docker compose exec -it acme-ca-server ./run_db_integrity.sh --check-only
+
+  # Standalone / ephemeral container
+  docker run -it --rm --network db_net -e DB_DSN="postgresql://postgres:secret@db/postgres" diepeterpan/acme-ca-server ./run_db_integrity.sh
+  ```
+
 ### 3. Reverse proxy
 
 Serve the app securely using a TLS-terminating reverse proxy (like Apache, Nginx, Traefik or Caddy), e.g. at https://acme.mydomain.org
@@ -589,5 +620,49 @@ A database seeding utility that generates realistic ACME mock data in the develo
 ./run_mockdata.sh --accounts 30 --orders 150 --certs 120 --domains 50
 ```
 
+---
 
+### 9. `run_pwd_reset.sh` &mdash; Database User Password Reset Utility
 
+An interactive administrative script to safely retrieve, select, and reset user passwords directly in the PostgreSQL database.
+
+**Key capabilities:**
+* **Interactive User Discovery**: Queries the `users` table and displays existing accounts with their creation date and last login timestamp.
+* **Confirmation Safety**: Confirms the target account before requesting credentials (`[Y/n]`). Supports passing an optional username argument: `./run_pwd_reset.sh [username]`.
+* **Masked Password Entry**: Prompts twice for the new password with hidden keystrokes (`getpass`) and verifies password match and minimum length ($\ge$ 8 characters).
+* **Cryptographic Security**: Hashes new passwords using PBKDF2-HMAC-SHA256 with 600,000 iterations and cryptographic salt.
+
+**Usage:**
+```shell
+# Interactive mode (discovers and displays user accounts to select from)
+./run_pwd_reset.sh
+
+# Target a specific user directly
+./run_pwd_reset.sh admin
+```
+
+---
+
+### 10. `run_db_integrity.sh` &mdash; Standalone Database Integrity Verification & Repair
+
+A standalone CLI wrapper around the server's relational and cryptographic integrity audit engine.
+
+**Key capabilities:**
+* **Comprehensive Constraint Audit**: Evaluates 12 integrity checks across Certificates, Orders, Accounts, and Challenges (referential consistency, validity ranges, JWK sanity, and state-machine rules).
+* **Interactive or Automated Repair**: Reuses the core repair engine to auto-correct discrepancies (inserting dummy records, resetting malformed JWKs, or invalidating expired orders).
+* **Flexible Execution**: Defaults to waiting for operator confirmation `[y/N]` without timing out when run manually, with options for check-only or automated repairs.
+
+**Usage:**
+```shell
+# Inspect database and interactively prompt to repair any discrepancies found
+./run_db_integrity.sh
+
+# Run audit report only without modifying the database
+./run_db_integrity.sh --check-only
+
+# Automatically apply repairs without interactive confirmation
+./run_db_integrity.sh --repair
+
+# Optional countdown timeout (in seconds) for interactive confirmation
+./run_db_integrity.sh --timeout 30
+```

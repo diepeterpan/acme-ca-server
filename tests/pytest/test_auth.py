@@ -137,3 +137,25 @@ def test_login_flow(anon_client: httpx.Client):
     after_logout = client.get('/certificates', follow_redirects=False)
     assert after_logout.status_code == 307
     assert '/login' in after_logout.headers['Location']
+
+
+def test_reset_user_password():
+    import asyncio
+    import tools.reset_password
+
+    # Reset admin password to a new password
+    success = asyncio.run(tools.reset_password.reset_user_password('admin', 'BrandNewPassword!2026'))
+    assert success is True
+
+    # Authenticate with new password
+    auth_res = asyncio.run(web.auth.authenticate_user('admin', 'BrandNewPassword!2026'))
+    assert auth_res is not None
+    assert auth_res['username'] == 'admin'
+
+    # Old password no longer works
+    auth_old = asyncio.run(web.auth.authenticate_user('admin', 'adminpassword123'))
+    assert auth_old is None
+
+    # Reset back to original for subsequent tests
+    asyncio.run(tools.reset_password.reset_user_password('admin', 'adminpassword123'))
+

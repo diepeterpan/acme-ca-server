@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import secrets
@@ -509,8 +510,8 @@ def render_report_to_terminal(report: IntegrityAuditReport) -> None:
     _print(f'{COLOR_CYAN_BOLD}{"=" * 80}{COLOR_RESET}\n')
 
 
-async def prompt_for_repair(timeout_seconds: int = 60) -> bool:
-    """Prompt the terminal operator with a non-blocking 60-second countdown."""
+async def prompt_for_repair(timeout_seconds: int | None = 60) -> bool:
+    """Prompt the terminal operator with an optional countdown or indefinite wait."""
     # If auto-repair is enabled in settings or non-interactive environment
     if settings.db_integrity.auto_repair:
         _print(f"{COLOR_YELLOW}[Notice] 'db_integrity_auto_repair=True' set in configuration. Proceeding with auto-repair.{COLOR_RESET}\n")
@@ -520,29 +521,44 @@ async def prompt_for_repair(timeout_seconds: int = 60) -> bool:
         _print(f'{COLOR_DIM}[Notice] Non-interactive environment detected (stdin is not a TTY). Skipping auto-repair prompt and continuing startup.{COLOR_RESET}\n')
         return False
 
-    prompt_msg = f'{COLOR_YELLOW_BOLD}--> Would you like to auto-repair discrepancies by inserting dummy records?\n    [y/N] (auto-skipping in {timeout_seconds}s): {COLOR_RESET}'
+    if timeout_seconds and timeout_seconds > 0:
+        prompt_msg = (
+            f'{COLOR_YELLOW_BOLD}--> Would you like to auto-repair discrepancies by inserting dummy records?\n    [y/N] (auto-skipping in {timeout_seconds}s): {COLOR_RESET}'
+        )
+    else:
+        prompt_msg = f'{COLOR_YELLOW_BOLD}--> Would you like to auto-repair discrepancies by inserting dummy records?\n    [y/N]: {COLOR_RESET}'
     _print_raw(prompt_msg)
 
     loop = asyncio.get_running_loop()
 
-    def _read_with_timeout() -> str | None:
+    def _read_with_timeout(sec: int) -> str | None:
         start = asyncio.get_event_loop().time()
-        while (asyncio.get_event_loop().time() - start) < timeout_seconds:
-            remaining = timeout_seconds - (asyncio.get_event_loop().time() - start)
+        while (asyncio.get_event_loop().time() - start) < sec:
+            remaining = sec - (asyncio.get_event_loop().time() - start)
             ready, _, _ = select.select([sys.stdin], [], [], min(1.0, max(0.1, remaining)))
             if ready:
                 line = sys.stdin.readline()
                 return line.strip()
         return None
 
+    def _read_indefinite() -> str | None:
+        line = sys.stdin.readline()
+        return line.strip() if line else None
+
     try:
-        user_input = await loop.run_in_executor(None, _read_with_timeout)
+        if timeout_seconds and timeout_seconds > 0:
+            user_input = await loop.run_in_executor(None, _read_with_timeout, timeout_seconds)
+        else:
+            user_input = await loop.run_in_executor(None, _read_indefinite)
     except Exception as exc:  # noqa: BLE001
         logger.warning('Error during terminal interactive prompt: %s', exc)
         return False
 
     if user_input is None:
-        _print(f'\n{COLOR_DIM}[Timeout] {timeout_seconds}s elapsed without response. Continuing startup without repairs.{COLOR_RESET}\n')
+        if timeout_seconds and timeout_seconds > 0:
+            _print(f'\n{COLOR_DIM}[Timeout] {timeout_seconds}s elapsed without response. Continuing startup without repairs.{COLOR_RESET}\n')
+        else:
+            _print(f'\n{COLOR_DIM}[*] Cancelled.{COLOR_RESET}\n')
         return False
 
     _print()
@@ -801,12 +817,76 @@ async def apply_repairs(report: IntegrityAuditReport) -> int:
     return repaired_count
 
 
-async def run_integrity_check_workflow() -> None:
-    """Execute complete workflow: scan -> terminal report -> prompt -> optional repair."""
+async def run_integrity_check_workflow(
+    timeout_seconds: int | None = settings.db_integrity.prompt_timeout,
+    auto_repair: bool | None = None,
+) -> int:
+    """Execute complete workflow: scan -> terminal report -> prompt -> optional repair.
+
+    Returns the number of repairs applied (0 if clean or not repaired).
+    """
     report = await inspect_database()
     render_report_to_terminal(report)
 
     if report.has_issues:
-        should_repair = await prompt_for_repair(timeout_seconds=settings.db_integrity.prompt_timeout)
+        if auto_repair is True:
+            should_repair = True
+        elif auto_repair is False:
+            should_repair = False
+        else:
+            should_repair = await prompt_for_repair(timeout_seconds=timeout_seconds)
+
         if should_repair:
-            await apply_repairs(report)
+            return await apply_repairs(report)
+
+    return 0
+
+
+def main() -> None:
+    """CLI entry point for standalone database integrity inspection and repair."""
+    parser = argparse.ArgumentParser(
+        description='ACME CA Server - Database Integrity Inspection & Repair Utility',
+    )
+    parser.add_argument(
+        '--check-only',
+        action='store_true',
+        help='Run inspection and render audit report only (do not prompt or repair).',
+    )
+    parser.add_argument(
+        '-y',
+        '--yes',
+        '--repair',
+        dest='auto_repair',
+        action='store_true',
+        help='Automatically apply repairs without interactive confirmation.',
+    )
+    parser.add_argument(
+        '--timeout',
+        type=int,
+        default=0,
+        help='Countdown timeout in seconds for repair prompt (default: 0, wait indefinitely).',
+    )
+    args = parser.parse_args()
+
+    async def _runner() -> None:
+        try:
+            repair_mode: bool | None = None
+            if args.check_only:
+                repair_mode = False
+            elif args.auto_repair:
+                repair_mode = True
+
+            timeout = args.timeout if args.timeout > 0 else None
+            await run_integrity_check_workflow(timeout_seconds=timeout, auto_repair=repair_mode)
+        finally:
+            await db.disconnect()
+
+    try:
+        asyncio.run(_runner())
+    except KeyboardInterrupt:
+        _print(f'\n{COLOR_DIM}[*] Operation cancelled by operator.{COLOR_RESET}')
+        sys.exit(130)
+
+
+if __name__ == '__main__':
+    main()

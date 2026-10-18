@@ -11,6 +11,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
 COPY app /app
+COPY --chmod=0755 run_pwd_reset.sh run_db_integrity.sh /app/
+
+RUN ln -s /app/run_pwd_reset.sh /usr/local/bin/run_pwd_reset.sh && \
+    ln -s /app/run_db_integrity.sh /usr/local/bin/run_db_integrity.sh
 
 RUN mkdir -p /app/web/www/libs/
 
