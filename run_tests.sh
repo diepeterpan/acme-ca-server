@@ -43,6 +43,9 @@ Exit Codes:
 EOF
 }
 
+# Preserve original arguments for potential group re-exec
+ORIG_ARGS=("$@")
+
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -97,8 +100,12 @@ elif [ -n "${USE_SUDO:-}" ]; then
     fi
 elif [ "$EUID" -ne 0 ]; then
     # If not running as root, check if current user can run docker without sudo
-    if ! docker info >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
-        SUDO_CMD="sudo"
+    if ! docker info >/dev/null 2>&1; then
+        if command -v sg >/dev/null 2>&1 && sg docker -c "docker info" >/dev/null 2>&1; then
+            exec sg docker -c "$(printf '%q ' "$0" "${ORIG_ARGS[@]}")"
+        elif command -v sudo >/dev/null 2>&1; then
+            SUDO_CMD="sudo"
+        fi
     fi
 fi
 
@@ -139,7 +146,7 @@ cleanup() {
     if [ "$DO_CLEANUP" = "true" ]; then
         echo ""
         echo "--> Cleaning up lingering test containers and networks..."
-        $SUDO_CMD docker rm -f -v test_db test_server test_mail test_runner 2>/dev/null || true
+        $SUDO_CMD docker rm -f -v test_db test_server test_mail test_dns test_runner 2>/dev/null || true
         $SUDO_CMD docker network rm -f test_net 2>/dev/null || true
     fi
     exit "$sig_exit"
