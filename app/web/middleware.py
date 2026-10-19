@@ -138,15 +138,18 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
 
         if session_data:
             # Authenticated! Attach user data to request.state
-            request.state.user = {'username': session_data['sub']}
+            username = session_data['sub']
+            user_rec = await web_auth.get_user_by_username(username)
+            user_type = user_rec['user_type'] if user_rec else 'local'
+            request.state.user = {'username': username, 'user_type': user_type}
             # If already logged in and visiting /login, redirect to /
             if path == '/login':
                 return RedirectResponse(url='/', status_code=status.HTTP_303_SEE_OTHER)
             return await call_next(request)
 
         # 5. Not authenticated
-        # /login and /logout are accessible without session
-        if path in ('/login', '/logout'):
+        # /login, /logout, and OIDC endpoints are accessible without session
+        if path in ('/login', '/logout', '/oidc/login', '/oidc/callback'):
             return await call_next(request)
 
         # For /openapi.json, return 401 Unauthorized if not authenticated

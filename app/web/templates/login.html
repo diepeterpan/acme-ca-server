@@ -10,7 +10,7 @@
         justify-content: center;
         align-items: center;
         background-color: var(--bg-page);
-        padding: 1.5rem 0.75rem;
+        padding: 1rem 0.75rem;
         box-sizing: border-box;
     }
 
@@ -26,7 +26,7 @@
 
     .login-container {
         width: 100%;
-        max-width: 380px;
+        max-width: 370px;
     }
 
     .auth-card {
@@ -34,54 +34,54 @@
         border: 1px solid var(--border-card);
         border-radius: var(--radius-md);
         box-shadow: 0 4px 16px -2px rgba(124, 58, 237, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.04);
-        padding: 1.5rem 1.35rem;
+        padding: 1.25rem 1.25rem;
         text-align: center;
     }
 
     .auth-icon-wrap {
-        width: 46px;
-        height: 46px;
-        border-radius: 12px;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
         background: var(--primary-light);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
         box-shadow: 0 3px 8px rgba(124, 58, 237, 0.12);
     }
 
     .auth-icon-wrap svg {
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
         fill: var(--primary);
     }
 
     .auth-header h1 {
-        font-size: 1.35rem;
+        font-size: 1.25rem;
         font-weight: 700;
         color: var(--text-heading);
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
         letter-spacing: -0.02em;
     }
 
     .auth-header p {
         color: var(--text-muted);
-        font-size: 0.84rem;
+        font-size: 0.82rem;
         line-height: 1.35;
-        margin-bottom: 1.15rem;
+        margin-bottom: 0.85rem;
     }
 
     .form-group {
         text-align: left;
-        margin-bottom: 0.85rem;
+        margin-bottom: 0.65rem;
     }
 
     .form-label {
         display: block;
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 600;
         color: var(--text-heading);
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
     }
 
     .input-wrapper {
@@ -90,10 +90,10 @@
 
     .form-control {
         width: 100%;
-        padding: 0.55rem 0.8rem;
+        padding: 0.5rem 0.75rem;
         border: 1.5px solid #e2e8f0;
         border-radius: var(--radius-md);
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         color: var(--text-body);
         background-color: #ffffff;
         transition: all 0.2s ease;
@@ -128,8 +128,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin: 0.85rem 0 1rem 0;
-        font-size: 0.82rem;
+        margin: 0.5rem 0 0.75rem 0;
+        font-size: 0.8rem;
     }
 
     .checkbox-label {
@@ -143,19 +143,19 @@
 
     .checkbox-label input[type="checkbox"] {
         accent-color: var(--primary);
-        width: 15px;
-        height: 15px;
+        width: 14px;
+        height: 14px;
         cursor: pointer;
     }
 
     .btn-primary {
         width: 100%;
-        padding: 0.65rem 1rem;
+        padding: 0.6rem 1rem;
         background-color: var(--primary);
         color: #ffffff;
         border: none;
         border-radius: var(--radius-md);
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         font-weight: 600;
         cursor: pointer;
         box-shadow: 0 3px 8px rgba(124, 58, 237, 0.2);
@@ -172,14 +172,74 @@
         transform: translateY(0);
     }
 
+    /* OIDC Divider and Button */
+    .auth-divider {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 0.65rem 0;
+        color: var(--text-muted);
+        font-size: 0.76rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .auth-divider span {
+        padding: 0 0.5rem;
+    }
+
+    .btn-oidc {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.58rem 1rem;
+        background-color: #ffffff;
+        color: var(--text-heading);
+        border: 1.5px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn-oidc:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary-subtle);
+        color: var(--primary);
+        box-shadow: 0 3px 8px rgba(124, 58, 237, 0.12);
+        transform: translateY(-1px);
+    }
+
+    .btn-oidc:active {
+        transform: translateY(0);
+    }
+
+    .btn-oidc svg {
+        flex-shrink: 0;
+        color: var(--primary);
+    }
+
     .error-banner {
         background-color: var(--status-expired-bg);
         border: 1px solid var(--status-expired-border);
         color: var(--status-expired-text);
-        padding: 0.6rem 0.85rem;
+        padding: 0.55rem 0.75rem;
         border-radius: var(--radius-md);
-        margin-bottom: 0.9rem;
-        font-size: 0.82rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.8rem;
         text-align: left;
         display: flex;
         align-items: center;
@@ -189,22 +249,22 @@
     .downloads-actions {
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
-        margin-top: 1.25rem;
+        gap: 0.35rem;
+        margin-top: 0.85rem;
     }
 
     .btn-ca-download {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.45rem;
         width: 100%;
-        padding: 0.55rem 0.75rem;
+        padding: 0.48rem 0.65rem;
         border-radius: var(--radius-md);
         border: 1px solid #e2e8f0;
         background: #f8fafc;
         color: var(--text-heading);
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 600;
         text-decoration: none;
         transition: all 0.2s ease;
@@ -219,26 +279,26 @@
     }
 
     .btn-ca-download svg {
-        width: 15px;
-        height: 15px;
+        width: 14px;
+        height: 14px;
         fill: var(--primary);
         flex-shrink: 0;
     }
 
     .login-footer {
-        margin-top: 1.25rem;
+        margin-top: 0.85rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.6rem;
-        font-size: 0.82rem;
+        gap: 0.5rem;
+        font-size: 0.8rem;
         color: var(--text-muted);
     }
 
     .login-footer-link {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.3rem;
         color: var(--text-muted);
         text-decoration: none;
         font-weight: 500;
@@ -250,26 +310,26 @@
     }
 
     .login-footer-link svg {
-        width: 16px;
-        height: 16px;
+        width: 15px;
+        height: 15px;
         fill: currentColor;
     }
 
     .login-footer-dot {
         opacity: 0.5;
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         user-select: none;
     }
 
     .login-version-badge {
         display: inline-flex;
         align-items: center;
-        padding: 0.15rem 0.55rem;
+        padding: 0.1rem 0.45rem;
         border-radius: var(--radius-pill);
         background: #f1f5f9;
         border: 1px solid #e2e8f0;
         color: var(--text-muted);
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.02em;
     }
@@ -288,14 +348,14 @@
         </div>
 
         <div class="auth-header">
-            <div style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">{{ app_title }}</div>
+            <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">{{ app_title }}</div>
             <h1>Sign In</h1>
             <p>Sign in to manage certificates and CA settings.</p>
         </div>
 
         {% if error %}
         <div class="error-banner">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -317,7 +377,7 @@
                 <div class="input-wrapper">
                     <input type="password" id="password" name="password" class="form-control" required autocomplete="current-password" placeholder="Enter your password">
                     <button type="button" class="btn-toggle-pwd" id="togglePassword" aria-label="Toggle password visibility">
-                        <svg id="eyeIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg id="eyeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                             <circle cx="12" cy="12" r="3"></circle>
                         </svg>
@@ -334,6 +394,20 @@
 
             <button type="submit" class="btn-primary">Sign In</button>
         </form>
+
+        {% if oidc_enabled %}
+        <div class="auth-divider">
+            <span>or</span>
+        </div>
+        <a href="/oidc/login?next={{ next|default('/')|urlencode }}" class="btn-oidc">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            <span>{{ oidc_button_label|default('Sign In with OIDC') }}</span>
+        </a>
+        {% endif %}
 
         {% if ca_ready %}
         <div class="downloads-actions">

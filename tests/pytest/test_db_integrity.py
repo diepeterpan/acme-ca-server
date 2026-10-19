@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import db
 from config import settings
@@ -212,3 +213,29 @@ def test_db_integrity_inspection_and_repair():
         asyncio.run(_test())
     finally:
         db._POOL = old_pool
+
+
+def test_empty_database_inspection():
+    """Verify that inspecting an empty new database reports no discrepancies for Root CA."""
+
+    async def _test():
+        mock_sql = MagicMock()
+        mock_conn = AsyncMock()
+        mock_sql.conn = mock_conn
+
+        # All tables return empty
+        mock_conn.fetch.return_value = []
+        # fetchval called for counts: cas, certs, accounts
+        mock_conn.fetchval.return_value = 0
+
+        with patch('db.transaction', return_value=mock_sql):
+            mock_sql.__aenter__ = AsyncMock(return_value=mock_sql)
+            mock_sql.__aexit__ = AsyncMock(return_value=None)
+            report = await inspect_database()
+
+            assert report.has_issues is False
+            discrepancy_types = [d.issue_type for d in report.discrepancies]
+            assert 'Missing Active Root CA' not in discrepancy_types
+            assert any('New uninitialized database' in p for p in report.passed_checks)
+
+    asyncio.run(_test())

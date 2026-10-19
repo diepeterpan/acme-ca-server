@@ -67,17 +67,71 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        dialog::backdrop,
-        .modal-overlay {
+        dialog::backdrop {
             background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68)) !important;
             backdrop-filter: blur(5px);
             -webkit-backdrop-filter: blur(5px);
         }
 
+        /* Global Modal Overlay & Dialog Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--dialog-backdrop, rgba(15, 23, 42, 0.6)) !important;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .modal-overlay.active,
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            position: relative;
+        }
+
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            transition: all 0.15s ease;
+        }
+
+        .modal-close-btn:hover {
+            color: var(--text-heading);
+            background: #f1f5f9;
+        }
+
         .navbar {
             background-color: var(--bg-card);
             border-bottom: 1px solid var(--border-card);
-            padding: 0.65rem 0.75rem;
+            padding: 0.38rem 0.75rem;
             position: sticky;
             top: 0;
             z-index: 50;
@@ -90,38 +144,38 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 0.75rem;
+            gap: 0.6rem;
         }
 
         .navbar-brand-group {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.5rem;
         }
 
         .navbar-brand {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
             text-decoration: none;
             color: var(--text-heading);
             font-weight: 700;
-            font-size: 1.25rem;
+            font-size: 1.15rem;
             letter-spacing: -0.02em;
         }
 
         .navbar-brand svg {
-            width: 32px;
-            height: 32px;
+            width: 26px;
+            height: 26px;
             fill: var(--primary);
         }
 
         .navbar-version-badge {
             display: inline-flex;
             align-items: center;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            padding: 0.15rem 0.55rem;
+            padding: 0.1rem 0.45rem;
             border-radius: var(--radius-pill);
             background: #f1f5f9;
             border: 1px solid #e2e8f0;
@@ -138,7 +192,7 @@
 
         .navbar-brand-dot {
             opacity: 0.5;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
             user-select: none;
         }
@@ -146,10 +200,10 @@
         .navbar-github-link {
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
+            gap: 0.3rem;
             color: var(--text-muted);
             text-decoration: none;
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 500;
             transition: color 0.15s ease;
         }
@@ -159,29 +213,29 @@
         }
 
         .navbar-github-link svg {
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             fill: currentColor;
         }
 
         .navbar-nav {
             display: flex;
             align-items: center;
-            gap: 0.25rem;
+            gap: 0.2rem;
             list-style: none;
         }
 
         .nav-link {
             text-decoration: none;
             color: var(--text-muted);
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 500;
-            padding: 0.3rem 0.65rem;
+            padding: 0.22rem 0.52rem;
             border-radius: var(--radius-pill);
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 0.3rem;
+            gap: 0.25rem;
         }
 
         .nav-link:hover {
@@ -197,8 +251,8 @@
 
         .container {
             max-width: 1560px;
-            margin: 1.5rem auto;
-            padding: 0 0.75rem 2.5rem 0.75rem;
+            margin: 1.25rem auto;
+            padding: 0 0.75rem 2rem 0.75rem;
         }
 
         /* Flash message banner */
@@ -206,14 +260,14 @@
             background-color: var(--primary-light);
             border: 1px solid var(--primary-subtle);
             color: var(--primary);
-            padding: 0.85rem 1.25rem;
+            padding: 0.75rem 1rem;
             border-radius: var(--radius-md);
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-weight: 500;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             box-shadow: var(--shadow-sm);
         }
 
@@ -229,26 +283,26 @@
         .navbar-user {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
         }
 
         .user-badge {
             display: flex;
             align-items: center;
-            gap: 0.65rem;
+            gap: 0.45rem;
             background: var(--primary-light);
             border: 1px solid var(--primary-border);
-            padding: 0.3rem 0.65rem 0.3rem 0.4rem;
+            padding: 0.2rem 0.5rem 0.2rem 0.35rem;
             border-radius: var(--radius-pill);
         }
 
         .user-avatar {
-            width: 30px;
-            height: 30px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
             color: #ffffff;
-            font-size: 0.78rem;
+            font-size: 0.74rem;
             font-weight: 700;
             display: flex;
             align-items: center;
@@ -257,56 +311,164 @@
             box-shadow: 0 1px 3px rgba(124, 58, 237, 0.3);
         }
 
-        .user-info {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.15;
-            text-align: left;
-        }
-
         .user-name {
-            font-size: 0.84rem;
+            font-size: 0.82rem;
             font-weight: 700;
             color: var(--text-heading);
-        }
-
-        .user-status {
-            font-size: 0.68rem;
-            color: var(--status-valid-text);
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-            font-weight: 600;
-        }
-
-        .status-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: var(--status-valid-text);
+            line-height: 1;
+            padding-right: 0.15rem;
         }
 
         .btn-logout {
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
-            padding: 0.32rem 0.75rem;
+            gap: 0.3rem;
+            padding: 0.22rem 0.55rem;
             border-radius: var(--radius-pill);
             background-color: #ffffff;
             border: 1px solid var(--border-card);
             color: var(--text-muted);
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             font-weight: 600;
             text-decoration: none;
             transition: all 0.2s ease;
             cursor: pointer;
-            margin-left: 0.25rem;
+            margin-left: 0.15rem;
         }
 
         .btn-logout:hover {
             color: var(--status-expired-text);
             border-color: var(--status-expired-border);
             background-color: var(--status-expired-bg);
+        }
+
+        /* Hamburger Settings Menu */
+        .settings-menu-container {
+            position: relative;
+        }
+
+        .btn-hamburger {
+            width: 30px;
+            height: 30px;
+            border-radius: var(--radius-md);
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            color: var(--text-muted); /* Grey when not selected */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+
+        .btn-hamburger .hamburger-icon {
+            width: 17px;
+            height: 17px;
+            stroke: currentColor;
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+            transition: stroke 0.2s ease;
+        }
+
+        .btn-hamburger:hover {
+            color: var(--primary);
+            border-color: var(--primary-border);
+            background-color: var(--primary-light);
+        }
+
+        /* Selected / active state: purple */
+        .btn-hamburger.active {
+            color: var(--primary) !important; /* Purple when selected */
+            background-color: var(--primary-light) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+        }
+
+        .settings-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 215px;
+            background: #ffffff;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            padding: 0.35rem;
+            z-index: 100;
+            display: none;
+            animation: dropdownFadeIn 0.15s ease-out;
+        }
+
+        .settings-dropdown.active {
+            display: block;
+        }
+
+        @keyframes dropdownFadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .dropdown-header {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            padding: 0.35rem 0.6rem 0.25rem 0.6rem;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.45rem 0.65rem;
+            border-radius: 6px;
+            font-size: 0.84rem;
+            font-weight: 500;
+            color: var(--text-body);
+            text-decoration: none;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: all 0.15s ease;
+        }
+
+        .dropdown-item svg {
+            width: 15px;
+            height: 15px;
+            color: var(--text-muted);
+            fill: currentColor;
+            flex-shrink: 0;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .dropdown-item:hover svg {
+            color: var(--primary);
+        }
+
+        .dropdown-item.active {
+            background-color: var(--primary);
+            color: #ffffff;
+        }
+
+        .dropdown-item.active svg {
+            color: #ffffff;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background-color: #f1f5f9;
+            margin: 0.3rem 0;
         }
 
         /* Sortable & Resizable Table Enhancements */
@@ -441,41 +603,60 @@
                 </a>
                 {% endif %}
             </div>
-            <nav style="display: flex; align-items: center; gap: 0.85rem;">
+            <nav style="display: flex; align-items: center; gap: 0.6rem;">
                 <ul class="navbar-nav">
                     <li><a href="/accounts" class="nav-link {% if request is defined and request.url.path.startswith('/accounts') %}active{% endif %}">Accounts</a></li>
                     <li><a href="/domains" class="nav-link {% if request is defined and request.url.path.startswith('/domains') %}active{% endif %}">Domains</a></li>
                     <li><a href="/certificates" class="nav-link {% if request is defined and (request.url.path.startswith('/certificates') or '/certificates' in request.url.path|default('')) %}active{% endif %}">Certificates</a></li>
-                    <li><a href="/mail" class="nav-link {% if request is defined and request.url.path.startswith('/mail') %}active{% endif %}">Mail Settings</a></li>
                     <li><a href="/ca" class="nav-link {% if request is defined and (request.url.path == '/ca' or request.url.path.startswith('/ca/')) and not request.url.path.startswith('/ca/setup') %}active{% endif %}">CA Certificate</a></li>
-                    <li>
-                        <a href="/endpoints" class="nav-link" target="_blank" rel="noopener noreferrer">
-                            Endpoints
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7; margin-left: 2px;">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                <polyline points="15 3 21 3 21 9"></polyline>
-                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                            </svg>
-                        </a>
-                    </li>
                 </ul>
 
                 {% if request is defined and request.state.user is defined %}
                 <div class="navbar-user">
                     <div class="user-badge" title="Logged in as {{ request.state.user.username }}">
                         <div class="user-avatar">{{ request.state.user.username[:2] | upper }}</div>
-                        <div class="user-info">
-                            <span class="user-name">{{ request.state.user.username }}</span>
-                            <span class="user-status"><span class="status-dot"></span>Online</span>
-                        </div>
+                        <span class="user-name">{{ request.state.user.username }}</span>
                         <a href="/logout" class="btn-logout" title="Sign out">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                                 <polyline points="16 17 21 12 16 7"></polyline>
                                 <line x1="21" y1="12" x2="9" y2="12"></line>
                             </svg>
                             Sign out
                         </a>
+                    </div>
+
+                    <!-- Hamburger Settings Menu -->
+                    <div class="settings-menu-container">
+                        <button type="button" class="btn-hamburger" id="settingsHamburgerBtn" title="Settings & Admin Menu" aria-label="Settings Menu" aria-expanded="false">
+                            <svg viewBox="0 0 24 24" class="hamburger-icon">
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                                <line x1="3" y1="18" x2="21" y2="18"></line>
+                            </svg>
+                        </button>
+                        <div class="settings-dropdown" id="settingsDropdownMenu">
+                            <div class="dropdown-header">Settings & Administration</div>
+                            {% if request is defined and request.state.user is defined and request.state.user.user_type != 'oidc' %}
+                            <button type="button" class="dropdown-item" id="openSelfChangePasswordModal">
+                                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5L10 10l1.5 1.5L9 14l-1.5-1.5L5 15l2 2-4 4 4-4 2 2 2.5-2.5-1.5-1.5 2.5-2.5 1.5 1.5 2.5-2.5-1.5-1.5 2.5-2.5 2 2 2-2z"></path></svg>
+                                <span>Change Password</span>
+                            </button>
+                            {% endif %}
+                            <a href="/users" class="dropdown-item {% if request is defined and request.url.path.startswith('/users') %}active{% endif %}">
+                                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                                <span>Users & Access</span>
+                            </a>
+                            <a href="/mail" class="dropdown-item {% if request is defined and request.url.path.startswith('/mail') %}active{% endif %}">
+                                <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                                <span>Mail Settings</span>
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a href="/endpoints" class="dropdown-item" target="_blank" rel="noopener noreferrer">
+                                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                <span>API Endpoints</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -488,7 +669,323 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if request is defined and request.state.user is defined and request.state.user.user_type != 'oidc' %}
+    <!-- Modal: Self-Service Change Password -->
+    <div class="modal-overlay" id="selfChangePasswordModal">
+        <div class="modal-card" style="max-width: 400px; padding: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem;">
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-heading); margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5L10 10l1.5 1.5L9 14l-1.5-1.5L5 15l2 2-4 4 4-4 2 2 2.5-2.5-1.5-1.5 2.5-2.5 1.5 1.5 2.5-2.5-1.5-1.5 2.5-2.5 2 2 2-2z"></path></svg>
+                    Change My Password
+                </h3>
+                <button type="button" class="modal-close-btn" id="closeSelfChangePasswordModal" aria-label="Close">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <!-- In-Modal Alert Box -->
+            <div id="selfPwdAlert" style="display: none; padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.82rem; margin-bottom: 0.85rem; align-items: center; gap: 0.45rem; line-height: 1.35; border: 1px solid transparent;">
+                <svg id="selfPwdAlertIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"></svg>
+                <span id="selfPwdAlertText" style="flex: 1;"></span>
+            </div>
+
+            <form id="selfChangePasswordForm" method="post" action="/account/password">
+                <div style="margin-bottom: 0.75rem;">
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-heading); margin-bottom: 0.2rem;" for="self_current_pwd">Current Password</label>
+                    <input type="password" id="self_current_pwd" name="current_password" required autocomplete="current-password" style="width: 100%; padding: 0.48rem 0.7rem; border: 1.5px solid #e2e8f0; border-radius: var(--radius-md); font-size: 0.85rem; box-sizing: border-box; outline: none; transition: border-color 0.2s ease;">
+                </div>
+                <div style="margin-bottom: 0.75rem;">
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-heading); margin-bottom: 0.2rem;" for="self_new_pwd">New Password</label>
+                    <input type="password" id="self_new_pwd" name="new_password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters" style="width: 100%; padding: 0.48rem 0.7rem; border: 1.5px solid #e2e8f0; border-radius: var(--radius-md); font-size: 0.85rem; box-sizing: border-box; outline: none; transition: border-color 0.2s ease;">
+                    <div class="strength-meter" id="selfStrengthMeter" style="display: flex; gap: 4px; margin-top: 0.35rem; height: 4px;">
+                        <div class="strength-bar" style="flex: 1; height: 100%; background-color: #e2e8f0; border-radius: 2px; transition: background-color 0.25s ease;"></div>
+                        <div class="strength-bar" style="flex: 1; height: 100%; background-color: #e2e8f0; border-radius: 2px; transition: background-color 0.25s ease;"></div>
+                        <div class="strength-bar" style="flex: 1; height: 100%; background-color: #e2e8f0; border-radius: 2px; transition: background-color 0.25s ease;"></div>
+                        <div class="strength-bar" style="flex: 1; height: 100%; background-color: #e2e8f0; border-radius: 2px; transition: background-color 0.25s ease;"></div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-heading); margin-bottom: 0.2rem;" for="self_confirm_pwd">Confirm New Password</label>
+                    <input type="password" id="self_confirm_pwd" name="confirm_password" required minlength="8" autocomplete="new-password" placeholder="Re-enter new password" style="width: 100%; padding: 0.48rem 0.7rem; border: 1.5px solid #e2e8f0; border-radius: var(--radius-md); font-size: 0.85rem; box-sizing: border-box; outline: none; transition: border-color 0.2s ease;">
+                    <div id="selfPwdMatchNote" style="display: none; font-size: 0.75rem; font-weight: 500; margin-top: 0.25rem;"></div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" id="cancelSelfChangePasswordModal" style="padding: 0.45rem 0.85rem; background: #f1f5f9; color: var(--text-body); border: 1px solid #e2e8f0; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer;">Cancel</button>
+                    <button type="submit" id="submitSelfChangePasswordBtn" style="padding: 0.45rem 1rem; background: var(--primary); color: #ffffff; border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <span id="submitSelfChangePasswordText">Save Password</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <script src="/table-features.js"></script>
+    <script>
+        // Hamburger Settings Menu Toggle
+        const hamburgerBtn = document.getElementById('settingsHamburgerBtn');
+        const settingsDropdown = document.getElementById('settingsDropdownMenu');
+
+        if (hamburgerBtn && settingsDropdown) {
+            hamburgerBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = settingsDropdown.classList.contains('active');
+                if (isOpen) {
+                    settingsDropdown.classList.remove('active');
+                    hamburgerBtn.classList.remove('active');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                } else {
+                    settingsDropdown.classList.add('active');
+                    hamburgerBtn.classList.add('active');
+                    hamburgerBtn.setAttribute('aria-expanded', 'true');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!settingsDropdown.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+                    settingsDropdown.classList.remove('active');
+                    hamburgerBtn.classList.remove('active');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    settingsDropdown.classList.remove('active');
+                    hamburgerBtn.classList.remove('active');
+                    hamburgerBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        // Self-Service Change Password Modal
+        const selfModal = document.getElementById('selfChangePasswordModal');
+        const openSelfModalBtn = document.getElementById('openSelfChangePasswordModal');
+        const closeSelfModalBtn = document.getElementById('closeSelfChangePasswordModal');
+        const cancelSelfModalBtn = document.getElementById('cancelSelfChangePasswordModal');
+        const selfForm = document.getElementById('selfChangePasswordForm');
+        const selfCurrentPwd = document.getElementById('self_current_pwd');
+        const selfNewPwd = document.getElementById('self_new_pwd');
+        const selfConfirmPwd = document.getElementById('self_confirm_pwd');
+        const selfMeter = document.getElementById('selfStrengthMeter');
+        const selfAlert = document.getElementById('selfPwdAlert');
+        const selfAlertIcon = document.getElementById('selfPwdAlertIcon');
+        const selfAlertText = document.getElementById('selfPwdAlertText');
+        const selfMatchNote = document.getElementById('selfPwdMatchNote');
+        const selfSubmitBtn = document.getElementById('submitSelfChangePasswordBtn');
+        const selfSubmitText = document.getElementById('submitSelfChangePasswordText');
+
+        if (openSelfModalBtn && selfModal) {
+            function showModalAlert(msg, type) {
+                if (!selfAlert) return;
+                selfAlert.style.display = 'flex';
+                selfAlertText.textContent = msg;
+                if (type === 'success') {
+                    selfAlert.style.backgroundColor = 'var(--status-valid-bg)';
+                    selfAlert.style.borderColor = 'var(--status-valid-border)';
+                    selfAlert.style.color = 'var(--status-valid-text)';
+                    selfAlertIcon.innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>';
+                    selfAlertIcon.setAttribute('stroke', 'var(--status-valid-text)');
+                } else {
+                    selfAlert.style.backgroundColor = 'var(--status-error-bg)';
+                    selfAlert.style.borderColor = 'var(--status-error-border)';
+                    selfAlert.style.color = 'var(--status-error-text)';
+                    selfAlertIcon.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>';
+                    selfAlertIcon.setAttribute('stroke', 'var(--status-error-text)');
+                }
+            }
+
+            function hideModalAlert() {
+                if (selfAlert) selfAlert.style.display = 'none';
+            }
+
+            function resetModalForm() {
+                if (selfForm) selfForm.reset();
+                hideModalAlert();
+                if (selfMatchNote) selfMatchNote.style.display = 'none';
+                if (selfCurrentPwd) selfCurrentPwd.style.borderColor = '#e2e8f0';
+                if (selfNewPwd) selfNewPwd.style.borderColor = '#e2e8f0';
+                if (selfConfirmPwd) selfConfirmPwd.style.borderColor = '#e2e8f0';
+                if (selfMeter) {
+                    selfMeter.querySelectorAll('.strength-bar').forEach((b) => {
+                        b.style.backgroundColor = '#e2e8f0';
+                    });
+                }
+                if (selfSubmitBtn) selfSubmitBtn.disabled = false;
+                if (selfSubmitText) selfSubmitText.textContent = 'Save Password';
+            }
+
+            function updateMatchStatus() {
+                if (!selfConfirmPwd || !selfNewPwd || !selfMatchNote) return true;
+                const p1 = selfNewPwd.value;
+                const p2 = selfConfirmPwd.value;
+                if (!p2) {
+                    selfMatchNote.style.display = 'none';
+                    selfConfirmPwd.style.borderColor = '#e2e8f0';
+                    return true;
+                }
+                if (p1 === p2) {
+                    selfMatchNote.style.display = 'block';
+                    selfMatchNote.style.color = 'var(--status-valid-text)';
+                    selfMatchNote.textContent = '✓ Passwords match';
+                    selfConfirmPwd.style.borderColor = 'var(--status-valid-border)';
+                    return true;
+                } else {
+                    selfMatchNote.style.display = 'block';
+                    selfMatchNote.style.color = 'var(--status-error-text)';
+                    selfMatchNote.textContent = '✗ Passwords do not match';
+                    selfConfirmPwd.style.borderColor = 'var(--status-error-border)';
+                    return false;
+                }
+            }
+
+            openSelfModalBtn.addEventListener('click', () => {
+                if (settingsDropdown && hamburgerBtn) {
+                    settingsDropdown.classList.remove('active');
+                    hamburgerBtn.classList.remove('active');
+                }
+                resetModalForm();
+                selfModal.classList.add('active');
+                setTimeout(() => {
+                    if (selfCurrentPwd) selfCurrentPwd.focus();
+                }, 50);
+            });
+
+            if (closeSelfModalBtn) closeSelfModalBtn.addEventListener('click', () => {
+                selfModal.classList.remove('active');
+                resetModalForm();
+            });
+            if (cancelSelfModalBtn) cancelSelfModalBtn.addEventListener('click', () => {
+                selfModal.classList.remove('active');
+                resetModalForm();
+            });
+
+            if (selfNewPwd) {
+                selfNewPwd.addEventListener('input', () => {
+                    hideModalAlert();
+                    selfNewPwd.style.borderColor = '#e2e8f0';
+                    const val = selfNewPwd.value;
+                    let score = 0;
+                    if (val.length >= 8) score++;
+                    if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+                    if (/[0-9]/.test(val)) score++;
+                    if (/[^A-Za-z0-9]/.test(val)) score++;
+
+                    if (selfMeter) {
+                        const bars = selfMeter.querySelectorAll('.strength-bar');
+                        bars.forEach((bar, index) => {
+                            if (index < score) {
+                                if (score <= 1) bar.style.backgroundColor = '#ef4444';
+                                else if (score <= 2) bar.style.backgroundColor = '#f59e0b';
+                                else if (score <= 3) bar.style.backgroundColor = '#3b82f6';
+                                else bar.style.backgroundColor = '#10b981';
+                            } else {
+                                bar.style.backgroundColor = '#e2e8f0';
+                            }
+                        });
+                    }
+                    if (selfConfirmPwd && selfConfirmPwd.value) {
+                        updateMatchStatus();
+                    }
+                });
+            }
+
+            if (selfConfirmPwd) {
+                selfConfirmPwd.addEventListener('input', () => {
+                    hideModalAlert();
+                    updateMatchStatus();
+                });
+            }
+
+            if (selfCurrentPwd) {
+                selfCurrentPwd.addEventListener('input', () => {
+                    hideModalAlert();
+                    selfCurrentPwd.style.borderColor = '#e2e8f0';
+                });
+            }
+
+            if (selfForm) {
+                selfForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    hideModalAlert();
+
+                    const currentPwd = selfCurrentPwd ? selfCurrentPwd.value : '';
+                    const newPwd = selfNewPwd ? selfNewPwd.value : '';
+                    const confirmPwd = selfConfirmPwd ? selfConfirmPwd.value : '';
+
+                    if (!currentPwd) {
+                        showModalAlert('Please enter your current password.', 'error');
+                        if (selfCurrentPwd) {
+                            selfCurrentPwd.style.borderColor = 'var(--status-error-border)';
+                            selfCurrentPwd.focus();
+                        }
+                        return;
+                    }
+
+                    if (newPwd.length < 8) {
+                        showModalAlert('New password must be at least 8 characters long.', 'error');
+                        if (selfNewPwd) {
+                            selfNewPwd.style.borderColor = 'var(--status-error-border)';
+                            selfNewPwd.focus();
+                        }
+                        return;
+                    }
+
+                    if (newPwd !== confirmPwd) {
+                        showModalAlert('New passwords do not match.', 'error');
+                        if (selfConfirmPwd) {
+                            selfConfirmPwd.style.borderColor = 'var(--status-error-border)';
+                            selfConfirmPwd.focus();
+                        }
+                        return;
+                    }
+
+                    if (selfSubmitBtn) selfSubmitBtn.disabled = true;
+                    if (selfSubmitText) selfSubmitText.textContent = 'Saving...';
+
+                    try {
+                        const resp = await fetch('/account/password', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                current_password: currentPwd,
+                                new_password: newPwd,
+                                confirm_password: confirmPwd
+                            })
+                        });
+
+                        const data = await resp.json().catch(() => ({}));
+
+                        if (!resp.ok) {
+                            const errMsg = data.error || 'Failed to change password.';
+                            showModalAlert(errMsg, 'error');
+                            if (errMsg.toLowerCase().includes('current password') && selfCurrentPwd) {
+                                selfCurrentPwd.style.borderColor = 'var(--status-error-border)';
+                                selfCurrentPwd.focus();
+                                selfCurrentPwd.select();
+                            }
+                            if (selfSubmitBtn) selfSubmitBtn.disabled = false;
+                            if (selfSubmitText) selfSubmitText.textContent = 'Save Password';
+                        } else {
+                            showModalAlert(data.message || 'Password changed successfully!', 'success');
+                            if (selfSubmitText) selfSubmitText.textContent = 'Saved!';
+                            setTimeout(() => {
+                                selfModal.classList.remove('active');
+                                resetModalForm();
+                            }, 1200);
+                        }
+                    } catch (err) {
+                        showModalAlert('Network or connection error. Please try again.', 'error');
+                        if (selfSubmitBtn) selfSubmitBtn.disabled = false;
+                        if (selfSubmitText) selfSubmitText.textContent = 'Save Password';
+                    }
+                });
+            }
+        }
+    </script>
 </body>
 
 </html>

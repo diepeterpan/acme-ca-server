@@ -122,6 +122,34 @@ class AcmeSettings(BaseSettings):
         return self
 
 
+class OidcSettings(BaseSettings):
+    enabled: bool = False
+    issuer_url: AnyHttpUrl | None = None
+    client_id: str | None = None
+    client_secret: SecretStr | None = None
+    button_label: str = 'Sign In with OIDC'
+    scopes: str = 'openid profile email'
+    redirect_url: AnyHttpUrl | None = None
+    user_claim: str = 'email'
+    verify_ssl: bool = True
+    x509_required: bool = True
+    use_pkce: bool = True
+    token_auth_method: Literal['auto', 'client_secret_basic', 'client_secret_post'] = 'auto'
+
+    model_config = SettingsConfigDict(env_prefix='oidc_', secrets_dir='/run/secrets')
+
+    @model_validator(mode='after')
+    def valid_check(self) -> 'OidcSettings':
+        if self.enabled:
+            if not self.issuer_url:
+                raise ValueError('Env var oidc_issuer_url is required when OIDC is enabled')
+            if not self.client_id:
+                raise ValueError('Env var oidc_client_id is required when OIDC is enabled')
+            if not self.client_secret or not self.client_secret.get_secret_value():
+                raise ValueError('Env var oidc_client_secret is required when OIDC is enabled')
+        return self
+
+
 class Settings(BaseSettings):
     external_url: AnyHttpUrl
     db_dsn: PostgresDsn
@@ -130,6 +158,7 @@ class Settings(BaseSettings):
     ca: CaSettings = CaSettings()
     mail: MailSettings = MailSettings()
     web: WebSettings = WebSettings()
+    oidc: OidcSettings = OidcSettings()
     db_integrity: DbIntegritySettings = DbIntegritySettings()
 
     model_config = SettingsConfigDict(secrets_dir='/run/secrets')

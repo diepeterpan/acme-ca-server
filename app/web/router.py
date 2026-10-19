@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import ca
 import db
@@ -16,9 +16,11 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
+from logger import logger
 from pydantic import constr
 
 from . import auth as web_auth
+from . import oidc as web_oidc
 
 template_engine = Environment(loader=FileSystemLoader(Path(__file__).parent / 'templates'), enable_async=True, autoescape=True)
 
@@ -102,6 +104,8 @@ default_params = {  # pylint: disable=duplicate-code
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
     'service_tz_label': get_service_tz_label(),
     'service_tz_name': datetime.now().astimezone().tzname() or 'Local',
+    'oidc_enabled': settings.oidc.enabled,
+    'oidc_button_label': settings.oidc.button_label,
 }
 
 
@@ -109,7 +113,7 @@ api = APIRouter(tags=['web'])
 
 
 @api.get('/', response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, error: str = '', success: str = ''):
     stats = {
         'accounts_count': 0,
         'total_domains': 0,
@@ -172,6 +176,8 @@ async def index(request: Request):
         request=request,
         stats=stats,
         ca_details=ca_details,
+        error=error,
+        success=success,
     )
 
 
@@ -322,6 +328,273 @@ async def logout():
     response = RedirectResponse(url='/login', status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(web_auth.COOKIE_NAME, path='/', httponly=True, samesite='lax')
     return response
+
+
+@api.get('/oidc/login')
+async def oidc_login(next: str = '/'):  # noqa: A002  # pylint: disable=redefined-builtin
+    if not settings.oidc.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='OIDC authentication is not enabled.')
+
+    target = next if next.startswith('/') and not next.startswith('//') and next not in ('/login', '/setup', '/logout') else '/'
+
+    state, nonce = web_oidc.generate_state_and_nonce()
+    code_verifier: str | None = None
+    code_challenge: str | None = None
+    if settings.oidc.use_pkce:
+        code_verifier, code_challenge = web_oidc.generate_pkce_pair()
+
+    try:
+        auth_url = await web_oidc.get_authorization_url(state=state, nonce=nonce, code_challenge=code_challenge)
+    except Exception as e:  # noqa: BLE001
+        logger.error('Failed to generate OIDC authorization URL: %s', e)
+        return RedirectResponse(url=f'/login?error=OIDC+Configuration+Error:+{quote(str(e), safe="")}', status_code=status.HTTP_303_SEE_OTHER)
+
+    response = RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
+    state_payload = {'state': state, 'nonce': nonce, 'code_verifier': code_verifier, 'next': target}
+    state_cookie_val, _ = web_auth.create_session_cookie(json.dumps(state_payload), remember_me=False)
+    is_secure = str(settings.external_url).startswith('https')
+    response.set_cookie(
+        'acme_oidc_state',
+        state_cookie_val,
+        max_age=300,
+        httponly=True,
+        samesite='lax',
+        secure=is_secure,
+    )
+    return response
+
+
+@api.get('/oidc/callback')
+async def oidc_callback(
+    request: Request,
+    code: str = '',
+    state: str = '',
+    error: str = '',
+    error_description: str = '',
+):
+    if not settings.oidc.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='OIDC authentication is not enabled.')
+
+    if error:
+        err_msg = error_description or error or 'OIDC authentication was cancelled or failed.'
+        return RedirectResponse(url=f'/login?error={quote(err_msg, safe="")}', status_code=status.HTTP_303_SEE_OTHER)
+
+    if not code or not state:
+        return RedirectResponse(url='/login?error=Missing+OIDC+callback+code+or+state.', status_code=status.HTTP_303_SEE_OTHER)
+
+    state_cookie = request.cookies.get('acme_oidc_state')
+    state_data = web_auth.verify_session_cookie(state_cookie) if state_cookie else None
+    if not state_data:
+        return RedirectResponse(url='/login?error=OIDC+session+expired+or+invalid.+Please+try+again.', status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        saved_payload = json.loads(state_data.get('sub', '{}'))
+        saved_state = saved_payload.get('state')
+        saved_nonce = saved_payload.get('nonce')
+        saved_code_verifier = saved_payload.get('code_verifier')
+        target_next = saved_payload.get('next', '/')
+    except (json.JSONDecodeError, TypeError):
+        return RedirectResponse(url='/login?error=Invalid+OIDC+state+payload.', status_code=status.HTTP_303_SEE_OTHER)
+
+    if not saved_state or saved_state != state:
+        return RedirectResponse(url='/login?error=OIDC+state+mismatch+possible+CSRF.', status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        user_info = await web_oidc.exchange_code_for_user(
+            code=code,
+            expected_nonce=saved_nonce,
+            code_verifier=saved_code_verifier,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error('OIDC token verification failed: %s', e)
+        return RedirectResponse(url=f'/login?error=OIDC+Authentication+Failed:+{quote(str(e), safe="")}', status_code=status.HTTP_303_SEE_OTHER)
+
+    email = user_info['email']
+
+    # Authenticate pre-provisioned user in DB
+    db_user = await web_auth.authenticate_oidc_user(email)
+    if not db_user:
+        logger.warning('OIDC login rejected for unprovisioned email: %s', email)
+        err_msg = f'Access denied: Account for {email} is not pre-provisioned. Contact an administrator.'
+        return RedirectResponse(url=f'/login?error={quote(err_msg, safe="")}', status_code=status.HTTP_303_SEE_OTHER)
+
+    cookie_val, max_age = web_auth.create_session_cookie(db_user['username'], remember_me=False)
+    target = target_next if target_next.startswith('/') and not target_next.startswith('//') and target_next not in ('/login', '/setup', '/logout') else '/'
+    response = RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
+    is_secure = str(settings.external_url).startswith('https')
+    response.set_cookie(
+        web_auth.COOKIE_NAME,
+        cookie_val,
+        max_age=max_age,
+        httponly=True,
+        samesite='lax',
+        secure=is_secure,
+    )
+    response.delete_cookie('acme_oidc_state', path='/', httponly=True, samesite='lax')
+    logger.info('User %s (%s) successfully authenticated via OIDC.', db_user['username'], email)
+    return response
+
+
+@api.get('/users', response_class=HTMLResponse)
+async def users_list_get(request: Request, error: str = '', success: str = ''):
+    all_users = await web_auth.list_users()
+    return await template_engine.get_template('users.html').render_async(
+        **default_params,
+        request=request,
+        users=all_users,
+        error=error,
+        success=success,
+    )
+
+
+@api.post('/users/create')
+async def user_create_post(
+    user_type: str = Form('local'),
+    username: str = Form(''),
+    email: str = Form(''),
+    password: str = Form(''),
+    confirm_password: str = Form(''),
+):
+    clean_username = username.strip()
+    clean_email = email.strip()
+
+    if not clean_username:
+        return RedirectResponse(url='/users?error=Username+is+required.', status_code=status.HTTP_303_SEE_OTHER)
+
+    existing_u = await web_auth.get_user_by_username(clean_username)
+    if existing_u:
+        return RedirectResponse(url=f"/users?error=User+'{quote(clean_username, safe='')}'+already+exists.", status_code=status.HTTP_303_SEE_OTHER)
+
+    if user_type == 'oidc':
+        if not clean_email or '@' not in clean_email:
+            return RedirectResponse(url='/users?error=A+valid+email+address+is+mandatory+for+OIDC+users.', status_code=status.HTTP_303_SEE_OTHER)
+        existing_e = await web_auth.get_user_by_email(clean_email)
+        if existing_e:
+            return RedirectResponse(url=f"/users?error=Email+'{quote(clean_email, safe='')}'+is+already+associated+with+another+user.", status_code=status.HTTP_303_SEE_OTHER)
+        await web_auth.create_oidc_user(username=clean_username, email=clean_email)
+        return RedirectResponse(url=f"/users?success=OIDC+user+'{quote(clean_username, safe='')}'+created+successfully.", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Local user
+    if len(password) < 8:
+        return RedirectResponse(url='/users?error=Password+must+be+at+least+8+characters.', status_code=status.HTTP_303_SEE_OTHER)
+    if password != confirm_password:
+        return RedirectResponse(url='/users?error=Passwords+do+not+match.', status_code=status.HTTP_303_SEE_OTHER)
+
+    if clean_email:
+        if '@' not in clean_email:
+            return RedirectResponse(url='/users?error=Invalid+email+address+format.', status_code=status.HTTP_303_SEE_OTHER)
+        existing_e = await web_auth.get_user_by_email(clean_email)
+        if existing_e:
+            return RedirectResponse(url=f"/users?error=Email+'{quote(clean_email, safe='')}'+is+already+associated+with+another+user.", status_code=status.HTTP_303_SEE_OTHER)
+
+    await web_auth.create_user(username=clean_username, password=password, email=clean_email or None)
+    return RedirectResponse(url=f"/users?success=Local+user+'{quote(clean_username, safe='')}'+created+successfully.", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/users/{user_id}/delete')
+async def user_delete_post(request: Request, user_id: str):
+    current_username = getattr(request.state, 'user', {}).get('username', '')
+    ok, err = await web_auth.delete_user(user_id, current_username=current_username)
+    if not ok:
+        return RedirectResponse(url=f'/users?error={quote(err, safe="")}', status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url='/users?success=User+deleted+successfully.', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/users/{user_id}/reset-password')
+async def user_reset_password_post(
+    user_id: str,
+    password: str = Form(''),
+    confirm_password: str = Form(''),
+):
+    target_user = await web_auth.get_user_by_id(user_id)
+    if not target_user:
+        return RedirectResponse(url='/users?error=User+not+found.', status_code=status.HTTP_303_SEE_OTHER)
+    if target_user['user_type'] != 'local':
+        return RedirectResponse(
+            url='/users?error=Cannot+reset+password+for+OIDC+accounts.+Passwords+are+managed+at+your+identity+provider.', status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    if len(password) < 8:
+        return RedirectResponse(url='/users?error=New+password+must+be+at+least+8+characters.', status_code=status.HTTP_303_SEE_OTHER)
+    if password != confirm_password:
+        return RedirectResponse(url='/users?error=Passwords+do+not+match.', status_code=status.HTTP_303_SEE_OTHER)
+
+    await web_auth.reset_user_password(user_id, password)
+    return RedirectResponse(url=f"/users?success=Password+for+'{quote(target_user['username'], safe='')}'+reset+successfully.", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/users/{user_id}/email')
+async def user_email_update_post(
+    user_id: str,
+    email: str = Form(''),
+):
+    target_user = await web_auth.get_user_by_id(user_id)
+    if not target_user:
+        return RedirectResponse(url='/users?error=User+not+found.', status_code=status.HTTP_303_SEE_OTHER)
+
+    clean_email = email.strip()
+    if target_user['user_type'] == 'oidc' and (not clean_email or '@' not in clean_email):
+        return RedirectResponse(url='/users?error=Email+address+is+mandatory+for+OIDC+users.', status_code=status.HTTP_303_SEE_OTHER)
+
+    if clean_email:
+        existing = await web_auth.get_user_by_email(clean_email)
+        if existing and existing['id'] != user_id:
+            return RedirectResponse(url=f"/users?error=Email+'{quote(clean_email, safe='')}'+is+already+used+by+another+account.", status_code=status.HTTP_303_SEE_OTHER)
+
+    await web_auth.update_user_email(user_id, clean_email or None)
+    return RedirectResponse(url=f"/users?success=Email+for+'{quote(target_user['username'], safe='')}'+updated+successfully.", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/account/password')
+async def account_change_password_post(request: Request):
+    current_user_name = getattr(request.state, 'user', {}).get('username', '')
+    if not current_user_name:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Not authenticated')
+
+    content_type = request.headers.get('content-type', '').lower()
+    accept_header = request.headers.get('accept', '').lower()
+    is_json = 'application/json' in content_type or 'application/json' in accept_header
+
+    if 'application/json' in content_type:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        curr_pwd = str(body.get('current_password', ''))
+        new_pwd = str(body.get('new_password', ''))
+        confirm_pwd = str(body.get('confirm_password', ''))
+    else:
+        form = await request.form()
+        curr_pwd = str(form.get('current_password', ''))
+        new_pwd = str(form.get('new_password', ''))
+        confirm_pwd = str(form.get('confirm_password', ''))
+
+    user_type = getattr(request.state, 'user', {}).get('user_type', 'local')
+    if user_type == 'oidc':
+        if is_json:
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={'ok': False, 'error': 'Password cannot be changed for OIDC-managed accounts.'})
+        return RedirectResponse(url='/?error=Password+cannot+be+changed+for+OIDC-managed+accounts.', status_code=status.HTTP_303_SEE_OTHER)
+
+    user = await web_auth.authenticate_user(current_user_name, curr_pwd)
+    if not user:
+        if is_json:
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={'ok': False, 'error': 'Current password is incorrect.'})
+        return RedirectResponse(url='/?error=Current+password+is+incorrect.', status_code=status.HTTP_303_SEE_OTHER)
+
+    if len(new_pwd) < 8:
+        if is_json:
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={'ok': False, 'error': 'New password must be at least 8 characters.'})
+        return RedirectResponse(url='/?error=New+password+must+be+at+least+8+characters.', status_code=status.HTTP_303_SEE_OTHER)
+
+    if new_pwd != confirm_pwd:
+        if is_json:
+            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={'ok': False, 'error': 'New passwords do not match.'})
+        return RedirectResponse(url='/?error=New+passwords+do+not+match.', status_code=status.HTTP_303_SEE_OTHER)
+
+    await web_auth.reset_user_password(user['id'], new_pwd)
+    if is_json:
+        return JSONResponse(status_code=status.HTTP_200_OK, content={'ok': True, 'message': 'Password changed successfully.'})
+    return RedirectResponse(url='/?success=Password+changed+successfully.', status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/ca/setup', response_class=HTMLResponse)

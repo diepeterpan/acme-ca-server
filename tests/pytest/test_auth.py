@@ -141,6 +141,7 @@ def test_login_flow(anon_client: httpx.Client):
 
 def test_reset_user_password():
     import asyncio
+
     import tools.reset_password
 
     # Reset admin password to a new password
@@ -157,5 +158,97 @@ def test_reset_user_password():
     assert auth_old is None
 
     # Reset back to original for subsequent tests
+    asyncio.run(tools.reset_password.reset_user_password('admin', 'adminpassword123'))
+
+
+def test_account_password_wrong_current(testclient: TestClient):
+    token, _ = web.auth.create_session_cookie('admin', remember_me=True)
+    testclient.cookies[web.auth.COOKIE_NAME] = token
+
+    resp = testclient.post(
+        '/account/password',
+        json={
+            'current_password': 'DefinitelyWrongPassword!',
+            'new_password': 'BrandNewPassword!2026',
+            'confirm_password': 'BrandNewPassword!2026',
+        },
+        headers={'Accept': 'application/json'},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data['ok'] is False
+    assert 'Current password is incorrect' in data['error']
+
+
+def test_account_password_mismatch(testclient: TestClient):
+    token, _ = web.auth.create_session_cookie('admin', remember_me=True)
+    testclient.cookies[web.auth.COOKIE_NAME] = token
+
+    resp = testclient.post(
+        '/account/password',
+        json={
+            'current_password': 'adminpassword123',
+            'new_password': 'BrandNewPassword!2026',
+            'confirm_password': 'DifferentPassword!2026',
+        },
+        headers={'Accept': 'application/json'},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data['ok'] is False
+    assert 'New passwords do not match' in data['error']
+
+
+def test_account_password_too_short(testclient: TestClient):
+    token, _ = web.auth.create_session_cookie('admin', remember_me=True)
+    testclient.cookies[web.auth.COOKIE_NAME] = token
+
+    resp = testclient.post(
+        '/account/password',
+        json={
+            'current_password': 'adminpassword123',
+            'new_password': 'short',
+            'confirm_password': 'short',
+        },
+        headers={'Accept': 'application/json'},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data['ok'] is False
+    assert 'at least 8 characters' in data['error']
+
+
+def test_account_password_success(testclient: TestClient):
+    import asyncio
+    import tools.reset_password
+
+    token, _ = web.auth.create_session_cookie('admin', remember_me=True)
+    testclient.cookies[web.auth.COOKIE_NAME] = token
+
+    # Change password to new password
+    resp = testclient.post(
+        '/account/password',
+        json={
+            'current_password': 'adminpassword123',
+            'new_password': 'BrandNewPassword!2026',
+            'confirm_password': 'BrandNewPassword!2026',
+        },
+        headers={'Accept': 'application/json'},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['ok'] is True
+    assert 'successfully' in data['message'].lower()
+
+    # Verify new password authenticates
+    auth_res = asyncio.run(web.auth.authenticate_user('admin', 'BrandNewPassword!2026'))
+    assert auth_res is not None
+    assert auth_res['username'] == 'admin'
+
+    # Verify old password no longer works
+    auth_old = asyncio.run(web.auth.authenticate_user('admin', 'adminpassword123'))
+    assert auth_old is None
+
+    # Reset back to default password for subsequent tests
     asyncio.run(tools.reset_password.reset_user_password('admin', 'adminpassword123'))
 

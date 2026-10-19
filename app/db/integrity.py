@@ -412,16 +412,25 @@ async def inspect_database() -> IntegrityAuditReport:
         if settings.ca.enabled:
             cas_rows = await sql.conn.fetch('SELECT serial_number, cert_pem, active FROM cas WHERE active = true')
             if not cas_rows:
-                report.add_discrepancy(
-                    Discrepancy(
-                        category='Cryptographic & CA Readiness',
-                        issue_type='Missing Active Root CA',
-                        record_id='CA Status',
-                        details={'Internal CA': 'Enabled', 'Active Root CAs': '0'},
-                        action_needed='Initialize Root CA via /ca/setup',
-                        repair_type='ca_missing',
+                total_cas = await sql.conn.fetchval('SELECT count(*) FROM cas')
+                total_certs = await sql.conn.fetchval('SELECT count(*) FROM certificates')
+                total_accounts = await sql.conn.fetchval('SELECT count(*) FROM accounts')
+
+                if total_cas == 0 and total_certs == 0 and total_accounts == 0:
+                    report.add_passed('New uninitialized database: Root CA initialization pending via /ca/setup.')
+                elif total_cas == 0 and total_certs == 0:
+                    report.add_passed('Root CA not initialized yet (no certificates issued).')
+                else:
+                    report.add_discrepancy(
+                        Discrepancy(
+                            category='Cryptographic & CA Readiness',
+                            issue_type='Missing Active Root CA',
+                            record_id='CA Status',
+                            details={'Internal CA': 'Enabled', 'Active Root CAs': '0'},
+                            action_needed='Initialize Root CA via /ca/setup',
+                            repair_type='ca_missing',
+                        )
                     )
-                )
             else:
                 ca_cert_pem = cas_rows[0]['cert_pem']
                 try:

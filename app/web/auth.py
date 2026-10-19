@@ -116,29 +116,48 @@ def set_users_cache(val: bool = True) -> None:
     _HAS_USERS_CACHE = val
 
 
-async def create_user(username: str, password: str) -> str:
-    """Create a new user with hashed password."""
+async def create_user(username: str, password: str, email: str | None = None) -> str:
+    """Create a new local user with hashed password and optional email."""
     user_id = secrets.token_urlsafe(24)
     hashed = hash_password(password)
+    clean_email = email.strip().lower() if email and email.strip() else None
     async with db.transaction() as sql:
         await sql.exec(
-            'INSERT INTO users (id, username, password_hash) VALUES ($1, $2, $3)',
+            'INSERT INTO users (id, username, password_hash, user_type, email) VALUES ($1, $2, $3, $4, $5)',
             user_id,
             username.strip(),
             hashed,
+            'local',
+            clean_email,
+        )
+    set_users_cache(True)
+    return user_id
+
+
+async def create_oidc_user(username: str, email: str) -> str:
+    """Create a new pre-provisioned OIDC user with mandatory email."""
+    user_id = secrets.token_urlsafe(24)
+    clean_email = email.strip().lower()
+    async with db.transaction() as sql:
+        await sql.exec(
+            'INSERT INTO users (id, username, password_hash, user_type, email) VALUES ($1, $2, NULL, $3, $4)',
+            user_id,
+            username.strip(),
+            'oidc',
+            clean_email,
         )
     set_users_cache(True)
     return user_id
 
 
 async def authenticate_user(username: str, password: str) -> dict[str, Any] | None:
-    """Authenticate username and password against database."""
+    """Authenticate username and password against database (local accounts only)."""
     async with db.transaction(readonly=True) as sql:
         record = await sql.record(
-            'SELECT id, username, password_hash FROM users WHERE username = $1',
+            'SELECT id, username, password_hash, user_type, email FROM users WHERE username = $1',
             username.strip(),
         )
-    if not record:
+    if not record or record['user_type'] != 'local' or not record['password_hash']:
         return None
 
     if verify_password(password, record['password_hash']):
@@ -148,9 +167,140 @@ async def authenticate_user(username: str, password: str) -> dict[str, Any] | No
                 await sql.exec('UPDATE users SET last_login_at = now() WHERE id = $1', record['id'])
         except Exception as e:  # noqa: BLE001
             logger.warning('Failed to update last_login_at: %s', e)
-        return {'id': record['id'], 'username': record['username']}
+        return {
+            'id': record['id'],
+            'username': record['username'],
+            'user_type': record['user_type'],
+            'email': record['email'],
+        }
 
     return None
+
+
+async def authenticate_oidc_user(email: str) -> dict[str, Any] | None:
+    """Authenticate pre-provisioned OIDC user by verified email."""
+    if not email:
+        return None
+    clean_email = email.strip().lower()
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            'SELECT id, username, user_type, email FROM users WHERE LOWER(email) = $1 AND user_type = $2',
+            clean_email,
+            'oidc',
+        )
+    if not record:
+        return None
+
+    try:
+        async with db.transaction() as sql:
+            await sql.exec('UPDATE users SET last_login_at = now() WHERE id = $1', record['id'])
+    except Exception as e:  # noqa: BLE001
+        logger.warning('Failed to update last_login_at for OIDC user: %s', e)
+
+    return {
+        'id': record['id'],
+        'username': record['username'],
+        'user_type': record['user_type'],
+        'email': record['email'],
+    }
+
+
+async def list_users() -> list[dict[str, Any]]:
+    """Retrieve all users ordered by creation date."""
+    async with db.transaction(readonly=True) as sql:
+        records = await sql.conn.fetch(
+            'SELECT id, username, user_type, email, created_at, last_login_at FROM users ORDER BY created_at ASC',
+        )
+    return [dict(r) for r in records]
+
+
+async def get_user_by_id(user_id: str) -> dict[str, Any] | None:
+    """Get single user by ID."""
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            'SELECT id, username, user_type, email, created_at, last_login_at FROM users WHERE id = $1',
+            user_id,
+        )
+    return dict(record) if record else None
+
+
+async def get_user_by_username(username: str) -> dict[str, Any] | None:
+    """Get single user by username."""
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            'SELECT id, username, user_type, email, created_at, last_login_at FROM users WHERE username = $1',
+            username.strip(),
+        )
+    return dict(record) if record else None
+
+
+async def get_user_by_email(email: str) -> dict[str, Any] | None:
+    """Get single user by email."""
+    if not email:
+        return None
+    async with db.transaction(readonly=True) as sql:
+        record = await sql.record(
+            'SELECT id, username, user_type, email, created_at, last_login_at FROM users WHERE LOWER(email) = $1',
+            email.strip().lower(),
+        )
+    return dict(record) if record else None
+
+
+async def reset_user_password(user_id: str, new_password: str) -> bool:
+    """Reset password for a local user."""
+    hashed = hash_password(new_password)
+    async with db.transaction() as sql:
+        res = await sql.conn.execute(
+            "UPDATE users SET password_hash = $1 WHERE id = $2 AND user_type = 'local'",
+            hashed,
+            user_id,
+        )
+        return 'UPDATE 1' in res
+
+
+async def update_user_email(user_id: str, email: str | None) -> bool:
+    """Update email for a user."""
+    clean_email = email.strip().lower() if email and email.strip() else None
+    async with db.transaction() as sql:
+        res = await sql.conn.execute(
+            'UPDATE users SET email = $1 WHERE id = $2',
+            clean_email,
+            user_id,
+        )
+        return 'UPDATE 1' in res
+
+
+async def count_local_users() -> int:
+    """Count number of local users."""
+    async with db.transaction(readonly=True) as sql:
+        val = await sql.value("SELECT count(*) FROM users WHERE user_type = 'local'")
+        return int(val or 0)
+
+
+async def delete_user(user_id: str, current_username: str) -> tuple[bool, str]:
+    """Delete a user with safety checks."""
+    user = await get_user_by_id(user_id)
+    if not user:
+        return False, 'User not found.'
+
+    if user['username'] == current_username:
+        return False, 'You cannot delete your own active account.'
+
+    if user['user_type'] == 'local':
+        local_count = await count_local_users()
+        if local_count <= 1:
+            return False, 'Cannot delete the only local administrator account.'
+
+    async with db.transaction() as sql:
+        await sql.exec('DELETE FROM users WHERE id = $1', user_id)
+
+    # Invalidate cache if no users remain
+    async with db.transaction(readonly=True) as sql:
+        count = await sql.value('SELECT count(*) FROM users')
+        if not count or count == 0:
+            set_users_cache(False)
+
+    return True, ''
 
 
 async def auto_provision_admin_if_needed() -> bool:
@@ -174,7 +324,7 @@ async def auto_provision_admin_if_needed() -> bool:
             user_id = secrets.token_urlsafe(24)
             hashed = hash_password(password)
             await sql.exec(
-                'INSERT INTO users (id, username, password_hash) VALUES ($1, $2, $3)',
+                "INSERT INTO users (id, username, password_hash, user_type) VALUES ($1, $2, $3, 'local')",
                 user_id,
                 username.strip(),
                 hashed,

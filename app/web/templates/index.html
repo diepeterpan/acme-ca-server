@@ -392,6 +392,18 @@
 
 {% block content %}
 <div class="dashboard-container">
+    {% if error %}
+    <div class="alert-banner" style="background-color: var(--status-error-bg); border-color: var(--status-error-border); color: var(--status-error-text);">
+        <span>{{ error }}</span>
+        <button type="button" class="close-btn" style="color: var(--status-error-text);" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="alert-banner" style="background-color: var(--status-valid-bg); border-color: var(--status-valid-border); color: var(--status-valid-text);">
+        <span>{{ success }}</span>
+        <button type="button" class="close-btn" style="color: var(--status-valid-text);" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
 
     <!-- Hero ACME Entrypoint Card -->
     <div class="hero-entrypoint">

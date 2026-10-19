@@ -20,7 +20,7 @@ A self-hosted ACME server with a built-in CA and optional web interface.
   * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
   * ✉️ **Mail Settings & Delivery Test**: Dedicated UI screen to configure outbound SMTP parameters, warning policies, and run live connection tests before saving.
   * 🛡️ **Startup Database Integrity Auditor**: Boot-time verification checking 12 relational and cryptographic integrity constraints with automatic maintenance mode veil.
-  * 🔒 **Session Authentication**: Secure PBKDF2-hashed login, Remember Me sessions, and guided first-boot onboarding.
+  * 🔒 **Authentication & User Management**: Secure PBKDF2-hashed login, Remember Me sessions, guided first-boot onboarding, user self-service password changes, administrative user management dashboard (`/users`), and optional **OpenID Connect (OIDC) Single Sign-On** (Authelia, Keycloak, Authentik) with PKCE (RFC 7636) and pre-provisioned access control.
 
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
 
@@ -196,6 +196,18 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | WEB_ADMIN_USERNAME        | `None` | optional username to pre-provision an initial web administrator account on startup (e.g. `admin`). If unset, credentials can be initialized via `/setup`. |
 | WEB_ADMIN_PASSWORD        | `None` | optional initial password for the pre-provisioned administrator account. Supports Docker Secrets (`/run/secrets/web_admin_password`). |
 | WEB_SESSION_SECRET        | `None` | optional HMAC secret key for signing session cookies (`acme_session`). Defaults to `CA_ENCRYPTION_KEY` if unset. |
+| OIDC_ENABLED        | `False` | whether to enable OpenID Connect (OIDC) Single Sign-On (SSO) authentication |
+| OIDC_ISSUER_URL        | `None` | issuer discovery URL of the OIDC provider (e.g. `https://auth.example.com`) |
+| OIDC_CLIENT_ID        | `None` | client ID registered with the OIDC provider |
+| OIDC_CLIENT_SECRET        | `None` | client secret for token exchange. Supports Docker Secrets (`/run/secrets/oidc_client_secret`). |
+| OIDC_BUTTON_LABEL        | `Sign In with OIDC` | label text shown on the login page button |
+| OIDC_SCOPES        | `openid profile email` | OAuth scopes requested during authorization |
+| OIDC_REDIRECT_URL        | `None` | optional explicit callback URL (defaults to `{EXTERNAL_URL}/oidc/callback`) |
+| OIDC_USER_CLAIM        | `email` | claim name extracted from ID token or userinfo to match pre-provisioned users |
+| OIDC_VERIFY_SSL        | `True` | whether to verify SSL certificates when contacting the OIDC provider |
+| OIDC_X509_REQUIRED        | `True` | whether to enforce strict X.509 certificate validation for the OIDC provider (set `False` to relax for legacy certs) |
+| OIDC_USE_PKCE        | `True` | whether to use PKCE (RFC 7636) code exchange (required by Authelia, Keycloak 22+) |
+| OIDC_TOKEN_AUTH_METHOD        | `auto` | client auth method for token exchange: `auto`, `client_secret_basic`, or `client_secret_post` |
 
 ### Configuration Precedence: Seed Variables vs. Authoritative Variables
 
@@ -214,6 +226,7 @@ These environment variables serve solely as **initial bootstrap defaults**. Once
 These variables are read directly from the environment on every startup and request; they are **never** overridden by database state:
 * **Core & Infrastructure**: `DB_DSN`, `EXTERNAL_URL`, `LOG_LEVEL`.
 * **Security & Encryption**: `CA_ENCRYPTION_KEY` (required to decrypt CA private keys stored at rest), `WEB_SESSION_SECRET` (session cookie signing).
+* **OpenID Connect (OIDC)**: `OIDC_ENABLED`, `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_BUTTON_LABEL`, `OIDC_SCOPES`, `OIDC_REDIRECT_URL`, `OIDC_USER_CLAIM`, `OIDC_VERIFY_SSL`, `OIDC_X509_REQUIRED`, `OIDC_USE_PKCE`, `OIDC_TOKEN_AUTH_METHOD`.
 * **CA Issuance Policies**: `CA_ENABLED`, `CA_CERT_LIFETIME`, `CA_CRL_LIFETIME`, `CA_CERT_CDP_ENABLED`.
 * **ACME Restrictions & Policies**: `ACME_TERMS_OF_SERVICE_URL`, `ACME_MAIL_REQUIRED`, `ACME_MAIL_TARGET_REGEX`, `ACME_TARGET_DOMAIN_REGEX`.
 * **Web UI Configuration**: `WEB_ENABLED`, `WEB_APP_TITLE`, `WEB_APP_DESCRIPTION`.
@@ -250,6 +263,7 @@ Overwrite templates (see [here](./app/web/templates)):
 * /app/web/templates/account-log.html (Account Management & Error Modal)
 * /app/web/templates/login.html (Sign-in Authentication Screen)
 * /app/web/templates/setup.html (Initial Admin Account Setup)
+* /app/web/templates/users.html (User & Access Management)
 
 Template parameters:
 * `app_title`: `str`  application title from `WEB_APP_TITLE`
