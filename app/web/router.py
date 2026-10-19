@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,duplicate-code
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +8,7 @@ from urllib.parse import quote, urlencode
 import ca
 import db
 import mail.service
+from ca import distribution as ca_distribution
 from ca import service as ca_service
 from config import settings
 from cryptography import x509
@@ -1989,6 +1990,236 @@ async def mail_test_post(request: Request):
         status_code=200 if ok else 400,
         content={'ok': ok, 'message' if ok else 'error': msg},
     )
+
+
+@api.get('/ca-distribution', response_class=HTMLResponse)
+async def ca_distribution_get(request: Request, status_msg: str = '', error: str = '', tab: str = ''):
+    endpoints = await ca_distribution.get_endpoints()
+    ssh_endpoints = [e for e in endpoints if e.type == 'ssh']
+    email_endpoints = [e for e in endpoints if e.type == 'email']
+    logs = await ca_distribution.get_distribution_logs(limit=50)
+    return await template_engine.get_template('ca-distribution.html').render_async(
+        **default_params,
+        request=request,
+        ssh_endpoints=ssh_endpoints,
+        email_endpoints=email_endpoints,
+        logs=logs,
+        status_msg=status_msg,
+        error=error,
+        active_tab=tab or 'ssh',
+    )
+
+
+@api.post('/ca-distribution/endpoint/save')
+async def ca_distribution_endpoint_save(request: Request):
+    form_data = await request.form()
+    endpoint_type = str(form_data.get('endpoint_type', '')).strip()
+    endpoint_id = str(form_data.get('endpoint_id', '')).strip()
+    name = str(form_data.get('name', '')).strip()
+
+    if not name:
+        target_tab = '?tab=email&' if endpoint_type == 'email' else '?'
+        return RedirectResponse(
+            f'/ca-distribution{target_tab}error={quote("Endpoint name is required.")}',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    if endpoint_type == 'ssh':
+        host = str(form_data.get('host', '')).strip()
+        port_raw = str(form_data.get('port', '22')).strip()
+        port = int(port_raw) if port_raw.isdigit() else 22
+        username = str(form_data.get('username', '')).strip()
+        auth_type_raw = str(form_data.get('auth_type', 'key')).strip()
+        auth_type: ca_distribution.SshAuthType = 'password' if auth_type_raw == 'password' else 'key'
+        auth_secret = str(form_data.get('auth_secret', '')).strip() or None
+        target_dir = str(form_data.get('target_dir', '')).strip()
+
+        if not host or not username:
+            return RedirectResponse(
+                f'/ca-distribution?error={quote("Host and username are required for SSH endpoints.")}',
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+        if endpoint_id:
+            await ca_distribution.update_endpoint(
+                endpoint_id=endpoint_id,
+                name=name,
+                host=host,
+                port=port,
+                username=username,
+                auth_type=auth_type,
+                auth_secret=auth_secret,
+                target_dir=target_dir,
+            )
+            msg = f'SSH endpoint "{name}" updated successfully.'
+        else:
+            await ca_distribution.create_endpoint(
+                name=name,
+                endpoint_type='ssh',
+                host=host,
+                port=port,
+                username=username,
+                auth_type=auth_type,
+                auth_secret=auth_secret,
+                target_dir=target_dir,
+            )
+            msg = f'SSH endpoint "{name}" created successfully.'
+
+        return RedirectResponse(
+            f'/ca-distribution?status_msg={quote(msg)}',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    elif endpoint_type == 'email':
+        raw_emails = str(form_data.get('email_addresses_raw', '')).strip()
+        email_list = [e.strip() for part in raw_emails.replace('\r\n', '\n').split('\n') for e in part.split(',') if e.strip()]
+        target_os_list_raw = form_data.getlist('target_os')
+        target_os_list = [str(os).strip() for os in target_os_list_raw if os]  # type: ignore[arg-type]
+
+        if not email_list:
+            return RedirectResponse(
+                f'/ca-distribution?tab=email&error={quote("At least one recipient email address is required.")}',
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+
+        if endpoint_id:
+            await ca_distribution.update_endpoint(
+                endpoint_id=endpoint_id,
+                name=name,
+                email_addresses=email_list,
+                target_os_list=target_os_list,  # type: ignore[arg-type]
+            )
+            msg = f'Email distribution group "{name}" updated successfully.'
+        else:
+            await ca_distribution.create_endpoint(
+                name=name,
+                endpoint_type='email',
+                email_addresses=email_list,
+                target_os_list=target_os_list,  # type: ignore[arg-type]
+            )
+            msg = f'Email distribution group "{name}" created successfully.'
+
+        return RedirectResponse(
+            f'/ca-distribution?tab=email&status_msg={quote(msg)}',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    else:
+        return RedirectResponse(
+            f'/ca-distribution?error={quote("Invalid endpoint type.")}',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+
+@api.post('/ca-distribution/endpoint/{endpoint_id}/test')
+async def ca_distribution_endpoint_test(endpoint_id: str):
+    endpoint = await ca_distribution.get_endpoint(endpoint_id)
+    success, msg, detected_os, os_detail = await ca_distribution.test_endpoint(endpoint_id)
+    return JSONResponse(
+        {
+            'success': success,
+            'message': msg,
+            'detected_os': detected_os,
+            'os_detail': os_detail,
+            'endpoint_name': endpoint.name if endpoint else '',
+            'endpoint_type': endpoint.type if endpoint else 'ssh',
+            'host': endpoint.host if endpoint else '',
+            'port': endpoint.port if endpoint else 22,
+            'username': endpoint.username if endpoint else '',
+            'target_dir': endpoint.target_dir if endpoint else '',
+        }
+    )
+
+
+@api.post('/ca-distribution/endpoint/{endpoint_id}/delete')
+async def ca_distribution_endpoint_delete(endpoint_id: str):
+    endpoint = await ca_distribution.get_endpoint(endpoint_id)
+    endpoint_type = endpoint.type if endpoint else 'ssh'
+    await ca_distribution.delete_endpoint(endpoint_id)
+    tab_suffix = '&tab=email' if endpoint_type == 'email' else ''
+    return RedirectResponse(
+        f'/ca-distribution?status_msg={quote("Endpoint deleted successfully.")}{tab_suffix}',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@api.get('/ca-distribution/list-active')
+async def ca_distribution_list_active():
+    endpoints = await ca_distribution.get_endpoints()
+    return JSONResponse(
+        {
+            'endpoints': [
+                {
+                    'id': e.id,
+                    'name': e.name,
+                    'type': e.type,
+                    'host': e.host,
+                    'port': e.port,
+                    'target_dir': e.target_dir,
+                    'detected_os': e.detected_os,
+                    'recipients_count': len(e.email_addresses or []),
+                    'target_os_list': e.target_os_list or [],
+                }
+                for e in endpoints
+            ]
+        }
+    )
+
+
+@api.post('/ca/{serial_number}/distribute')
+async def ca_distribute_post(serial_number: str, request: Request):
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    endpoint_ids = body.get('endpoint_ids', [])
+    if not endpoint_ids:
+        return JSONResponse({'detail': 'No endpoints selected for distribution.'}, status_code=400)
+
+    async with db.transaction(readonly=True) as sql:
+        ca_row = await sql.record('SELECT cert_pem, key_pem_enc FROM cas WHERE serial_number = $1', serial_number)
+
+    if not ca_row:
+        return JSONResponse({'detail': f'CA certificate with serial {serial_number} not found.'}, status_code=404)
+
+    ca_cert, _ = ca_service.load_ca_sync(cert_pem=ca_row['cert_pem'], key_pem_enc=ca_row['key_pem_enc'])
+
+    results = []
+    for ep_id in endpoint_ids:
+        ep = await ca_distribution.get_endpoint(ep_id)
+        if not ep:
+            results.append(
+                {
+                    'endpoint_id': ep_id,
+                    'endpoint_name': 'Unknown',
+                    'endpoint_type': 'unknown',
+                    'status': False,
+                    'message': 'Endpoint not found in database.',
+                    'filename': '',
+                    'detected_os': 'unknown',
+                }
+            )
+            continue
+
+        if ep.type == 'ssh':
+            res = await ca_distribution.distribute_to_ssh_endpoint(ep, ca_cert, ca_row['cert_pem'])
+        else:
+            res = await ca_distribution.distribute_to_email_endpoint(ep, ca_cert, ca_row['cert_pem'])
+
+        results.append(
+            {
+                'endpoint_id': res.endpoint_id,
+                'endpoint_name': res.endpoint_name,
+                'endpoint_type': res.endpoint_type,
+                'status': res.status,
+                'message': res.message,
+                'filename': res.filename,
+                'detected_os': res.detected_os,
+            }
+        )
+
+    return JSONResponse({'results': results})
 
 
 @api.get('/maintenance/status', tags=['web'])

@@ -370,6 +370,49 @@
         margin-left: 2px;
     }
 
+    /* Table Grid compact Strict Pill */
+    .btn-strict-pill-table {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.22rem 0.6rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.76rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid;
+        text-decoration: none;
+        outline: none;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .btn-strict-pill-table:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-strict-pill-table.strict-compliant {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border-color: var(--status-valid-border);
+    }
+
+    .btn-strict-pill-table.strict-compliant:hover {
+        background-color: #dcfce7;
+    }
+
+    .btn-strict-pill-table.strict-warning {
+        background-color: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border-color: var(--status-warning-border);
+    }
+
+    .btn-strict-pill-table.strict-warning:hover {
+        background-color: #fef3c7;
+    }
+
     /* Strict Diagnostic Details Banner */
     .strict-banner-container {
         margin-bottom: 2rem;
@@ -721,6 +764,18 @@
         border-color: #dc2626;
     }
 
+    .btn-action-distribute {
+        background: #faf5ff;
+        color: #7c3aed;
+        border-color: #ddd6fe;
+    }
+
+    .btn-action-distribute:hover {
+        background: #7c3aed;
+        color: #ffffff;
+        border-color: #7c3aed;
+    }
+
     /* Modal Backdrop and Box */
     .modal-backdrop {
         position: fixed;
@@ -864,6 +919,69 @@
         border-color: #fecaca;
         color: #991b1b;
     }
+
+    /* Official OS Icon Badges */
+    .os-icon-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-card);
+        background: #ffffff;
+        color: var(--text-heading);
+        transition: all 0.15s ease;
+        cursor: help;
+        position: relative;
+    }
+
+    .os-icon-tag:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    }
+
+    .os-icon-tag.os-tag-windows {
+        color: #0078d4;
+        border-color: #bae6fd;
+        background: #f0f9ff;
+    }
+
+    .os-icon-tag.os-tag-apple {
+        color: #0f172a;
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+
+    .os-icon-tag.os-tag-android {
+        color: #16a34a;
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+    }
+
+    .os-icon-tag.os-tag-linux {
+        color: #d97706;
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .os-icon-tag.os-tag-openwrt {
+        color: #0284c7;
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+    }
+
+    .os-icon-tag.os-tag-unsupported {
+        color: #b45309;
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .os-icon-tag.os-tag-unknown {
+        color: #64748b;
+        border-color: #e2e8f0;
+        background: #f1f5f9;
+    }
 </style>
 {% endblock %}
 
@@ -960,6 +1078,16 @@
                 </svg>
                 Download Active CRL (.crl)
             </a>
+            <button type="button" class="btn-secondary" onclick="openDistributeModal('{{ ca.serial_number }}', '{{ ca.common_name }}', '{{ ca.subject }}', '{{ ca.not_valid_before }}')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                Distribute CA
+            </button>
         </div>
     </div>
 
@@ -1137,10 +1265,11 @@
         <table class="ca-table">
             <thead>
                 <tr>
-                    <th style="width: 130px;">Status</th>
+                    <th style="width: 120px;">Status</th>
                     <th>CA Common Name &amp; Subject</th>
                     <th>Serial Number</th>
                     <th>Key &amp; Digest</th>
+                    <th style="min-width: 130px;">X.509 Strict</th>
                     <th style="min-width: 170px;">Validity Period</th>
                     <th style="text-align: center;">Active Certs</th>
                     <th style="min-width: 200px;">Actions</th>
@@ -1181,6 +1310,27 @@
                         <div style="font-size: 0.8rem; font-weight: 600; color: #334155;">{{ item.key_info }}</div>
                     </td>
                     <td>
+                        {% if item.x509_strict is defined and item.x509_strict %}
+                        <button type="button" 
+                                class="btn-strict-pill-table {% if item.x509_strict.is_compliant %}strict-compliant{% else %}strict-warning{% endif %}"
+                                onclick="openCaStrictModal('{{ item.serial_number }}')"
+                                title="Click to view full X.509 RFC 5280 & OpenSSL strict validation diagnostic details">
+                            {% if item.x509_strict.is_compliant %}
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                            {% else %}
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                            </svg>
+                            {% endif %}
+                            <span>{{ item.x509_strict.home_badge_text }}</span>
+                        </button>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.75rem;">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div style="font-size: 0.78rem; color: var(--text-heading); font-weight: 600; margin-bottom: 4px;">
                             {{ item.days_remaining }} days left
                         </div>
@@ -1203,6 +1353,16 @@
                             <a href="/ca/{{ item.serial_number }}/download-pem" class="btn-action btn-action-primary" title="Download .pem">
                                 .PEM
                             </a>
+                            <button type="button" class="btn-action btn-action-distribute" onclick="openDistributeModal('{{ item.serial_number }}', '{{ item.common_name }}', '{{ item.subject }}', '{{ item.not_valid_before }}')" title="Distribute Root CA certificate">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="18" cy="5" r="3"></circle>
+                                    <circle cx="6" cy="12" r="3"></circle>
+                                    <circle cx="18" cy="19" r="3"></circle>
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                                </svg>
+                                Distribute
+                            </button>
 
                             {% if not item.active and not item.revoked_at and not item.is_expired %}
                             <form method="POST" action="/ca/{{ item.serial_number }}/activate" style="margin: 0;" onsubmit="return confirm('Switch active CA to {{ item.common_name }} (Serial: {{ item.serial_number[:8] }})? Future certificate requests will be signed by this CA.');">
@@ -1409,6 +1569,426 @@
     window.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeRenewModal();
+            closeDistributeModal();
+        }
+    });
+
+    let activeDistSerial = '';
+
+    function computeFilenamePreview(subject, nvb) {
+        let firstWord = 'CA';
+        const match = subject.match(/O\s*=\s*([^,;/]+)/);
+        if (match && match[1].trim()) {
+            const words = match[1].trim().replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/);
+            if (words.length > 0 && words[0]) firstWord = words[0];
+        } else {
+            const cnMatch = subject.match(/CN\s*=\s*([^,;/]+)/);
+            if (cnMatch && cnMatch[1].trim()) {
+                const words = cnMatch[1].trim().replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/);
+                if (words.length > 0 && words[0]) firstWord = words[0];
+            }
+        }
+        let ts = '';
+        if (nvb) {
+            const d = new Date(nvb);
+            if (!isNaN(d.getTime())) {
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                const h = String(d.getUTCHours()).padStart(2, '0');
+                const min = String(d.getUTCMinutes()).padStart(2, '0');
+                ts = `${y}${m}${day}${h}${min}`;
+            }
+        }
+        if (!ts) {
+            const now = new Date();
+            const y = now.getUTCFullYear();
+            const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(now.getUTCDate()).padStart(2, '0');
+            const h = String(now.getUTCHours()).padStart(2, '0');
+            const min = String(now.getUTCMinutes()).padStart(2, '0');
+            ts = `${y}${m}${day}${h}${min}`;
+        }
+        return `${firstWord}_${ts}`;
+    }
+
+    async function openDistributeModal(serial, commonName, subject, nvb) {
+        activeDistSerial = serial;
+        document.getElementById('distModalCaName').innerText = commonName || 'Root CA';
+        document.getElementById('distModalCaSerial').innerText = (serial || '').substring(0, 16) + '...';
+        
+        const filenameBase = computeFilenamePreview(subject || '', nvb || '');
+        document.getElementById('distFilenamePreview').innerText = filenameBase;
+
+        document.getElementById('distProgressContainer').style.display = 'none';
+        document.getElementById('distProgressList').innerHTML = '';
+        document.getElementById('distributeModal').style.display = 'flex';
+
+        const listContainer = document.getElementById('distEndpointsList');
+        listContainer.innerHTML = '<div style="text-align: center; padding: 1.5rem; color: var(--text-muted);">Loading distribution endpoints...</div>';
+
+        try {
+            const res = await fetch('/ca-distribution/list-active');
+            const data = await res.json();
+            if (!data.endpoints || data.endpoints.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; padding: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px;">
+                        <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: var(--text-heading);">No Distribution Endpoints Configured</p>
+                        <p style="margin: 0 0 1rem 0; font-size: 0.85rem; color: var(--text-muted);">Please configure SSH servers or Email groups first.</p>
+                        <a href="/ca-distribution" class="btn-primary" style="display: inline-flex; font-size: 0.82rem; padding: 0.4rem 0.8rem;">
+                            Go to CA Distribution
+                        </a>
+                    </div>
+                `;
+                document.getElementById('executeDistBtn').disabled = true;
+                return;
+            }
+
+            document.getElementById('executeDistBtn').disabled = false;
+            function renderEndpointOsBadges(ep) {
+                if (ep.type === 'ssh') {
+                    const os = ep.detected_os;
+                    const detail = ep.os_detail || (os ? os.charAt(0).toUpperCase() + os.slice(1) : 'Unknown OS');
+                    if (os === 'linux') {
+                        return `<span class="os-icon-tag os-tag-linux" title="${detail}"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg></span>`;
+                    } else if (os === 'windows') {
+                        return `<span class="os-icon-tag os-tag-windows" title="${detail}"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg></span>`;
+                    } else if (os === 'macos') {
+                        return `<span class="os-icon-tag os-tag-apple" title="${detail}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span>`;
+                    } else if (os === 'openwrt') {
+                        return `<span class="os-icon-tag os-tag-openwrt" title="${detail}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg></span>`;
+                    } else if (os === 'unsupported') {
+                        return `<span class="os-icon-tag os-tag-unsupported" title="${detail}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>`;
+                    } else {
+                        return `<span class="os-icon-tag os-tag-unknown" title="${detail}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>`;
+                    }
+                } else {
+                    const list = ep.target_os_list || [];
+                    let icons = '';
+                    if (list.includes('ios')) {
+                        icons += `<span class="os-icon-tag os-tag-apple" title="Apple iOS"><svg viewBox="0 0 170 170" width="13" height="13" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg></span>`;
+                    }
+                    if (list.includes('android')) {
+                        icons += `<span class="os-icon-tag os-tag-android" title="Android"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.52 15.34c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m-11.04 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m11.4-6.02l2-3.46a.42.42 0 00-.15-.57.42.42 0 00-.57.15l-2.02 3.5A11.7 11.7 0 0012 8.08c-1.86 0-3.59.33-5.14.87L4.84 5.45a.42.42 0 00-.57-.15.42.42 0 00-.15.57l2 3.46C2.69 11.19.34 14.66 0 18.76h24c-.34-4.1-2.69-7.57-6.12-9.44"/></svg></span>`;
+                    }
+                    if (list.includes('windows')) {
+                        icons += `<span class="os-icon-tag os-tag-windows" title="Microsoft Windows"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg></span>`;
+                    }
+                    if (list.includes('macos')) {
+                        icons += `<span class="os-icon-tag os-tag-apple" title="Apple macOS"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span>`;
+                    }
+                    if (list.includes('linux')) {
+                        icons += `<span class="os-icon-tag os-tag-linux" title="Linux"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg></span>`;
+                    }
+                    if (list.includes('openwrt')) {
+                        icons += `<span class="os-icon-tag os-tag-openwrt" title="OpenWrt"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg></span>`;
+                    }
+                    if (!icons) {
+                        icons = '<span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">All OSes</span>';
+                    }
+                    return icons;
+                }
+            }
+
+            let html = '';
+            data.endpoints.forEach(ep => {
+                html += `
+                    <label style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.65rem 0.85rem; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            <input type="checkbox" name="dist_endpoint" value="${ep.id}" onchange="updateSelectedDistCount()" style="width: 16px; height: 16px; accent-color: var(--primary);">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.88rem; color: var(--text-heading);">${ep.name}</div>
+                                <div style="font-size: 0.76rem; color: var(--text-muted);">
+                                    ${ep.type === 'ssh' ? `Host: ${ep.host}:${ep.port} &rarr; ${ep.target_dir || '/tmp'}` : `Recipients: ${ep.recipients_count} email(s)`}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end;">
+                            ${renderEndpointOsBadges(ep)}
+                        </div>
+                    </label>
+                `;
+            });
+            listContainer.innerHTML = html;
+            updateSelectedDistCount();
+
+        } catch (err) {
+            listContainer.innerHTML = `<div style="color: #dc2626; padding: 1rem;">Failed to load endpoints: ${err}</div>`;
+        }
+    }
+
+    function closeDistributeModal() {
+        document.getElementById('distributeModal').style.display = 'none';
+    }
+
+    function selectAllDistEndpoints(select) {
+        document.querySelectorAll('#distEndpointsList input[type="checkbox"]').forEach(cb => {
+            cb.checked = select;
+        });
+        updateSelectedDistCount();
+    }
+
+    function updateSelectedDistCount() {
+        const checked = document.querySelectorAll('#distEndpointsList input[type="checkbox"]:checked');
+        document.getElementById('selectedDistCount').innerText = checked.length;
+        document.getElementById('executeDistBtn').disabled = checked.length === 0;
+    }
+
+    async function executeDistribution() {
+        const checkedBoxes = Array.from(document.querySelectorAll('#distEndpointsList input[type="checkbox"]:checked'));
+        const endpointIds = checkedBoxes.map(cb => cb.value);
+        if (endpointIds.length === 0) return;
+
+        const execBtn = document.getElementById('executeDistBtn');
+        const origBtnText = execBtn.innerText;
+        execBtn.disabled = true;
+        execBtn.innerText = 'Distributing...';
+
+        const progressContainer = document.getElementById('distProgressContainer');
+        const progressList = document.getElementById('distProgressList');
+        progressContainer.style.display = 'block';
+        progressList.innerHTML = '<div style="padding: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">Initiating distribution pipeline...</div>';
+
+        try {
+            const res = await fetch(`/ca/${activeDistSerial}/distribute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ endpoint_ids: endpointIds })
+            });
+            const data = await res.json();
+            
+            let resHtml = '';
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(r => {
+                    const statusColor = r.status ? '#059669' : '#dc2626';
+                    const statusBg = r.status ? '#ecfdf5' : '#fef2f2';
+                    const statusBorder = r.status ? '#a7f3d0' : '#fecaca';
+                    const statusIcon = r.status ? '✓' : '✗';
+                    resHtml += `
+                        <div style="background: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 6px; padding: 0.6rem 0.85rem; margin-bottom: 0.4rem; font-size: 0.82rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
+                            <div>
+                                <span style="font-weight: 700; color: ${statusColor}; margin-right: 0.4rem;">${statusIcon} ${r.endpoint_name}</span>
+                                <span style="color: #475569;">(${r.endpoint_type.toUpperCase()})</span>
+                                <div style="color: #334155; margin-top: 2px;">${r.message}</div>
+                            </div>
+                            <span style="font-family: monospace; font-size: 0.74rem; background: rgba(255,255,255,0.7); padding: 1px 5px; border-radius: 4px;">${r.filename}.*</span>
+                        </div>
+                    `;
+                });
+            } else {
+                resHtml = `<div style="color: #dc2626; padding: 0.5rem;">${data.detail || 'Distribution failed.'}</div>`;
+            }
+            progressList.innerHTML = resHtml;
+            execBtn.innerText = 'Completed';
+
+        } catch (err) {
+            progressList.innerHTML = `<div style="color: #dc2626; padding: 0.5rem;">Connection error: ${err}</div>`;
+            execBtn.disabled = false;
+            execBtn.innerText = origBtnText;
+        }
+    }
+</script>
+
+<!-- Distribute Root CA Modal Dialog -->
+<div id="distributeModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                Distribute Root CA Certificate
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closeDistributeModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+            <!-- Certificate Info Banner -->
+            <div style="background: #faf5ff; border: 1px solid #ede9fe; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--primary); font-weight: 700;">Distributing Certificate</div>
+                        <div style="font-weight: 700; color: var(--text-heading); font-size: 1.05rem;" id="distModalCaName">Root CA</div>
+                    </div>
+                    <code style="font-size: 0.78rem; background: #ffffff; border: 1px solid #ddd6fe; padding: 2px 6px; border-radius: 4px;" id="distModalCaSerial"></code>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.78rem; color: #475569; border-top: 1px dashed #e9d5ff; padding-top: 0.4rem;">
+                    Formulated Filename: <strong id="distFilenamePreview" style="color: var(--primary); font-family: monospace;"></strong><span style="color: var(--text-muted);">.crt, .pem, .cer</span>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-heading);">Select Target Endpoints</span>
+                <div style="display: flex; gap: 0.5rem; font-size: 0.78rem;">
+                    <a href="javascript:void(0)" onclick="selectAllDistEndpoints(true)" style="color: var(--primary); text-decoration: none; font-weight: 600;">Select All</a>
+                    <span style="color: var(--border-card);">|</span>
+                    <a href="javascript:void(0)" onclick="selectAllDistEndpoints(false)" style="color: var(--text-muted); text-decoration: none;">Deselect All</a>
+                </div>
+            </div>
+
+            <!-- Endpoints Selection Checklist -->
+            <div id="distEndpointsList" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; padding-right: 2px;">
+                <!-- Populated via AJAX -->
+            </div>
+
+            <!-- Progress & Execution Output -->
+            <div id="distProgressContainer" style="display: none; border-top: 1px solid var(--border-card); padding-top: 0.75rem; margin-top: 0.5rem;">
+                <div style="font-weight: 700; font-size: 0.84rem; color: var(--text-heading); margin-bottom: 0.4rem;">Distribution Results:</div>
+                <div id="distProgressList"></div>
+            </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-card);">
+            <button type="button" class="btn-secondary" onclick="closeDistributeModal()">Close</button>
+            <button type="button" class="btn-primary" id="executeDistBtn" onclick="executeDistribution()" disabled>
+                Execute Distribution (<span id="selectedDistCount">0</span> Selected)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- X.509 Strict Compliance Details Modal Dialog -->
+<div id="caStrictModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 680px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="var(--primary)">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                </svg>
+                X.509 Strict Compliance Details
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closeCaStrictModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem 1.5rem; max-height: 75vh; overflow-y: auto;">
+            <!-- Target Certificate Header -->
+            <div style="background: #f8fafc; border: 1px solid var(--border-card); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700;">Certificate Authority</div>
+                    <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-heading);" id="strictModalCaName">-</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700;">Serial Number</div>
+                    <code style="font-size: 0.8rem; background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;" id="strictModalCaSerial">-</code>
+                </div>
+            </div>
+
+            <!-- Dynamic Evaluation Content injected by JS -->
+            <div id="strictModalContent"></div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem 1.5rem; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-card);">
+            <button type="button" class="btn-secondary" onclick="closeCaStrictModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // CA Strict evaluations lookup table
+    const allCasStrictData = {
+        {% for item in all_cas %}
+        '{{ item.serial_number }}': {
+            commonName: {{ item.common_name|tojson }},
+            serialNumber: {{ item.serial_number|tojson }},
+            strict: {{ item.x509_strict|tojson }}
+        },
+        {% endfor %}
+    };
+
+    function openCaStrictModal(serialNumber) {
+        const data = allCasStrictData[serialNumber];
+        if (!data || !data.strict) return;
+
+        document.getElementById('strictModalCaName').textContent = data.commonName;
+        document.getElementById('strictModalCaSerial').textContent = data.serialNumber;
+
+        const s = data.strict;
+        const isCompliant = s.is_compliant;
+        const bannerClass = isCompliant ? 'strict-compliant-banner' : 'strict-warning-banner';
+        const pillClass = isCompliant ? 'pill-pass' : 'pill-fail';
+        const statusText = isCompliant ? 'COMPLIANT ✓' : 'NON-COMPLIANT ⚠';
+
+        let html = `
+            <div class="strict-banner-container ${bannerClass}" style="margin-bottom: 1.25rem;">
+                <div class="strict-banner-header" style="margin-bottom: 0.5rem;">
+                    <div class="strict-banner-title">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            ${isCompliant 
+                                ? '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>'
+                                : '<path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>'}
+                        </svg>
+                        <strong>Evaluation Result:</strong>
+                        <span class="strict-status-pill ${pillClass}">${statusText}</span>
+                    </div>
+                </div>
+                <p class="strict-banner-desc" style="margin: 0;">${s.summary || ''}</p>
+            </div>
+        `;
+
+        if (!isCompliant && s.issues && s.issues.length > 0) {
+            html += `
+                <div class="strict-issues-section" style="margin-bottom: 1.25rem;">
+                    <div class="strict-issues-heading">Missing / Failing Strict Requirements:</div>
+                    <ul class="strict-issues-list">
+            `;
+            s.issues.forEach(issue => {
+                html += `
+                    <li>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="#dc2626" style="flex-shrink:0; margin-top: 2px;">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                        <span>${issue}</span>
+                    </li>
+                `;
+            });
+            html += `</ul></div>`;
+        }
+
+        if (s.checks && s.checks.length > 0) {
+            html += `
+                <div class="strict-checklist-section">
+                    <div class="strict-checklist-heading">RFC 5280 &amp; OpenSSL Validation Rules:</div>
+                    <div class="strict-checklist-grid">
+            `;
+            s.checks.forEach(chk => {
+                const checkClass = chk.passed ? 'check-passed' : 'check-failed';
+                const icon = chk.passed
+                    ? `<svg viewBox="0 0 24 24" width="16" height="16" fill="var(--status-valid-text)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`
+                    : `<svg viewBox="0 0 24 24" width="16" height="16" fill="var(--status-error-text)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
+
+                html += `
+                    <div class="strict-check-card ${checkClass}">
+                        <div class="strict-check-header">
+                            ${icon}
+                            <span class="strict-check-title">${chk.name}</span>
+                        </div>
+                        <div class="strict-check-detail">${chk.detail || ''}</div>
+                    </div>
+                `;
+            });
+            html += `</div></div>`;
+        }
+
+        document.getElementById('strictModalContent').innerHTML = html;
+        const modal = document.getElementById('caStrictModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeCaStrictModal() {
+        const modal = document.getElementById('caStrictModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    // Close modal on Escape key or outside click
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeCaStrictModal();
+        }
+    });
+
+    document.getElementById('caStrictModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeCaStrictModal();
         }
     });
 </script>

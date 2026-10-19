@@ -1,0 +1,2070 @@
+{% extends "base.html" %}
+{% block title %}CA Distribution{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .dist-wrapper {
+        max-width: 1300px;
+        margin: 0.85rem auto;
+    }
+
+    .dist-header {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .page-title svg {
+        width: 24px;
+        height: 24px;
+        color: var(--primary);
+    }
+
+    .page-desc {
+        color: var(--text-muted);
+        font-size: 0.88rem;
+    }
+
+    .tabs-nav {
+        display: flex;
+        gap: 0.35rem;
+        border-bottom: 2px solid var(--border-card);
+        margin-bottom: 0.9rem;
+    }
+
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: 0.45rem 0.95rem;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+        color: var(--primary);
+    }
+
+    .tab-btn.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+    }
+
+    .tab-btn .tab-count {
+        font-size: 0.74rem;
+        font-weight: 700;
+        padding: 0.08rem 0.45rem;
+        border-radius: var(--radius-pill);
+        background: var(--primary-light);
+        color: var(--primary);
+    }
+
+    .tab-pane {
+        display: none;
+    }
+
+    .tab-pane.active {
+        display: block;
+    }
+
+    .dist-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 1.25rem;
+    }
+
+    .card-table-header {
+        padding: 0.55rem 0.95rem;
+        background: #faf5ff;
+        border-bottom: 1px solid var(--border-card);
+        border-top-left-radius: var(--radius-lg);
+        border-top-right-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .card-table-title {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .dist-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .dist-table th {
+        background: #f8fafc;
+        padding: 0.45rem 0.75rem;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-card);
+        text-align: left;
+        position: relative;
+        white-space: nowrap;
+    }
+
+    .dist-table td {
+        padding: 0.45rem 0.75rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: middle;
+        font-size: 12px;
+        color: var(--text-body);
+    }
+
+    .dist-table code {
+        font-size: 12px;
+    }
+
+    .dist-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .dist-table tr:hover td {
+        background: #fbf9ff;
+    }
+
+    .os-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.22rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .os-badge-linux {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+
+    .os-badge-openwrt {
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+    }
+
+    .os-badge-windows {
+        background: #f0f9ff;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+
+    .os-badge-macos {
+        background: #f8fafc;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+    }
+
+    .os-badge-ios {
+        background: #faf5ff;
+        color: #6b21a8;
+        border: 1px solid #e9d5ff;
+    }
+
+    .os-badge-android {
+        background: #f0fdf4;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+
+    .os-badge-unsupported {
+        background: #fffbeb;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+
+    .os-badge-unknown {
+        background: #f1f5f9;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.74rem;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .status-pill-ok {
+        background: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .status-pill-warn {
+        background: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border: 1px solid var(--status-warning-border);
+    }
+
+    .status-pill-fail {
+        background: var(--status-error-bg);
+        color: var(--status-error-text);
+        border: 1px solid var(--status-error-border);
+    }
+
+    .status-pill-none {
+        background: #f1f5f9;
+        color: var(--text-muted);
+        border: 1px solid #e2e8f0;
+    }
+
+    .actions-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .btn-act {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.55rem;
+        border-radius: var(--radius-md);
+        font-size: 0.76rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border-card);
+        background: #ffffff;
+        color: var(--text-body);
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .btn-act:hover {
+        background: var(--primary-light);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .btn-act-danger:hover {
+        background: #fef2f2;
+        border-color: #fca5a5;
+        color: #dc2626;
+    }
+
+    /* Official OS Icon Badges */
+    .os-icon-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-card);
+        background: #ffffff;
+        color: var(--text-heading);
+        transition: all 0.15s ease;
+        cursor: help;
+        position: relative;
+    }
+
+    .os-icon-tag:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    }
+
+    .os-icon-tag.os-tag-windows {
+        color: #0078d4;
+        border-color: #bae6fd;
+        background: #f0f9ff;
+    }
+
+    .os-icon-tag.os-tag-apple {
+        color: #0f172a;
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+
+    .os-icon-tag.os-tag-android {
+        color: #16a34a;
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+    }
+
+    .os-icon-tag.os-tag-linux {
+        color: #d97706;
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .os-icon-tag.os-tag-openwrt {
+        color: #0284c7;
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+    }
+
+    .os-icon-tag.os-tag-unsupported {
+        color: #b45309;
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .os-icon-tag.os-tag-unknown {
+        color: #64748b;
+        border-color: #e2e8f0;
+        background: #f1f5f9;
+    }
+
+    /* Unified Table Cell Popovers (matching Account & Key envelope popover in account-log.html) */
+    .table-popover-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .popover-trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 12px;
+        cursor: default;
+        padding: 0.2rem 0;
+        transition: color 0.15s ease;
+        color: var(--text-body);
+    }
+
+    .popover-trigger svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        transition: stroke 0.15s ease, fill 0.15s ease, color 0.15s ease;
+    }
+
+    .popover-trigger.stroke-icon svg {
+        stroke: var(--text-muted);
+        fill: none;
+    }
+
+    .popover-trigger.fill-icon svg {
+        fill: var(--text-muted);
+    }
+
+    .table-popover-wrapper:hover .popover-trigger {
+        color: var(--primary);
+    }
+
+    .table-popover-wrapper:hover .popover-trigger.stroke-icon svg {
+        stroke: var(--primary);
+    }
+
+    .table-popover-wrapper:hover .popover-trigger.fill-icon svg {
+        fill: var(--primary);
+    }
+
+    .table-popover-wrapper:hover .os-icon-tag {
+        border-color: var(--primary);
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.2);
+        transform: translateY(-1px);
+    }
+
+    .table-popover {
+        position: absolute;
+        top: calc(100% - 2px);
+        left: 0;
+        z-index: 100;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+        transform: translateY(4px);
+        padding-top: 6px;
+    }
+
+    .table-popover.popover-up {
+        top: auto;
+        bottom: calc(100% - 2px);
+        padding-top: 0;
+        padding-bottom: 6px;
+        transform: translateY(-4px);
+    }
+
+    .table-popover.popover-right {
+        left: auto;
+        right: 0;
+    }
+
+    .table-popover-wrapper:hover .table-popover,
+    .table-popover:hover,
+    .table-popover-wrapper:focus-within .table-popover {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+
+    .table-popover-content {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: #ffffff;
+        border: 1px solid var(--border-card, #e2e8f0);
+        border-radius: 6px;
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        padding: 0.35rem 0.55rem;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .table-popover-content.multiline {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+        max-width: 480px;
+        min-width: 280px;
+        white-space: normal;
+        padding: 0.45rem 0.6rem;
+    }
+
+    .popover-detail-badge {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        background-color: #f1f5f9;
+        color: var(--text-muted);
+        padding: 0.12rem 0.4rem;
+        border-radius: 4px;
+        border: none;
+    }
+
+    .popover-highlight-badge {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--primary);
+        background-color: var(--primary-light);
+        padding: 0.12rem 0.4rem;
+        border-radius: 4px;
+        border: none;
+    }
+
+    .btn-copy-mini {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 3px;
+        color: var(--text-muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: color 0.15s ease, transform 0.1s ease;
+    }
+
+    .btn-copy-mini:hover {
+        color: var(--primary);
+        transform: scale(1.15);
+    }
+
+    /* Modal Action Buttons matching Users & Access screen */
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.6rem;
+        margin-top: 1.25rem;
+    }
+
+    .btn-secondary {
+        padding: 0.55rem 0.95rem;
+        background: #f1f5f9;
+        color: var(--text-body);
+        border: 1px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+    .btn-submit {
+        padding: 0.55rem 1.15rem;
+        background: var(--primary);
+        color: #ffffff;
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        transition: background 0.15s ease;
+    }
+
+    .btn-submit:hover {
+        background: var(--primary-hover);
+    }
+
+    .empty-state {
+        padding: 3rem 1.5rem;
+        text-align: center;
+        color: var(--text-muted);
+    }
+
+    .empty-state svg {
+        width: 44px;
+        height: 44px;
+        color: var(--primary);
+        opacity: 0.4;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Modal Styling */
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-heading);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.55rem 0.8rem;
+        border: 1px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        outline: none;
+        transition: border 0.15s ease;
+        font-family: inherit;
+    }
+
+    .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .os-checkbox-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.6rem;
+        margin-top: 0.3rem;
+    }
+
+    .os-checkbox-card {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.5rem 0.65rem;
+        border: 1px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 500;
+        transition: all 0.15s ease;
+    }
+
+    .os-checkbox-card:hover {
+        border-color: var(--primary);
+        background: #faf5ff;
+    }
+
+    .os-checkbox-card input[type="checkbox"]:checked ~ .os-card-label {
+        color: var(--primary);
+        font-weight: 700;
+    }
+
+    /* Diagnostic Test Result Modal (Consistent with Certificate Details dialog) */
+    dialog.cert-details-dialog {
+        margin: auto;
+        border: none;
+        border-radius: var(--radius-lg);
+        padding: 0;
+        background: #ffffff;
+        box-shadow: 0 25px 50px -12px rgba(124, 58, 237, 0.25), 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+        max-width: 620px;
+        width: 95vw;
+        max-height: 90vh;
+        overflow: hidden;
+        border-top: 5px solid var(--primary);
+    }
+
+    dialog.cert-details-dialog:not([open]) {
+        display: none !important;
+    }
+
+    dialog.cert-details-dialog::backdrop,
+    dialog.delete-endpoint-modal::backdrop {
+        background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+    }
+
+    .cert-modal-container {
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh;
+        overflow: hidden;
+    }
+
+    .cert-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.15rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        background: #faf5ff;
+    }
+
+    .cert-modal-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+    }
+
+    .cert-modal-icon-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+        flex-shrink: 0;
+    }
+
+    .cert-modal-title {
+        font-size: 1.18rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .cert-modal-subtitle {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.2rem;
+        font-family: ui-monospace, monospace;
+    }
+
+    .btn-modal-close {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.75rem;
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        line-height: 1;
+        border-radius: 6px;
+        transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .btn-modal-close:hover {
+        color: var(--text-heading);
+        background-color: #f1f5f9;
+    }
+
+    .cert-modal-scroll-body {
+        padding: 1.25rem 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .cert-status-banner {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 0.85rem 1.15rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .cert-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.55rem;
+    }
+
+    .cert-progress-track {
+        width: 100%;
+        height: 5px;
+        background-color: #f1f5f9;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .cert-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.4s ease;
+    }
+
+    .cert-section-heading {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .cert-section-heading svg {
+        width: 16px;
+        height: 16px;
+        color: var(--primary);
+    }
+
+    .test-eval-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.65rem;
+    }
+
+    .test-eval-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        padding: 0.65rem 0.85rem;
+    }
+
+    .test-eval-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.25rem;
+    }
+
+    .test-eval-value {
+        font-size: 0.86rem;
+        font-weight: 600;
+        color: var(--text-heading);
+        word-break: break-all;
+    }
+
+    .btn-copy-output {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.35rem 0.8rem;
+        background-color: #ffffff;
+        color: var(--primary);
+        border: 1px solid var(--primary-border, #ddd6fe);
+        font-size: 0.82rem;
+        font-weight: 600;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-copy-output:hover {
+        background-color: var(--primary-light, #faf5ff);
+        border-color: var(--primary);
+    }
+
+    .btn-copy-output svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+    }
+
+    #testModalOutput {
+        margin: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        color: #334155;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: var(--radius-md);
+        padding: 0.75rem;
+        max-height: 200px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        user-select: text;
+    }
+
+    .cert-modal-footer {
+        padding: 0.85rem 1.5rem;
+        border-top: 1px solid #f1f5f9;
+        background: #faf5ff;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .pw-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .pw-input-wrapper .form-control {
+        padding-right: 2.75rem;
+    }
+
+    .btn-toggle-pw {
+        position: absolute;
+        right: 0.5rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        padding: 0.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .btn-toggle-pw:hover {
+        color: var(--primary);
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-create-endpoint {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.5rem 1rem;
+        background-color: var(--primary);
+        color: #ffffff;
+        border: none;
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .btn-create-endpoint:hover {
+        background-color: var(--primary-hover);
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+        transform: translateY(-1px);
+        color: #ffffff;
+    }
+
+    .btn-create-endpoint svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dist-wrapper">
+    <div class="dist-header">
+        <div class="header-info">
+            <h1 class="page-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                CA Certificate Distribution
+            </h1>
+            <p class="page-desc">
+                Define and manage SSH servers and Email recipient groups to deploy Root CA certificates across your infrastructure.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn-create-endpoint" onclick="openCreateSshModal()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add SSH Endpoint
+            </button>
+            <button type="button" class="btn-create-endpoint" onclick="openCreateEmailModal()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add Email Endpoint
+            </button>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    {% set current_tab = active_tab|default('ssh') %}
+    <div class="tabs-nav">
+        <button class="tab-btn {% if current_tab != 'email' and current_tab != 'logs' %}active{% endif %}" onclick="switchTab('sshTab', this)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            SSH Endpoints
+            <span class="tab-count">{{ ssh_endpoints|length }}</span>
+        </button>
+        <button class="tab-btn {% if current_tab == 'email' %}active{% endif %}" onclick="switchTab('emailTab', this)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2-2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            Email Endpoints
+            <span class="tab-count">{{ email_endpoints|length }}</span>
+        </button>
+        <button class="tab-btn {% if current_tab == 'logs' %}active{% endif %}" onclick="switchTab('logsTab', this)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            Distribution History
+            <span class="tab-count">{{ logs|length }}</span>
+        </button>
+    </div>
+
+    <!-- Tab 1: SSH Endpoints -->
+    <div class="tab-pane {% if current_tab != 'email' and current_tab != 'logs' %}active{% endif %}" id="sshTab">
+        <div class="dist-card">
+            <div class="card-table-header">
+                <div class="card-table-title">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                    Configured SSH Endpoints
+                </div>
+            </div>
+            {% if ssh_endpoints %}
+            <div style="overflow-x: auto;">
+                <table class="dist-table" data-table-id="ca_dist_ssh">
+                    <thead>
+                        <tr>
+                            <th data-col-key="endpoint_name">Endpoint Name</th>
+                            <th data-col-key="host_port">Host &amp; Port</th>
+                            <th data-col-key="username_auth">Username &amp; Auth</th>
+                            <th data-col-key="target_dir">Target Directory</th>
+                            <th data-col-key="status_verification">Status &amp; Verification</th>
+                            <th data-col-key="actions" data-no-sort style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ep in ssh_endpoints %}
+                        <tr id="row-{{ ep.id }}">
+                            <td data-sort-val="{{ ep.name|lower }}">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <div class="table-popover-wrapper">
+                                        <div class="popover-trigger" tabindex="0" style="padding: 0;">
+                                            {% if ep.detected_os == 'linux' %}
+                                            <span class="os-icon-tag os-tag-linux" title="Linux">
+                                                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg>
+                                            </span>
+                                            {% elif ep.detected_os == 'windows' %}
+                                            <span class="os-icon-tag os-tag-windows" title="Microsoft Windows">
+                                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg>
+                                            </span>
+                                            {% elif ep.detected_os == 'openwrt' %}
+                                            <span class="os-icon-tag os-tag-openwrt" title="OpenWrt">
+                                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                                            </span>
+                                            {% elif ep.detected_os == 'macos' %}
+                                            <span class="os-icon-tag os-tag-apple" title="Apple macOS">
+                                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                                            </span>
+                                            {% elif ep.detected_os == 'unsupported' %}
+                                            <span class="os-icon-tag os-tag-unsupported" title="Unsupported OS">
+                                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                            </span>
+                                            {% else %}
+                                            <span class="os-icon-tag os-tag-unknown" title="Unknown OS / Untested">
+                                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="table-popover">
+                                            <div class="table-popover-content">
+                                                {% set os_label = ep.os_detail or (ep.detected_os|capitalize if ep.detected_os and ep.detected_os != 'unknown' else 'Unknown OS / Untested') %}
+                                                <span class="popover-detail-badge">{{ os_label }}</span>
+                                                {% if ep.os_detail or ep.detected_os %}
+                                                <button type="button" class="btn-copy-mini" onclick="copyPopoverText(this)" title="Copy OS info">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                    </svg>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="font-weight: 700; font-size: 12px; color: var(--text-heading);">{{ ep.name }}</div>
+                                </div>
+                            </td>
+                            <td>
+                                <code style="font-size: 12px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">{{ ep.host }}:{{ ep.port }}</code>
+                            </td>
+                            <td>
+                                <div class="table-popover-wrapper">
+                                    <div class="popover-trigger stroke-icon" tabindex="0">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                                        </svg>
+                                        <span style="font-weight: 600; font-size: 12px;">{{ ep.username }}</span>
+                                    </div>
+                                    <div class="table-popover">
+                                        <div class="table-popover-content">
+                                            <span class="popover-detail-badge" title="Username">{{ ep.username }}</span>
+                                            <button type="button" class="btn-copy-mini" onclick="copyText('{{ ep.username }}', this)" title="Copy Username">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                </svg>
+                                            </button>
+                                            <span class="popover-highlight-badge">Auth: {{ 'Private Key' if ep.auth_type == 'key' else 'Password' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <code style="font-size: 12px; color: #475569;">{{ ep.target_dir or '/tmp' }}</code>
+                            </td>
+                            <td>
+                                {% if ep.last_test_at %}
+                                    {% if ep.last_test_status and ep.detected_os != 'unsupported' %}
+                                    <span class="status-pill status-pill-ok" title="{{ ep.last_test_message }}">
+                                        ✓ Connected
+                                    </span>
+                                    {% elif ep.last_test_status and ep.detected_os == 'unsupported' %}
+                                    <span class="status-pill status-pill-warn" title="{{ ep.last_test_message }}">
+                                        ⚠ OS Warning
+                                    </span>
+                                    {% else %}
+                                    <span class="status-pill status-pill-fail" title="{{ ep.last_test_message }}">
+                                        ✗ Failed
+                                    </span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="status-pill status-pill-none">Untested</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="actions-cell" style="justify-content: flex-end;">
+                                    <button type="button" class="btn-act" onclick="testEndpoint('{{ ep.id }}', this)" title="Test connection and identify OS">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                        Test
+                                    </button>
+                                    <button type="button" class="btn-act" onclick="editSshEndpoint('{{ ep.id }}', '{{ ep.name }}', '{{ ep.host }}', '{{ ep.port }}', '{{ ep.username }}', '{{ ep.auth_type }}', '{{ ep.target_dir }}')" title="Edit endpoint">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        Edit
+                                    </button>
+                                    <button type="button" class="btn-act btn-act-danger" onclick="openDeleteEndpointModal('{{ ep.id }}', '{{ ep.name }}', 'SSH Endpoint')" title="Delete endpoint">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                <h3>No SSH Endpoints Configured</h3>
+                <p>Add SSH servers to automate uploading Root CA certificates and platform installation scripts.</p>
+                <button type="button" class="btn-create-endpoint" style="margin-top: 1rem;" onclick="openCreateSshModal()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add First SSH Endpoint
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tab 2: Email Endpoints -->
+    <div class="tab-pane {% if current_tab == 'email' %}active{% endif %}" id="emailTab">
+        <div class="dist-card">
+            <div class="card-table-header">
+                <div class="card-table-title">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2-2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                    Configured Email Distribution Groups
+                </div>
+            </div>
+            {% if email_endpoints %}
+            <div style="overflow-x: auto;">
+                <table class="dist-table" data-table-id="ca_dist_email">
+                    <thead>
+                        <tr>
+                            <th data-col-key="group_name">Group Name</th>
+                            <th data-col-key="recipients">Recipients</th>
+                            <th data-col-key="target_oses">Target Operating Systems</th>
+                            <th data-col-key="status_verification">Status &amp; Verification</th>
+                            <th data-col-key="actions" data-no-sort style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ep in email_endpoints %}
+                        <tr id="row-{{ ep.id }}">
+                            <td>
+                                <div style="font-weight: 700; font-size: 12px; color: var(--text-heading);">{{ ep.name }}</div>
+                            </td>
+                            <td>
+                                <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                                    {% for mail in ep.email_addresses %}
+                                    <span style="font-size: 12px; color: #334155;">{{ mail }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+                                    {% if 'ios' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-apple" title="Apple iOS">
+                                        <svg viewBox="0 0 170 170" width="13" height="13" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if 'android' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-android" title="Android">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.52 15.34c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m-11.04 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m11.4-6.02l2-3.46a.42.42 0 00-.15-.57.42.42 0 00-.57.15l-2.02 3.5A11.7 11.7 0 0012 8.08c-1.86 0-3.59.33-5.14.87L4.84 5.45a.42.42 0 00-.57-.15.42.42 0 00-.15.57l2 3.46C2.69 11.19.34 14.66 0 18.76h24c-.34-4.1-2.69-7.57-6.12-9.44"/></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if 'windows' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-windows" title="Microsoft Windows">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if 'macos' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-apple" title="Apple macOS">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if 'linux' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-linux" title="Linux">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if 'openwrt' in ep.target_os_list %}
+                                    <span class="os-icon-tag os-tag-openwrt" title="OpenWrt">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                                    </span>
+                                    {% endif %}
+                                    {% if not ep.target_os_list %}
+                                    <span style="color: var(--text-muted); font-size: 11px;">All OSes</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if ep.last_test_at %}
+                                    {% if ep.last_test_status %}
+                                    <span class="status-pill status-pill-ok" title="{{ ep.last_test_message }}">✓ Verified</span>
+                                    {% else %}
+                                    <span class="status-pill status-pill-fail" title="{{ ep.last_test_message }}">✗ Invalid</span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="status-pill status-pill-none">Untested</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                <div class="actions-cell" style="justify-content: flex-end;">
+                                    <button type="button" class="btn-act" onclick="testEndpoint('{{ ep.id }}', this)" title="Validate recipient emails">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                        Test
+                                    </button>
+                                    <button type="button" class="btn-act" onclick="editEmailEndpoint('{{ ep.id }}', '{{ ep.name }}', '{{ ep.email_addresses|join(',') }}', '{{ ep.target_os_list|join(',') }}')" title="Edit endpoint">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        Edit
+                                    </button>
+                                    <button type="button" class="btn-act btn-act-danger" onclick="openDeleteEndpointModal('{{ ep.id }}', '{{ ep.name }}', 'Email Endpoint Group')" title="Delete endpoint">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2-2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                <h3>No Email Distribution Groups Configured</h3>
+                <p>Create email recipient groups to send new Root CA certificates with attachments and installation guides.</p>
+                <button type="button" class="btn-create-endpoint" style="margin-top: 1rem;" onclick="openCreateEmailModal()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add First Email Endpoint
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tab 3: Distribution History Logs -->
+    <div class="tab-pane {% if current_tab == 'logs' %}active{% endif %}" id="logsTab">
+        <div class="dist-card">
+            <div class="card-table-header">
+                <div class="card-table-title">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Recent Distribution Logs
+                </div>
+            </div>
+            {% if logs %}
+            <div style="overflow-x: auto;">
+                <table class="dist-table" data-table-id="ca_dist_logs">
+                    <thead>
+                        <tr>
+                            <th data-col-key="timestamp">Timestamp</th>
+                            <th data-col-key="ca_serial">CA Serial</th>
+                            <th data-col-key="target_endpoint">Target Endpoint</th>
+                            <th data-col-key="type">Type</th>
+                            <th data-col-key="filename">Filename Base</th>
+                            <th data-col-key="status">Status</th>
+                            <th data-col-key="details">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+                                {{ log.distributed_at.strftime('%Y-%m-%d %H:%M:%S') if log.distributed_at else '' }}
+                            </td>
+                            <td>
+                                <code style="font-size: 12px; background: #ede9fe; color: var(--primary); padding: 2px 6px; border-radius: 4px;">
+                                    {{ log.ca_serial[:12] }}...
+                                </code>
+                            </td>
+                            <td style="font-weight: 600; font-size: 12px;">{{ log.endpoint_name }}</td>
+                            <td>
+                                <span class="status-pill {{ 'status-pill-ok' if log.endpoint_type == 'ssh' else 'status-pill-warn' }}">
+                                    {{ log.endpoint_type.upper() }}
+                                </span>
+                            </td>
+                            <td><code style="font-size: 12px;">{{ log.filename }}</code></td>
+                            <td>
+                                {% if log.status %}
+                                <span class="status-pill status-pill-ok">✓ Success</span>
+                                {% else %}
+                                <span class="status-pill status-pill-fail">✗ Failed</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.status_message %}
+                                <div class="table-popover-wrapper">
+                                    <div class="popover-trigger stroke-icon" tabindex="0">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                            <polyline points="10 9 9 9 8 9"></polyline>
+                                        </svg>
+                                        <span>{{ (log.status_message[:24] ~ '...') if log.status_message|length > 24 else (log.status_message or 'View') }}</span>
+                                    </div>
+                                    <div class="table-popover popover-right">
+                                        <div class="table-popover-content multiline">
+                                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem;">
+                                                <span style="font-size: 11px; font-weight: 700; color: var(--text-heading); text-transform: uppercase; letter-spacing: 0.03em;">Log Output</span>
+                                                <button type="button" class="btn-copy-mini" onclick="copyPopoverText(this)" title="Copy log message">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div class="popover-detail-badge popover-copy-target" style="font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; padding: 0.35rem 0.5rem;">{{ log.status_message }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <span style="color: var(--text-muted); font-size: 0.78rem;">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                <h3>No Distribution Logs Yet</h3>
+                <p>When you distribute a Root CA certificate from the CA Repository screen, history entries will appear here.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add / Edit SSH Endpoint -->
+<div class="modal-overlay" id="sshEndpointModal">
+    <div class="modal-card" style="max-width: 580px; padding: 1.5rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-heading); margin: 0; display: flex; align-items: center; gap: 0.5rem;" id="sshModalTitle">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                Configure SSH Endpoint
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closeModal('sshEndpointModal')">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="/ca-distribution/endpoint/save" id="sshEndpointForm">
+            <input type="hidden" name="endpoint_type" value="ssh">
+            <input type="hidden" name="endpoint_id" id="ssh_endpoint_id" value="">
+            <input type="hidden" name="auth_secret" id="ssh_auth_secret" value="">
+
+            <div class="form-group">
+                <label for="ssh_name">Endpoint Name <span style="color:red;">*</span></label>
+                <input type="text" class="form-control" id="ssh_name" name="name" required placeholder="e.g. prod-bastion-linux or gateway-openwrt">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ssh_host">Host / IP Address <span style="color:red;">*</span></label>
+                    <input type="text" class="form-control" id="ssh_host" name="host" required placeholder="192.168.1.1 or server.internal">
+                </div>
+                <div class="form-group">
+                    <label for="ssh_port">SSH Port</label>
+                    <input type="number" class="form-control" id="ssh_port" name="port" value="22">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ssh_username">Username <span style="color:red;">*</span></label>
+                    <input type="text" class="form-control" id="ssh_username" name="username" required placeholder="root or admin">
+                </div>
+                <div class="form-group">
+                    <label for="ssh_auth_type">Authentication Method</label>
+                    <select class="form-control" id="ssh_auth_type" name="auth_type" onchange="toggleSshAuthFields()">
+                        <option value="key">SSH Private Key</option>
+                        <option value="password">Password</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" id="sshKeyGroup">
+                <label for="ssh_secret_key" id="sshSecretLabel">SSH Private Key (OpenSSH or PEM format)</label>
+                <textarea class="form-control" id="ssh_secret_key" rows="4" style="font-family: monospace; font-size: 0.8rem;" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."></textarea>
+                <span style="font-size: 0.74rem; color: var(--text-muted);">Encrypted securely at rest using Fernet encryption. Leave blank when editing to keep current secret.</span>
+            </div>
+
+            <div id="sshPasswordGroup" style="display: none;">
+                <div class="form-group">
+                    <label for="ssh_password">SSH Password <span style="color:red;">*</span></label>
+                    <div class="pw-input-wrapper">
+                        <input type="password" class="form-control" id="ssh_password" autocomplete="new-password" placeholder="Enter remote SSH user password" oninput="validatePasswordMatch()">
+                        <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('ssh_password', this)" title="Show/Hide password">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="ssh_password_confirm">Confirm SSH Password <span style="color:red;">*</span></label>
+                    <div class="pw-input-wrapper">
+                        <input type="password" class="form-control" id="ssh_password_confirm" autocomplete="new-password" placeholder="Re-enter password to confirm" oninput="validatePasswordMatch()">
+                        <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('ssh_password_confirm', this)" title="Show/Hide password">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
+                    <div id="ssh_pw_match_indicator" style="font-size: 0.76rem; margin-top: 5px; font-weight: 500; display: none;"></div>
+                    <span style="font-size: 0.74rem; color: var(--text-muted); display: block; margin-top: 4px;">Encrypted securely at rest using Fernet encryption. Leave blank when editing to keep current password.</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="ssh_target_dir">Target Directory for Certificates <span style="color:red;">*</span></label>
+                <input type="text" class="form-control" id="ssh_target_dir" name="target_dir" required placeholder="/usr/local/share/ca-certificates or /etc/ssl/certs">
+                <span style="font-size: 0.74rem; color: var(--text-muted);">Where the certificate file(s) and README.TXT will be saved via SFTP.</span>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('sshEndpointModal')">Cancel</button>
+                <button type="submit" class="btn-submit">Save SSH Endpoint</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Add / Edit Email Endpoint -->
+<div class="modal-overlay" id="emailEndpointModal">
+    <div class="modal-card" style="max-width: 580px; padding: 1.5rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-heading); margin: 0; display: flex; align-items: center; gap: 0.5rem;" id="emailModalTitle">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2-2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                Configure Email Distribution Endpoint
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closeModal('emailEndpointModal')">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <form method="POST" action="/ca-distribution/endpoint/save" id="emailEndpointForm">
+            <input type="hidden" name="endpoint_type" value="email">
+            <input type="hidden" name="endpoint_id" id="email_endpoint_id" value="">
+
+            <div class="form-group">
+                <label for="email_name">Group / Endpoint Name <span style="color:red;">*</span></label>
+                <input type="text" class="form-control" id="email_name" name="name" required placeholder="e.g. IT Staff Devices or Engineering Team">
+            </div>
+
+            <div class="form-group">
+                <label for="email_recipients">Recipient Email Addresses (one or more) <span style="color:red;">*</span></label>
+                <textarea class="form-control" id="email_recipients" name="email_addresses_raw" rows="3" required placeholder="alice@example.org, bob@example.org&#10;or one email per line"></textarea>
+                <span style="font-size: 0.74rem; color: var(--text-muted);">Separate multiple addresses with commas or newlines.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Target Client Operating Systems</label>
+                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">
+                    Select the OSes owned by recipients so tailored installation guides are included in the email:
+                </span>
+                <div class="os-checkbox-grid">
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="ios">
+                        <span class="os-icon-tag os-tag-apple" title="Apple iOS">
+                            <svg viewBox="0 0 170 170" width="13" height="13" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg>
+                        </span>
+                        <span class="os-card-label">Apple iOS</span>
+                    </label>
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="android">
+                        <span class="os-icon-tag os-tag-android" title="Android">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.52 15.34c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m-11.04 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1m11.4-6.02l2-3.46a.42.42 0 00-.15-.57.42.42 0 00-.57.15l-2.02 3.5A11.7 11.7 0 0012 8.08c-1.86 0-3.59.33-5.14.87L4.84 5.45a.42.42 0 00-.57-.15.42.42 0 00-.15.57l2 3.46C2.69 11.19.34 14.66 0 18.76h24c-.34-4.1-2.69-7.57-6.12-9.44"/></svg>
+                        </span>
+                        <span class="os-card-label">Android</span>
+                    </label>
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="windows">
+                        <span class="os-icon-tag os-tag-windows" title="Microsoft Windows">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg>
+                        </span>
+                        <span class="os-card-label">Windows</span>
+                    </label>
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="macos">
+                        <span class="os-icon-tag os-tag-apple" title="Apple macOS">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        </span>
+                        <span class="os-card-label">macOS</span>
+                    </label>
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="linux">
+                        <span class="os-icon-tag os-tag-linux" title="Linux">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg>
+                        </span>
+                        <span class="os-card-label">Linux</span>
+                    </label>
+                    <label class="os-checkbox-card">
+                        <input type="checkbox" name="target_os" value="openwrt">
+                        <span class="os-icon-tag os-tag-openwrt" title="OpenWrt">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                        </span>
+                        <span class="os-card-label">OpenWrt</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('emailEndpointModal')">Cancel</button>
+                <button type="submit" class="btn-submit">Save Email Endpoint</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Endpoint Diagnostic Test Result Modal (Consistent with Certificate Details dialog on Certificates screen) -->
+<dialog id="endpointTestDialog" class="cert-details-dialog" aria-labelledby="testModalTitle">
+    <div class="cert-modal-container">
+        <div class="cert-modal-header" id="testModalHeader">
+            <div class="cert-modal-header-left">
+                <div class="cert-modal-icon-badge" id="testModalIconBadge">
+                    <svg viewBox="0 0 24 24" id="testModalHeaderIcon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                        <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                        <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="cert-modal-title" id="testModalTitle">Endpoint Connection Test</h3>
+                    <div class="cert-modal-subtitle" id="testModalSubtitle">Checking connection...</div>
+                </div>
+            </div>
+            <button type="button" class="btn-modal-close" onclick="closeTestResultModal()" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="cert-modal-scroll-body">
+            <!-- Status Ribbon Banner -->
+            <div class="cert-status-banner">
+                <div class="cert-status-row">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span id="testModalStatusBadge" class="status-pill status-pill-ok">✓ Connected</span>
+                        <span id="testModalStatusHeading" style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading);">Connection Verified</span>
+                    </div>
+                    <span id="testModalTimestamp" style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Just now</span>
+                </div>
+                <div class="cert-progress-track">
+                    <div id="testModalProgressFill" class="cert-progress-fill" style="width: 100%; background: #10b981;"></div>
+                </div>
+            </div>
+
+            <!-- Target Environment & Detected OS Section -->
+            <div>
+                <div class="cert-section-heading">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                    <span>Target System &amp; Environment</span>
+                </div>
+                <div class="test-eval-grid" id="testModalEvalGrid">
+                    <div class="test-eval-card">
+                        <div class="test-eval-label">Endpoint Name</div>
+                        <div class="test-eval-value" id="testModalEndpointName">—</div>
+                    </div>
+                    <div class="test-eval-card">
+                        <div class="test-eval-label">Target Host &amp; Port</div>
+                        <div class="test-eval-value" id="testModalHostPort">—</div>
+                    </div>
+                    <div class="test-eval-card" id="testModalOsCard">
+                        <div class="test-eval-label">Identified Operating System</div>
+                        <div class="test-eval-value" id="testModalOsValue" style="display: flex; align-items: center; gap: 0.45rem;">
+                            —
+                        </div>
+                    </div>
+                    <div class="test-eval-card" id="testModalTargetDirCard">
+                        <div class="test-eval-label">Certificate Directory</div>
+                        <div class="test-eval-value" id="testModalTargetDir" style="font-family: monospace; font-size: 0.8rem;">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diagnostic Log & Raw Server Details Section -->
+            <div>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <div class="cert-section-heading" style="margin-bottom: 0;">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" y1="19" x2="20" y2="19"></line>
+                        </svg>
+                        <span>Diagnostic Output &amp; Logs</span>
+                    </div>
+                    <button type="button" class="btn-copy-output" onclick="copyTestModalOutput(this)">
+                        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        <span>Copy Output</span>
+                    </button>
+                </div>
+                <pre id="testModalOutput"></pre>
+            </div>
+        </div>
+
+        <div class="cert-modal-footer">
+            <div class="modal-actions" style="margin-top: 0;">
+                <button type="button" class="btn-submit" onclick="closeTestResultModal()">Close</button>
+            </div>
+        </div>
+</dialog>
+
+<!-- Delete Endpoint Confirmation Modal (styled like delete-account-dialog) -->
+<dialog id="delete-endpoint-dialog" class="delete-endpoint-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #dc2626;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+            </div>
+            <h3 id="delete-endpoint-title" style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Delete Endpoint</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
+            <p>Are you sure you want to permanently delete <span id="delete-endpoint-type-label">endpoint</span> <strong id="delete-endpoint-name"></strong>?</p>
+            <p style="margin-top: 0.85rem; color: var(--text-muted); font-size: 0.88rem;">
+                This endpoint will be permanently removed from CA certificate distribution targets. This action cannot be undone.
+            </p>
+        </div>
+        <form method="POST" id="delete-endpoint-form" action="">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" id="delete-endpoint-cancel-btn" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" id="delete-endpoint-submit-btn" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Endpoint</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    const targetPane = document.getElementById(tabId);
+    if (targetPane) targetPane.classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    // Update URL query param in history without reloading
+    const tabName = tabId === 'emailTab' ? 'email' : tabId === 'logsTab' ? 'logs' : 'ssh';
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    history.replaceState(null, '', url);
+
+    // Initialize resizable table features for the active tab's grid
+    if (targetPane && window.initTableFeatures) {
+        const table = targetPane.querySelector('table[data-table-id]');
+        if (table) {
+            window.initTableFeatures(table);
+        }
+    }
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+
+    const eyeOpen = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    const eyeClosed = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+    btn.innerHTML = isPassword ? eyeClosed : eyeOpen;
+    btn.setAttribute('title', isPassword ? 'Hide password' : 'Show password');
+}
+
+function validatePasswordMatch() {
+    const pwd = document.getElementById('ssh_password').value;
+    const confirm = document.getElementById('ssh_password_confirm').value;
+    const indicator = document.getElementById('ssh_pw_match_indicator');
+
+    if (!confirm && !pwd) {
+        indicator.style.display = 'none';
+        return true;
+    }
+
+    indicator.style.display = 'block';
+    if (pwd === confirm) {
+        indicator.style.color = '#10b981';
+        indicator.innerHTML = '✓ Passwords match';
+        return true;
+    } else {
+        indicator.style.color = '#ef4444';
+        indicator.innerHTML = '✗ Passwords do not match';
+        return false;
+    }
+}
+
+function openCreateSshModal() {
+    document.getElementById('sshModalTitle').innerText = 'Add SSH Endpoint';
+    document.getElementById('ssh_endpoint_id').value = '';
+    document.getElementById('sshEndpointForm').reset();
+    document.getElementById('ssh_secret_key').value = '';
+    document.getElementById('ssh_password').value = '';
+    document.getElementById('ssh_password_confirm').value = '';
+    document.getElementById('ssh_password').type = 'password';
+    document.getElementById('ssh_password_confirm').type = 'password';
+    document.getElementById('ssh_pw_match_indicator').style.display = 'none';
+
+    const eyeOpen = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    document.querySelectorAll('#sshPasswordGroup .btn-toggle-pw').forEach(btn => btn.innerHTML = eyeOpen);
+
+    toggleSshAuthFields();
+    openModal('sshEndpointModal');
+}
+
+function editSshEndpoint(id, name, host, port, username, authType, targetDir) {
+    document.getElementById('sshModalTitle').innerText = 'Edit SSH Endpoint';
+    document.getElementById('ssh_endpoint_id').value = id;
+    document.getElementById('ssh_name').value = name;
+    document.getElementById('ssh_host').value = host;
+    document.getElementById('ssh_port').value = port;
+    document.getElementById('ssh_username').value = username;
+    document.getElementById('ssh_auth_type').value = authType;
+    document.getElementById('ssh_target_dir').value = targetDir;
+    document.getElementById('ssh_secret_key').value = '';
+    document.getElementById('ssh_password').value = '';
+    document.getElementById('ssh_password_confirm').value = '';
+    document.getElementById('ssh_password').type = 'password';
+    document.getElementById('ssh_password_confirm').type = 'password';
+    document.getElementById('ssh_pw_match_indicator').style.display = 'none';
+
+    const eyeOpen = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    document.querySelectorAll('#sshPasswordGroup .btn-toggle-pw').forEach(btn => btn.innerHTML = eyeOpen);
+
+    toggleSshAuthFields();
+    openModal('sshEndpointModal');
+}
+
+function toggleSshAuthFields() {
+    const authType = document.getElementById('ssh_auth_type').value;
+    const keyGroup = document.getElementById('sshKeyGroup');
+    const pwdGroup = document.getElementById('sshPasswordGroup');
+    if (authType === 'password') {
+        keyGroup.style.display = 'none';
+        pwdGroup.style.display = 'block';
+    } else {
+        keyGroup.style.display = 'block';
+        pwdGroup.style.display = 'none';
+    }
+}
+
+document.getElementById('sshEndpointForm').addEventListener('submit', function(e) {
+    const authType = document.getElementById('ssh_auth_type').value;
+    const isEdit = !!document.getElementById('ssh_endpoint_id').value;
+    const secretInput = document.getElementById('ssh_auth_secret');
+
+    if (authType === 'password') {
+        const pwd = document.getElementById('ssh_password').value;
+        const confirm = document.getElementById('ssh_password_confirm').value;
+
+        if (!isEdit && !pwd) {
+            e.preventDefault();
+            alert('Password is required when adding a password-authenticated SSH endpoint.');
+            document.getElementById('ssh_password').focus();
+            return false;
+        }
+
+        if (pwd && pwd !== confirm) {
+            e.preventDefault();
+            alert('Passwords do not match. Please re-enter your password to confirm.');
+            document.getElementById('ssh_password_confirm').focus();
+            return false;
+        }
+
+        secretInput.value = pwd;
+    } else {
+        secretInput.value = document.getElementById('ssh_secret_key').value;
+    }
+    return true;
+});
+
+function openCreateEmailModal() {
+    document.getElementById('emailModalTitle').innerText = 'Add Email Endpoint';
+    document.getElementById('email_endpoint_id').value = '';
+    document.getElementById('emailEndpointForm').reset();
+    openModal('emailEndpointModal');
+}
+
+function editEmailEndpoint(id, name, emailsCsv, osCsv) {
+    document.getElementById('emailModalTitle').innerText = 'Edit Email Endpoint';
+    document.getElementById('email_endpoint_id').value = id;
+    document.getElementById('email_name').value = name;
+    document.getElementById('email_recipients').value = emailsCsv.split(',').join('\n');
+    const selectedOses = osCsv.split(',');
+    document.querySelectorAll('#emailEndpointModal input[name="target_os"]').forEach(cb => {
+        cb.checked = selectedOses.includes(cb.value);
+    });
+    openModal('emailEndpointModal');
+}
+
+function getOsIconHtml(detectedOs, title) {
+    if (detectedOs === 'linux') {
+        return `<span class="os-icon-tag os-tag-linux" title="${title || 'Linux'}"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2zm-1.8 5.2c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm3.6 0c.4 0 .8.3.8.8s-.4.8-.8.8-.8-.4-.8-.8.4-.8.8-.8zm-1.8 2.3c1.2 0 2.2.5 2.2 1.2s-1 1.2-2.2 1.2-2.2-.5-2.2-1.2 1-1.2 2.2-1.2z"/></svg></span>`;
+    } else if (detectedOs === 'windows') {
+        return `<span class="os-icon-tag os-tag-windows" title="${title || 'Microsoft Windows'}"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg></span>`;
+    } else if (detectedOs === 'macos') {
+        return `<span class="os-icon-tag os-tag-apple" title="${title || 'Apple macOS'}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span>`;
+    } else if (detectedOs === 'ios') {
+        return `<span class="os-icon-tag os-tag-apple" title="${title || 'Apple iOS'}"><svg viewBox="0 0 170 170" width="13" height="13" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg></span>`;
+    } else if (detectedOs === 'openwrt') {
+        return `<span class="os-icon-tag os-tag-openwrt" title="${title || 'OpenWrt'}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg></span>`;
+    } else if (detectedOs === 'unsupported') {
+        return `<span class="os-icon-tag os-tag-unsupported" title="${title || 'Unsupported OS'}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>`;
+    } else {
+        return `<span class="os-icon-tag os-tag-unknown" title="${title || 'Unknown OS'}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>`;
+    }
+}
+
+function showTestResultModal(data) {
+    const dialog = document.getElementById('endpointTestDialog');
+    if (!dialog) return;
+
+    const isSsh = (data.endpoint_type || 'ssh') === 'ssh';
+    const isSuccess = !!data.success;
+    const isWarning = isSuccess && data.detected_os === 'unsupported';
+
+    // Header Title & Subtitle
+    document.getElementById('testModalTitle').innerText = isSsh ? 'SSH Endpoint Diagnostic Test' : 'Email Endpoint Verification';
+    let subtitle = data.endpoint_name || 'Endpoint';
+    if (isSsh && data.host) {
+        subtitle += ` (${data.host}:${data.port || 22})`;
+    }
+    document.getElementById('testModalSubtitle').innerText = subtitle;
+
+    // Header Icon Badge & Dialog Accent Border
+    const iconBadge = document.getElementById('testModalIconBadge');
+    const headerIcon = document.getElementById('testModalHeaderIcon');
+    const statusBadge = document.getElementById('testModalStatusBadge');
+    const statusHeading = document.getElementById('testModalStatusHeading');
+    const progressFill = document.getElementById('testModalProgressFill');
+
+    if (isWarning) {
+        dialog.style.borderTopColor = '#f59e0b';
+        iconBadge.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        iconBadge.style.boxShadow = '0 4px 10px rgba(245, 158, 11, 0.25)';
+        headerIcon.innerHTML = '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>';
+        statusBadge.className = 'status-pill status-pill-warn';
+        statusBadge.innerText = '⚠ OS Warning';
+        statusHeading.innerText = 'Connected with Unsupported OS Warning';
+        progressFill.style.background = '#f59e0b';
+    } else if (isSuccess) {
+        dialog.style.borderTopColor = '#10b981';
+        iconBadge.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        iconBadge.style.boxShadow = '0 4px 10px rgba(16, 185, 129, 0.25)';
+        headerIcon.innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>';
+        statusBadge.className = 'status-pill status-pill-ok';
+        statusBadge.innerText = isSsh ? '✓ Connected' : '✓ Verified';
+        statusHeading.innerText = isSsh ? 'SSH Connection Verified & Active' : 'Recipient Addresses & Mail Settings Validated';
+        progressFill.style.background = '#10b981';
+    } else {
+        dialog.style.borderTopColor = '#ef4444';
+        iconBadge.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+        iconBadge.style.boxShadow = '0 4px 10px rgba(239, 68, 68, 0.25)';
+        headerIcon.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>';
+        statusBadge.className = 'status-pill status-pill-fail';
+        statusBadge.innerText = '✗ Test Failed';
+        statusHeading.innerText = 'Connection or Validation Error';
+        progressFill.style.background = '#ef4444';
+    }
+
+    document.getElementById('testModalTimestamp').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // Target System & Environment Card Grid
+    document.getElementById('testModalEndpointName').innerText = data.endpoint_name || '—';
+    if (isSsh) {
+        document.getElementById('testModalHostPort').innerText = `${data.username ? data.username + '@' : ''}${data.host || '—'}:${data.port || 22}`;
+        document.getElementById('testModalOsCard').style.display = 'block';
+        document.getElementById('testModalOsValue').innerHTML = getOsIconHtml(data.detected_os, data.os_detail) + ` <span>${data.os_detail || data.detected_os || 'Unknown'}</span>`;
+        document.getElementById('testModalTargetDirCard').style.display = 'block';
+        document.getElementById('testModalTargetDir').innerText = data.target_dir || '—';
+    } else {
+        document.getElementById('testModalHostPort').innerText = 'SMTP / Email Group';
+        document.getElementById('testModalOsCard').style.display = 'none';
+        document.getElementById('testModalTargetDirCard').style.display = 'none';
+    }
+
+    // Diagnostic Output Log
+    document.getElementById('testModalOutput').innerText = data.message || 'No diagnostic output returned.';
+
+    dialog.showModal();
+}
+
+function closeTestResultModal() {
+    const dialog = document.getElementById('endpointTestDialog');
+    if (dialog && dialog.open) {
+        dialog.close();
+    }
+    const activePane = document.querySelector('.tab-pane.active');
+    const tabParam = activePane && activePane.id === 'emailTab' ? '?tab=email' : activePane && activePane.id === 'logsTab' ? '?tab=logs' : '?tab=ssh';
+    window.location.href = '/ca-distribution' + tabParam;
+}
+
+async function copyTestModalOutput(btn) {
+    const pre = document.getElementById('testModalOutput');
+    if (!pre) return;
+    try {
+        await navigator.clipboard.writeText(pre.innerText || pre.textContent);
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span style="color:#059669; font-weight:700;">✓ Copied!</span>';
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+        }, 1800);
+    } catch (err) {
+        console.error('Copy failed:', err);
+    }
+}
+
+async function testEndpoint(endpointId, btn) {
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block; animation:spin 1s linear infinite;">⏳</span> Testing...';
+
+    try {
+        const response = await fetch(`/ca-distribution/endpoint/${endpointId}/test`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        showTestResultModal(data);
+    } catch (err) {
+        showTestResultModal({
+            success: false,
+            message: 'Error connecting to server: ' + err,
+            endpoint_name: 'Endpoint ' + endpointId,
+            endpoint_type: 'ssh'
+        });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+
+function copyText(text, btn) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<span style="font-size:11px; color:#059669; font-weight:700;">✓</span>';
+        setTimeout(() => { btn.innerHTML = original; }, 1500);
+    }).catch(err => {
+        console.error('Copy failed:', err);
+    });
+}
+
+function copyPopoverText(btn) {
+    const content = btn.closest('.table-popover-content');
+    if (!content) return;
+    const target = content.querySelector('.popover-copy-target, .popover-detail-badge');
+    if (!target) return;
+    const text = target.innerText || target.textContent;
+    copyText(text, btn);
+}
+
+function openDeleteEndpointModal(endpointId, endpointName, endpointType) {
+    const dlg = document.getElementById('delete-endpoint-dialog');
+    const form = document.getElementById('delete-endpoint-form');
+    const titleEl = document.getElementById('delete-endpoint-title');
+    const nameEl = document.getElementById('delete-endpoint-name');
+    const typeLabelEl = document.getElementById('delete-endpoint-type-label');
+
+    if (!dlg || !form) return;
+
+    form.action = `/ca-distribution/endpoint/${encodeURIComponent(endpointId)}/delete`;
+    if (titleEl) titleEl.textContent = `Delete ${endpointType}`;
+    if (nameEl) nameEl.textContent = endpointName;
+    if (typeLabelEl) typeLabelEl.textContent = endpointType.toLowerCase();
+
+    if (typeof dlg.showModal === 'function') {
+        dlg.showModal();
+    } else {
+        dlg.setAttribute('open', '');
+    }
+}
+
+function closeDeleteEndpointModal() {
+    const dlg = document.getElementById('delete-endpoint-dialog');
+    if (!dlg) return;
+    if (typeof dlg.close === 'function') {
+        dlg.close();
+    } else {
+        dlg.removeAttribute('open');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteCancelBtn = document.getElementById('delete-endpoint-cancel-btn');
+    if (deleteCancelBtn) {
+        deleteCancelBtn.addEventListener('click', closeDeleteEndpointModal);
+    }
+    const deleteDlg = document.getElementById('delete-endpoint-dialog');
+    if (deleteDlg) {
+        deleteDlg.addEventListener('click', (e) => {
+            const rect = deleteDlg.getBoundingClientRect();
+            const isIn = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                          rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isIn) closeDeleteEndpointModal();
+        });
+    }
+
+    const testDialog = document.getElementById('endpointTestDialog');
+    if (testDialog) {
+        testDialog.addEventListener('click', (e) => {
+            const rect = testDialog.getBoundingClientRect();
+            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                                rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isInDialog) closeTestResultModal();
+        });
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    const hash = window.location.hash;
+
+    if (tabParam === 'email' || hash === '#emailTab' || hash === '#email') {
+        const btn = document.querySelector('button[onclick*="emailTab"]');
+        if (btn) switchTab('emailTab', btn);
+    } else if (tabParam === 'logs' || hash === '#logsTab' || hash === '#logs') {
+        const btn = document.querySelector('button[onclick*="logsTab"]');
+        if (btn) switchTab('logsTab', btn);
+    }
+
+    // Auto-flip table popover upward if near bottom of table container or viewport
+    document.querySelectorAll('.table-popover-wrapper').forEach(wrapper => {
+        function checkPopoverPosition() {
+            const popover = wrapper.querySelector('.table-popover');
+            if (!popover) return;
+            const scrollContainer = wrapper.closest('div[style*="overflow-x"], .table-container') || wrapper.closest('table');
+            const wrapperRect = wrapper.getBoundingClientRect();
+            let spaceBelow = window.innerHeight - wrapperRect.bottom;
+            if (scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                spaceBelow = Math.min(spaceBelow, containerRect.bottom - wrapperRect.bottom);
+            }
+            const isMultiline = popover.querySelector('.multiline');
+            const requiredSpace = isMultiline ? 240 : 85;
+            if (spaceBelow < requiredSpace) {
+                popover.classList.add('popover-up');
+            } else {
+                popover.classList.remove('popover-up');
+            }
+        }
+        wrapper.addEventListener('mouseenter', checkPopoverPosition);
+        wrapper.addEventListener('focusin', checkPopoverPosition);
+    });
+});
+</script>
+{% endblock %}

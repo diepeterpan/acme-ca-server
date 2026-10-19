@@ -255,6 +255,14 @@
         padding-top: 6px;
     }
 
+    .account-popover.popover-up {
+        top: auto;
+        bottom: calc(100% - 2px);
+        padding-top: 0;
+        padding-bottom: 6px;
+        transform: translateY(-4px);
+    }
+
     .account-cell-wrapper:hover .account-popover,
     .account-popover:hover,
     .account-cell-wrapper:focus-within .account-popover {
@@ -1537,6 +1545,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Auto-flip account popover upward if near the bottom of the table container or viewport
+    document.querySelectorAll('.account-cell-wrapper').forEach(wrapper => {
+        function checkPopoverPosition() {
+            const popover = wrapper.querySelector('.account-popover');
+            if (!popover) return;
+            const tableContainer = wrapper.closest('.table-container');
+            const wrapperRect = wrapper.getBoundingClientRect();
+            let spaceBelow = window.innerHeight - wrapperRect.bottom;
+            if (tableContainer) {
+                const containerRect = tableContainer.getBoundingClientRect();
+                spaceBelow = Math.min(spaceBelow, containerRect.bottom - wrapperRect.bottom);
+            }
+            if (spaceBelow < 85) {
+                popover.classList.add('popover-up');
+            } else {
+                popover.classList.remove('popover-up');
+            }
+        }
+        wrapper.addEventListener('mouseenter', checkPopoverPosition);
+        wrapper.addEventListener('focusin', checkPopoverPosition);
+    });
 });
 </script>
 
