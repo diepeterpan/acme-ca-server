@@ -18,7 +18,7 @@ default_params = {  # pylint: disable=duplicate-code
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
 }
 
-Templates = Literal['cert-expired-info', 'cert-expires-warning', 'new-account-info']
+Templates = Literal['cert-expired-info', 'cert-expires-warning', 'new-account-info', 'ca-expires-warning', 'ca-expired-info']
 
 
 async def send_mail(receiver: str, template: Templates, subject_vars: dict | None = None, body_vars: dict | None = None):
@@ -87,5 +87,37 @@ async def send_certs_expired_info_mail(*, receiver: str, domains: list[str], exp
             'domains': domains,
             'expires_at': expires_at,
             'serial_number': serial_number,
+        },
+    )
+
+
+async def send_ca_will_expire_warn_mail(*, receiver: str, common_name: str, serial_number: str, expires_at: datetime, days_remaining: int):
+    await send_mail(
+        receiver,
+        'ca-expires-warning',
+        body_vars={
+            'common_name': common_name,
+            'serial_number': serial_number,
+            'expires_at': expires_at,
+            'days_remaining': days_remaining,
+        },
+        subject_vars={
+            'common_name': common_name,
+            'days_remaining': days_remaining,
+        },
+    )
+
+
+async def send_ca_expired_info_mail(*, receiver: str, common_name: str, serial_number: str, expires_at: datetime):
+    await send_mail(
+        receiver,
+        'ca-expired-info',
+        body_vars={
+            'common_name': common_name,
+            'serial_number': serial_number,
+            'expires_at': expires_at,
+        },
+        subject_vars={
+            'common_name': common_name,
         },
     )

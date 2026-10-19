@@ -291,6 +291,7 @@ is_port_in_use() {
     python3 -c "
 import socket, sys
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 try:
     s.bind(('${HOST:-0.0.0.0}', int('$port')))
     s.close()
@@ -409,7 +410,7 @@ handle_port_conflict() {
         read -r -p "Port ${port} is in use. Would you like to retry starting anyway? [y/N]: " retry_resp
         retry_resp="${retry_resp:-N}"
         if [[ "$retry_resp" =~ ^[Yy]$ ]]; then
-            return 0
+            return 2
         fi
         return 1
     fi
@@ -430,7 +431,12 @@ handle_port_conflict() {
 
 # 11. Proactive port availability check before launch
 while is_port_in_use "$PORT"; do
-    if ! handle_port_conflict "$PORT"; then
+    conflict_action=0
+    handle_port_conflict "$PORT" || conflict_action=$?
+    if [ "$conflict_action" -eq 2 ]; then
+        # User explicitly chose to proceed with server startup
+        break
+    elif [ "$conflict_action" -ne 0 ]; then
         echo "--> Server startup cancelled. Port ${PORT} is in use."
         exit 1
     fi

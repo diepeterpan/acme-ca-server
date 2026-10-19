@@ -25,6 +25,8 @@ class MailConfig:
     notify_on_account_creation: bool = True
     warn_before_cert_expires_days: int = 20
     notify_when_cert_expired: bool = True
+    admin_notification_email: str | None = None
+    warn_before_ca_expires_days: int = 90
     updated_at: datetime | None = None
 
     @property
@@ -42,6 +44,20 @@ class MailConfig:
     def warn_before_cert_expires_interval(self) -> timedelta | None:
         if self.warn_before_cert_expires_days and self.warn_before_cert_expires_days > 0:
             return timedelta(days=self.warn_before_cert_expires_days)
+        return None
+
+    @property
+    def warn_before_ca_expires_interval(self) -> timedelta | None:
+        if self.warn_before_ca_expires_days and self.warn_before_ca_expires_days > 0:
+            return timedelta(days=self.warn_before_ca_expires_days)
+        return None
+
+    @property
+    def effective_admin_recipient(self) -> str | None:
+        if self.admin_notification_email and self.admin_notification_email.strip():
+            return self.admin_notification_email.strip()
+        if self.sender and self.sender.strip():
+            return self.sender.strip()
         return None
 
 
@@ -64,7 +80,7 @@ async def get_mail_settings() -> MailConfig:
             select
                 enabled, host, port, username, password, encryption, sender,
                 notify_on_account_creation, warn_before_cert_expires_days,
-                notify_when_cert_expired, updated_at
+                notify_when_cert_expired, admin_notification_email, warn_before_ca_expires_days, updated_at
             from mail_settings
             where dummy_id = 1
             """
@@ -82,6 +98,8 @@ async def get_mail_settings() -> MailConfig:
                 notify_on_account_creation=bool(row['notify_on_account_creation']),
                 warn_before_cert_expires_days=int(row['warn_before_cert_expires_days'] if row['warn_before_cert_expires_days'] is not None else 20),
                 notify_when_cert_expired=bool(row['notify_when_cert_expired']),
+                admin_notification_email=row['admin_notification_email'],
+                warn_before_ca_expires_days=int(row['warn_before_ca_expires_days'] if row['warn_before_ca_expires_days'] is not None else 90),
                 updated_at=row['updated_at'],
             )
         else:
@@ -106,6 +124,8 @@ async def get_mail_settings() -> MailConfig:
                 notify_on_account_creation=bool(env_mail.notify_on_account_creation),
                 warn_before_cert_expires_days=warn_days,
                 notify_when_cert_expired=bool(env_mail.notify_when_cert_expired),
+                admin_notification_email=None,
+                warn_before_ca_expires_days=90,
                 updated_at=datetime.now(timezone.utc),
             )
 
@@ -113,9 +133,10 @@ async def get_mail_settings() -> MailConfig:
                 """
                 insert into mail_settings (
                     dummy_id, enabled, host, port, username, password, encryption, sender,
-                    notify_on_account_creation, warn_before_cert_expires_days, notify_when_cert_expired, updated_at
+                    notify_on_account_creation, warn_before_cert_expires_days, notify_when_cert_expired,
+                    admin_notification_email, warn_before_ca_expires_days, updated_at
                 ) values (
-                    1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+                    1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now()
                 )
                 on conflict (dummy_id) do nothing
                 """,
@@ -129,6 +150,8 @@ async def get_mail_settings() -> MailConfig:
                 cfg.notify_on_account_creation,
                 cfg.warn_before_cert_expires_days,
                 cfg.notify_when_cert_expired,
+                cfg.admin_notification_email,
+                cfg.warn_before_ca_expires_days,
             )
 
     _CACHED_CONFIG = cfg
@@ -147,6 +170,8 @@ async def save_mail_settings(
     notify_on_account_creation: bool,
     warn_before_cert_expires_days: int,
     notify_when_cert_expired: bool,
+    admin_notification_email: str | None = None,
+    warn_before_ca_expires_days: int = 90,
     update_password: bool = True,
 ) -> MailConfig:
     global _CACHED_CONFIG  # pylint: disable=global-statement
@@ -162,14 +187,16 @@ async def save_mail_settings(
         clean_host = host.strip() if host else None
         clean_sender = sender.strip() if sender else None
         clean_user = username.strip() if username else None
+        clean_admin = admin_notification_email.strip() if admin_notification_email else None
 
         await sql.exec(
             """
             insert into mail_settings (
                 dummy_id, enabled, host, port, username, password, encryption, sender,
-                notify_on_account_creation, warn_before_cert_expires_days, notify_when_cert_expired, updated_at
+                notify_on_account_creation, warn_before_cert_expires_days, notify_when_cert_expired,
+                admin_notification_email, warn_before_ca_expires_days, updated_at
             ) values (
-                1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+                1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now()
             )
             on conflict (dummy_id) do update set
                 enabled = excluded.enabled,
@@ -182,6 +209,8 @@ async def save_mail_settings(
                 notify_on_account_creation = excluded.notify_on_account_creation,
                 warn_before_cert_expires_days = excluded.warn_before_cert_expires_days,
                 notify_when_cert_expired = excluded.notify_when_cert_expired,
+                admin_notification_email = excluded.admin_notification_email,
+                warn_before_ca_expires_days = excluded.warn_before_ca_expires_days,
                 updated_at = now()
             """,
             enabled,
@@ -194,6 +223,8 @@ async def save_mail_settings(
             notify_on_account_creation,
             warn_before_cert_expires_days,
             notify_when_cert_expired,
+            clean_admin,
+            warn_before_ca_expires_days,
         )
 
     _CACHED_CONFIG = MailConfig(
@@ -207,6 +238,8 @@ async def save_mail_settings(
         notify_on_account_creation=notify_on_account_creation,
         warn_before_cert_expires_days=warn_before_cert_expires_days,
         notify_when_cert_expired=notify_when_cert_expired,
+        admin_notification_email=clean_admin,
+        warn_before_ca_expires_days=warn_before_ca_expires_days,
         updated_at=datetime.now(timezone.utc),
     )
     return _CACHED_CONFIG

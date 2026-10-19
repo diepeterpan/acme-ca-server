@@ -17,7 +17,7 @@ if settings.ca.enabled:
     from cryptography.fernet import Fernet  # pylint: disable=ungrouped-imports
 
     from . import cronjob
-    from .service import build_crl_sync
+    from .service import build_crl_sync, get_cert_dates
 
     @router.get('/{serial_number}/crl', response_class=Response, responses={200: {'content': {'application/pkix-crl': {}}}})
     async def download_crl(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
@@ -41,6 +41,7 @@ if settings.ca.enabled:
                 ca_cert_bytes = f.read()
             ca_cert = x509.load_pem_x509_certificate(ca_cert_bytes, None)
             serial_number = SerialNumberConverter.int2hex(ca_cert.serial_number)
+            nvb, nva = get_cert_dates(ca_cert)
 
             async with db.transaction(readonly=True) as sql:
                 revocations = [record async for record in sql("""select serial_number, revoked_at from certificates where revoked_at is not null""")]
@@ -50,14 +51,16 @@ if settings.ca.enabled:
                 await sql.exec("""update cas set active = false""")
                 await sql.exec(
                     """
-                    insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem)
-                        values ($1, $2, $3, true, $4)
-                    on conflict (serial_number) do update set active = true, crl_pem = $4
+                    insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem, not_valid_before, not_valid_after)
+                        values ($1, $2, $3, true, $4, $5, $6)
+                    on conflict (serial_number) do update set active = true, crl_pem = $4, not_valid_before = $5, not_valid_after = $6
                     """,
                     serial_number,
                     ca_cert_bytes.decode(),
                     ca_key_enc,
                     crl_pem,
+                    nvb,
+                    nva,
                 )
             logger.info('Successfully imported CA provided in "%s" folder', settings.ca.import_dir)
             is_initialized = True

@@ -63,13 +63,22 @@ def load_ca_sync(*, cert_pem, key_pem_enc):
 
 def generate_cert_sync(*, ca_key: PrivateKeyTypes, ca_cert: x509.Certificate, csr: x509.CertificateSigningRequest, subject_domain: str, san_domains: list[str]):
     ca_id = SerialNumberConverter.int2hex(ca_cert.serial_number)
+    now = datetime.now(timezone.utc)
+    _, nva = get_cert_dates(ca_cert)
+    if now >= nva:
+        raise RuntimeError(f'Active CA (serial {ca_id}) has expired and cannot issue new certificates')
+
+    requested_nva = now + settings.ca.cert_lifetime
+    actual_nva = min(requested_nva, nva)
+    if actual_nva < requested_nva:
+        logger.warning('Active CA expires before requested cert lifetime. Truncating leaf cert not_valid_after to %s', actual_nva)
 
     cert_builder = x509.CertificateBuilder(
         issuer_name=ca_cert.subject,
         subject_name=x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, subject_domain)]),
         serial_number=x509.random_serial_number(),
-        not_valid_before=datetime.now(timezone.utc),
-        not_valid_after=datetime.now(timezone.utc) + settings.ca.cert_lifetime,
+        not_valid_before=now,
+        not_valid_after=actual_nva,
         public_key=csr.public_key(),
     ).add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
     if settings.ca.cert_cdp_enabled:
@@ -264,6 +273,7 @@ async def create_root_ca(
     key_size_or_curve: str = '4096',
     digest_algorithm: str = 'SHA-384',
     validity_years: int = 10,
+    active: bool = True,
 ) -> str:
     import acme  # pylint: disable=import-outside-toplevel
 
@@ -289,30 +299,56 @@ async def create_root_ca(
     key_pem_enc = f.encrypt(key_pem_bytes)
     serial_number = SerialNumberConverter.int2hex(cert.serial_number)
     cert_pem = cert_pem_bytes.decode()
+    nvb, nva = get_cert_dates(cert)
 
     async with db.transaction() as sql:
-        await sql.exec('update cas set active = false')
-        await sql.exec(
-            """
-            insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem)
-                values ($1, $2, $3, true, $4)
-            on conflict (serial_number) do update set active = true, crl_pem = $4
-            """,
-            serial_number,
-            cert_pem,
-            key_pem_enc,
-            crl_pem,
-        )
+        if active:
+            await sql.exec('update cas set active = false')
+            await sql.exec(
+                """
+                insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem, not_valid_before, not_valid_after)
+                    values ($1, $2, $3, true, $4, $5, $6)
+                on conflict (serial_number) do update set
+                    active = true,
+                    crl_pem = $4,
+                    not_valid_before = $5,
+                    not_valid_after = $6
+                """,
+                serial_number,
+                cert_pem,
+                key_pem_enc,
+                crl_pem,
+                nvb,
+                nva,
+            )
+        else:
+            await sql.exec(
+                """
+                insert into cas (serial_number, cert_pem, key_pem_enc, active, crl_pem, not_valid_before, not_valid_after)
+                    values ($1, $2, $3, false, $4, $5, $6)
+                on conflict (serial_number) do update set
+                    crl_pem = $4,
+                    not_valid_before = $5,
+                    not_valid_after = $6
+                """,
+                serial_number,
+                cert_pem,
+                key_pem_enc,
+                crl_pem,
+                nvb,
+                nva,
+            )
 
-    # Persist to disk import folder if writable
-    try:
-        import_dir = Path(settings.ca.import_dir)
-        import_dir.mkdir(parents=True, exist_ok=True)
-        (import_dir / 'ca.pem').write_bytes(cert_pem_bytes)
-        (import_dir / 'ca.key').write_bytes(key_pem_bytes)
-        logger.info('Saved newly generated CA certificate and key to %s', import_dir)
-    except OSError as e:
-        logger.warning('Could not save CA to import_dir %s: %s', settings.ca.import_dir, e)
+    if active:
+        # Persist to disk import folder if writable
+        try:
+            import_dir = Path(settings.ca.import_dir)
+            import_dir.mkdir(parents=True, exist_ok=True)
+            (import_dir / 'ca.pem').write_bytes(cert_pem_bytes)
+            (import_dir / 'ca.key').write_bytes(key_pem_bytes)
+            logger.info('Saved newly generated active CA certificate and key to %s', import_dir)
+        except OSError as e:
+            logger.warning('Could not save CA to import_dir %s: %s', settings.ca.import_dir, e)
 
     ca.is_initialized = True
     await ca.cronjob.start()
@@ -321,56 +357,293 @@ async def create_root_ca(
     return serial_number
 
 
+async def renew_root_ca(
+    *,
+    common_name: str,
+    organization: str | None = None,
+    organizational_unit: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    locality: str | None = None,
+    key_type: str = 'RSA',
+    key_size_or_curve: str = '4096',
+    digest_algorithm: str = 'SHA-384',
+    validity_years: int = 10,
+    activate_immediately: bool = False,
+) -> str:
+    return await create_root_ca(
+        common_name=common_name,
+        organization=organization,
+        organizational_unit=organizational_unit,
+        country=country,
+        state=state,
+        locality=locality,
+        key_type=key_type,
+        key_size_or_curve=key_size_or_curve,
+        digest_algorithm=digest_algorithm,
+        validity_years=validity_years,
+        active=activate_immediately,
+    )
+
+
+async def set_active_ca(serial_number: str) -> None:
+    if not settings.ca.enabled:
+        raise RuntimeError('Internal CA is disabled')
+
+    async with db.transaction() as sql:
+        record = await sql.record('select cert_pem, key_pem_enc, revoked_at from cas where serial_number = $1', serial_number)
+        if not record:
+            raise ValueError(f'CA with serial number {serial_number} not found')
+        if record['revoked_at'] is not None:
+            raise ValueError('Cannot activate a retired CA')
+
+        ca_cert, _ = await asyncio.to_thread(load_ca_sync, cert_pem=record['cert_pem'], key_pem_enc=record['key_pem_enc'])
+        _, nva = get_cert_dates(ca_cert)
+        if datetime.now(timezone.utc) > nva:
+            raise ValueError('Cannot activate an expired CA certificate')
+
+        await sql.exec('update cas set active = false')
+        await sql.exec('update cas set active = true where serial_number = $1', serial_number)
+
+    # Persist active CA to disk import folder if writable
+    try:
+        import_dir = Path(settings.ca.import_dir)
+        import_dir.mkdir(parents=True, exist_ok=True)
+        if settings.ca.encryption_key:
+            f = Fernet(settings.ca.encryption_key.get_secret_value())
+            key_bytes = f.decrypt(record['key_pem_enc'])
+            (import_dir / 'ca.key').write_bytes(key_bytes)
+        logger.info('Active CA updated and written to %s (Serial: %s)', import_dir, serial_number)
+    except OSError as e:
+        logger.warning('Could not write active CA to import_dir: %s', e)
+
+
+async def retire_ca(serial_number: str) -> None:
+    if not settings.ca.enabled:
+        raise RuntimeError('Internal CA is disabled')
+
+    async with db.transaction() as sql:
+        is_active = await sql.value('select active from cas where serial_number = $1', serial_number)
+        if is_active is None:
+            raise ValueError(f'CA with serial number {serial_number} not found')
+        if is_active:
+            raise ValueError('Cannot retire the currently active issuing CA. Please activate another CA first.')
+        await sql.exec('update cas set revoked_at = now() where serial_number = $1', serial_number)
+
+
+async def delete_ca(serial_number: str) -> None:
+    if not settings.ca.enabled:
+        raise RuntimeError('Internal CA is disabled')
+
+    async with db.transaction() as sql:
+        row = await sql.record('select active, cert_pem from cas where serial_number = $1', serial_number)
+        if not row:
+            raise ValueError(f'CA with serial number {serial_number} not found')
+        if row['active']:
+            raise ValueError('Cannot delete the currently active CA')
+
+        active_certs = await sql.value(
+            """
+            select count(*) from certificates
+            where chain_pem like '%' || $1 || '%' and revoked_at is null and not_valid_after > now()
+            """,
+            row['cert_pem'].strip(),
+        )
+        if active_certs and active_certs > 0:
+            raise ValueError(f'Cannot delete CA: {active_certs} active certificate(s) were issued under it.')
+
+        await sql.exec('delete from cas where serial_number = $1', serial_number)
+
+
 def get_cert_dates(cert: x509.Certificate) -> tuple[datetime, datetime]:
     if hasattr(cert, 'not_valid_before_utc'):
         return cert.not_valid_before_utc, cert.not_valid_after_utc
     return cert.not_valid_before.replace(tzinfo=timezone.utc), cert.not_valid_after.replace(tzinfo=timezone.utc)
 
 
+async def get_active_ca_subject_attributes() -> dict:
+    default_attrs = {
+        'common_name': 'ACME Root CA',
+        'organization': '',
+        'organizational_unit': '',
+        'country': '',
+        'state': '',
+        'locality': '',
+        'key_type': 'RSA',
+        'key_size_or_curve': '4096',
+        'digest_algorithm': 'SHA-384',
+        'validity_years': 10,
+    }
+    if not settings.ca.enabled:
+        return default_attrs
+
+    async with db.transaction(readonly=True) as sql:
+        cert_pem = await sql.value('select cert_pem from cas where active = true')
+    if not cert_pem:
+        return default_attrs
+
+    cert = await asyncio.to_thread(x509.load_pem_x509_certificate, cert_pem.encode(), None)
+
+    def _get_val(oid):
+        attrs = cert.subject.get_attributes_for_oid(oid)
+        return attrs[0].value if attrs else ''
+
+    cn = _get_val(x509.NameOID.COMMON_NAME) or 'ACME Root CA'
+    pub_key = cert.public_key()
+    if isinstance(pub_key, rsa.RSAPublicKey):
+        ktype = 'RSA'
+        ksize = str(pub_key.key_size)
+    elif isinstance(pub_key, ec.EllipticCurvePublicKey):
+        ktype = 'ECDSA'
+        ksize = 'P-384' if '384' in pub_key.curve.name else ('P-256' if '256' in pub_key.curve.name else 'P-521')
+    else:
+        ktype = 'RSA'
+        ksize = '4096'
+
+    dalgo = cert.signature_hash_algorithm.name.upper() if cert.signature_hash_algorithm else 'SHA-384'
+    if dalgo in ('SHA256', 'SHA-256'):
+        dalgo = 'SHA-256'
+    elif dalgo in ('SHA512', 'SHA-512'):
+        dalgo = 'SHA-512'
+    else:
+        dalgo = 'SHA-384'
+
+    return {
+        'common_name': cn,
+        'organization': _get_val(x509.NameOID.ORGANIZATION_NAME),
+        'organizational_unit': _get_val(x509.NameOID.ORGANIZATIONAL_UNIT_NAME),
+        'country': _get_val(x509.NameOID.COUNTRY_NAME),
+        'state': _get_val(x509.NameOID.STATE_OR_PROVINCE_NAME),
+        'locality': _get_val(x509.NameOID.LOCALITY_NAME),
+        'key_type': ktype,
+        'key_size_or_curve': ksize,
+        'digest_algorithm': dalgo,
+        'validity_years': 10,
+    }
+
+
+async def list_all_cas() -> list[dict]:
+    if not settings.ca.enabled:
+        return []
+
+    async with db.transaction(readonly=True) as sql:
+        rows = [
+            row
+            async for row in sql(
+                """
+                select serial_number, cert_pem, crl_pem, active, not_valid_before, not_valid_after, created_at, revoked_at
+                from cas
+                order by case when active then 0 else 1 end asc, not_valid_after desc nulls last, serial_number asc
+                """
+            )
+        ]
+
+    cas_list = []
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        sn = r['serial_number']
+        cert_pem = r['cert_pem']
+        crl_pem = r['crl_pem']
+        active = bool(r['active'])
+        revoked_at = r['revoked_at']
+        created_at = r['created_at']
+
+        cert = await asyncio.to_thread(x509.load_pem_x509_certificate, cert_pem.encode(), None)
+        nvb, nva = get_cert_dates(cert)
+
+        # Backfill nvb/nva in DB if null
+        if r['not_valid_before'] is None or r['not_valid_after'] is None:
+            async with db.transaction() as sql_backfill:
+                await sql_backfill.exec('update cas set not_valid_before = $1, not_valid_after = $2 where serial_number = $3', nvb, nva, sn)
+
+        is_expired = now > nva
+        is_valid = nvb <= now <= nva and revoked_at is None
+        days_remaining = max(0, (nva - now).days)
+        total_days = max(1, (nva - nvb).days)
+        elapsed_days = max(0, (now - nvb).days)
+        validity_pct = min(100, max(0, int((elapsed_days / total_days) * 100)))
+
+        fp_bytes = cert.fingerprint(hashes.SHA256())
+        fingerprint = ':'.join(f'{b:02X}' for b in fp_bytes)
+
+        pub_key = cert.public_key()
+        if isinstance(pub_key, rsa.RSAPublicKey):
+            key_info = f'RSA {pub_key.key_size}-bit'
+        elif isinstance(pub_key, ec.EllipticCurvePublicKey):
+            key_info = f'ECDSA {pub_key.curve.name}'
+        else:
+            key_info = 'Public Key'
+
+        sig_algo = cert.signature_hash_algorithm.name.upper() if cert.signature_hash_algorithm else 'SHA'
+        strict_eval = evaluate_ca_x509_strict_compliance(cert)
+
+        async with db.transaction(readonly=True) as sql_query:
+            cert_count_val = await sql_query.value(
+                """
+                select count(*) from certificates
+                where chain_pem like '%' || $1 || '%' and revoked_at is null and not_valid_after > now()
+                """,
+                cert_pem.strip(),
+            )
+        cert_count = cert_count_val if cert_count_val is not None else 0
+
+        cn = 'ACME Root CA'
+        try:
+            cn_attrs = cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+            if cn_attrs:
+                cn = str(cn_attrs[0].value)
+        except Exception as e:  # noqa: BLE001
+            logger.debug('Could not extract common name from CA cert: %s', e)
+
+        if revoked_at is not None:
+            status_label = 'retired'
+        elif active:
+            status_label = 'active'
+        elif is_expired:
+            status_label = 'expired'
+        elif days_remaining <= 90:
+            status_label = 'expiring'
+        else:
+            status_label = 'standby'
+
+        cas_list.append(
+            {
+                'serial_number': sn,
+                'common_name': cn,
+                'cert_pem': cert_pem,
+                'crl_pem': crl_pem,
+                'active': active,
+                'revoked_at': revoked_at,
+                'created_at': created_at,
+                'subject': cert.subject.rfc4514_string(),
+                'issuer': cert.issuer.rfc4514_string(),
+                'not_valid_before': nvb.strftime('%Y-%m-%d %H:%M:%S UTC'),
+                'not_valid_after': nva.strftime('%Y-%m-%d %H:%M:%S UTC'),
+                'not_valid_before_dt': nvb,
+                'not_valid_after_dt': nva,
+                'is_valid': is_valid,
+                'is_expired': is_expired,
+                'days_remaining': days_remaining,
+                'validity_pct': validity_pct,
+                'fingerprint_sha256': fingerprint,
+                'key_info': f'{key_info} / {sig_algo}',
+                'signature_algorithm': cert.signature_algorithm_oid._name,  # pylint: disable=protected-access
+                'x509_strict': strict_eval,
+                'active_certs_count': cert_count,
+                'status_label': status_label,
+            }
+        )
+    return cas_list
+
+
 async def get_active_ca_details() -> dict | None:
     if not settings.ca.enabled:
         return None
-    async with db.transaction(readonly=True) as sql:
-        record = await sql.record('select serial_number, cert_pem, crl_pem from cas where active = true')
-    if not record:
-        return None
 
-    serial_number = record['serial_number']
-    cert_pem = record['cert_pem']
-    crl_pem = record['crl_pem']
+    all_cas = await list_all_cas()
+    for item in all_cas:
+        if item['active']:
+            return item
 
-    cert = await asyncio.to_thread(x509.load_pem_x509_certificate, cert_pem.encode(), None)
-    nvb, nva = get_cert_dates(cert)
-    now = datetime.now(timezone.utc)
-    is_valid = nvb <= now <= nva
-    days_remaining = max(0, (nva - now).days)
-
-    fp_bytes = cert.fingerprint(hashes.SHA256())
-    fingerprint = ':'.join(f'{b:02X}' for b in fp_bytes)
-
-    pub_key = cert.public_key()
-    if isinstance(pub_key, rsa.RSAPublicKey):
-        key_info = f'RSA {pub_key.key_size}-bit'
-    elif isinstance(pub_key, ec.EllipticCurvePublicKey):
-        key_info = f'ECDSA {pub_key.curve.name}'
-    else:
-        key_info = 'Public Key'
-
-    sig_algo = cert.signature_hash_algorithm.name.upper() if cert.signature_hash_algorithm else 'SHA'
-    strict_eval = evaluate_ca_x509_strict_compliance(cert)
-
-    return {
-        'serial_number': serial_number,
-        'cert_pem': cert_pem,
-        'crl_pem': crl_pem,
-        'subject': cert.subject.rfc4514_string(),
-        'issuer': cert.issuer.rfc4514_string(),
-        'not_valid_before': nvb.strftime('%Y-%m-%d %H:%M:%S UTC'),
-        'not_valid_after': nva.strftime('%Y-%m-%d %H:%M:%S UTC'),
-        'is_valid': is_valid,
-        'days_remaining': days_remaining,
-        'fingerprint_sha256': fingerprint,
-        'key_info': f'{key_info} / {sig_algo}',
-        'signature_algorithm': cert.signature_algorithm_oid._name,  # pylint: disable=protected-access
-        'x509_strict': strict_eval,
-    }
+    # If no CA is active, return None
+    return None

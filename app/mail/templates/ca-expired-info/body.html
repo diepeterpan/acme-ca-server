@@ -1,0 +1,13 @@
+<h1>{{app_title}}</h1>
+<h2 style="color: #dc2626;">CRITICAL: Root CA Certificate Has Expired</h2>
+
+<p>The internal Root CA certificate <strong>{{common_name}}</strong> (Serial: <code>{{serial_number}}</code>) has <strong>expired</strong> on {{expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}}.</p>
+
+<div style="background: #fef2f2; border: 1px solid #f87171; border-radius: 6px; padding: 12px 16px; margin: 16px 0; color: #991b1b;">
+    <strong>Urgent Attention Required:</strong>
+    <p style="margin: 6px 0 0 0;">This CA is no longer valid. Client devices will reject any TLS connections relying on certificates signed by this CA, and automatic ACME certificate renewals cannot proceed until a valid CA is active.</p>
+</div>
+
+<p>Please log in immediately to the <a href="{{web_url}}ca" target="_blank" rel="noopener noreferrer">CA Management Console</a> to activate or generate a replacement Root CA certificate.</p>
+
+<p style="color: #6b7280; font-size: 13px; margin-top: 24px;">This is an automated administrative notification from {{app_title}}.</p>

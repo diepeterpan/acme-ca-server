@@ -713,7 +713,7 @@ async def ca_setup_post(
 
 
 @api.get('/ca', response_class=HTMLResponse)
-async def ca_view(request: Request, status_msg: str = ''):
+async def ca_view(request: Request, status_msg: str = '', error: str = ''):
     if not settings.ca.enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
     if not ca.is_initialized:
@@ -723,11 +723,17 @@ async def ca_view(request: Request, status_msg: str = ''):
     if not ca_details:
         return RedirectResponse(url='/ca/setup', status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
+    all_cas = await ca_service.list_all_cas()
+    renew_form = await ca_service.get_active_ca_subject_attributes()
+
     return await template_engine.get_template('ca-details.html').render_async(
         **default_params,
         request=request,
         ca=ca_details,
+        all_cas=all_cas,
+        renew_form=renew_form,
         status_msg=status_msg,
+        error=error,
     )
 
 
@@ -778,6 +784,125 @@ async def ca_download_crl():
         media_type='application/pkix-crl',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
+
+
+@api.get('/ca/{serial_number}/download', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
+@api.get('/ca/{serial_number}/download-crt', response_class=Response, responses={200: {'content': {'application/x-x509-ca-cert': {}}}})
+async def ca_download_specific(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    if not settings.ca.enabled or not ca.is_initialized:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
+    async with db.transaction(readonly=True) as sql:
+        cert_pem = await sql.value('select cert_pem from cas where serial_number = $1', serial_number)
+    if not cert_pem:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA not found')
+    filename = f'ca_{serial_number[:8]}.crt'
+    return Response(
+        content=cert_pem,
+        media_type='application/x-x509-ca-cert',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@api.get('/ca/{serial_number}/download-pem', response_class=Response, responses={200: {'content': {'application/x-pem-file': {}}}})
+async def ca_download_pem_specific(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    if not settings.ca.enabled or not ca.is_initialized:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA is not initialized')
+    async with db.transaction(readonly=True) as sql:
+        cert_pem = await sql.value('select cert_pem from cas where serial_number = $1', serial_number)
+    if not cert_pem:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='CA not found')
+    filename = f'ca_{serial_number[:8]}.pem'
+    return Response(
+        content=cert_pem,
+        media_type='application/x-pem-file',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@api.post('/ca/renew', response_class=HTMLResponse)
+async def ca_renew_post(
+    common_name: str = Form(''),
+    organization: str = Form(''),
+    organizational_unit: str = Form(''),
+    country: str = Form(''),
+    state: str = Form(''),
+    locality: str = Form(''),
+    key_type: str = Form('RSA'),
+    key_size_or_curve: str = Form('4096'),
+    digest_algorithm: str = Form('SHA-384'),
+    validity_years: int = Form(10),
+    activate_immediately: str = Form(None),
+):
+    if not settings.ca.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
+
+    cn = common_name.strip()
+    if not cn:
+        return RedirectResponse(url='/ca?error=Common+Name+(CN)+is+required', status_code=status.HTTP_303_SEE_OTHER)
+    if len(cn) > 64:
+        return RedirectResponse(url='/ca?error=Common+Name+must+not+exceed+64+characters', status_code=status.HTTP_303_SEE_OTHER)
+
+    c = country.strip().upper()
+    if c and (len(c) != 2 or not c.isalpha()):
+        return RedirectResponse(url='/ca?error=Country+code+must+be+a+2-letter+ISO+code', status_code=status.HTTP_303_SEE_OTHER)
+
+    if validity_years < 1 or validity_years > 30:
+        return RedirectResponse(url='/ca?error=Validity+period+must+be+between+1+and+30+years', status_code=status.HTTP_303_SEE_OTHER)
+
+    should_activate = activate_immediately in ('on', 'true', '1')
+
+    try:
+        await ca_service.renew_root_ca(
+            common_name=cn,
+            organization=organization.strip() or None,
+            organizational_unit=organizational_unit.strip() or None,
+            country=c or None,
+            state=state.strip() or None,
+            locality=locality.strip() or None,
+            key_type=key_type,
+            key_size_or_curve=key_size_or_curve,
+            digest_algorithm=digest_algorithm,
+            validity_years=validity_years,
+            activate_immediately=should_activate,
+        )
+        status_code_msg = 'ca_renewed_active' if should_activate else 'ca_renewed_standby'
+        return RedirectResponse(url=f'/ca?status_msg={status_code_msg}', status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as exc:  # noqa: BLE001
+        logger.error('Failed to renew CA: %s', exc, exc_info=True)
+        return RedirectResponse(url=f'/ca?error={exc}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/ca/{serial_number}/activate')
+async def ca_activate_post(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    if not settings.ca.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
+    try:
+        await ca_service.set_active_ca(serial_number)
+        return RedirectResponse(url='/ca?status_msg=ca_activated', status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as exc:  # noqa: BLE001
+        return RedirectResponse(url=f'/ca?error={exc}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/ca/{serial_number}/retire')
+async def ca_retire_post(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    if not settings.ca.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
+    try:
+        await ca_service.retire_ca(serial_number)
+        return RedirectResponse(url='/ca?status_msg=ca_retired', status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as exc:  # noqa: BLE001
+        return RedirectResponse(url=f'/ca?error={exc}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/ca/{serial_number}/delete')
+async def ca_delete_post(serial_number: constr(pattern='^[0-9A-F]+$')):  # type: ignore[valid-type]
+    if not settings.ca.enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Internal CA is disabled')
+    try:
+        await ca_service.delete_ca(serial_number)
+        return RedirectResponse(url='/ca?status_msg=ca_deleted', status_code=status.HTTP_303_SEE_OTHER)
+    except Exception as exc:  # noqa: BLE001
+        return RedirectResponse(url=f'/ca?error={exc}', status_code=status.HTTP_303_SEE_OTHER)
 
 
 @api.get('/certificates', response_class=HTMLResponse)
@@ -1759,6 +1884,8 @@ async def mail_settings_post(
     warn_before_cert_expires_days: int = Form(20),
     notify_when_cert_expired: str = Form(None),
     notify_on_account_creation: str = Form(None),
+    admin_notification_email: str = Form(''),
+    warn_before_ca_expires_days: int = Form(90),
 ):
     is_enabled = enabled in ('on', 'true', '1')
     has_expired_notify = notify_when_cert_expired in ('on', 'true', '1')
@@ -1768,6 +1895,7 @@ async def mail_settings_post(
     clean_sender = sender.strip() or None
     clean_user = username.strip() or None
     clean_port = int(port.strip()) if port and port.strip().isdigit() else None
+    clean_admin_email = admin_notification_email.strip() or None
 
     # Validation
     if is_enabled:
@@ -1802,6 +1930,8 @@ async def mail_settings_post(
             notify_on_account_creation=has_account_notify,
             warn_before_cert_expires_days=max(0, warn_before_cert_expires_days),
             notify_when_cert_expired=has_expired_notify,
+            admin_notification_email=clean_admin_email,
+            warn_before_ca_expires_days=max(0, warn_before_ca_expires_days),
             update_password=update_password,
         )
     except Exception as e:  # noqa: BLE001

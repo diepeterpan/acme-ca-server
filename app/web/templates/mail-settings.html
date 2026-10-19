@@ -552,6 +552,28 @@
                             <span class="slider"></span>
                         </label>
                     </div>
+
+                    <div class="form-group" style="border-top: 1px solid var(--border-card); padding-top: 1rem;">
+                        <label class="form-label" for="adminEmailInput">
+                            <span>Admin Notification Email</span>
+                            <span class="hint">Optional; falls back to Sender</span>
+                        </label>
+                        <input type="email" id="adminEmailInput" name="admin_notification_email" class="form-control" value="{{ mail_cfg.admin_notification_email or '' }}" placeholder="ca-admin@example.com">
+                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            Target recipient for Root CA expiration alerts and infrastructure notifications.
+                        </span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="warnCaDaysInput">
+                            <span>Root CA Expiration Alert Threshold (days)</span>
+                            <span class="hint">Default: 90 days</span>
+                        </label>
+                        <input type="number" id="warnCaDaysInput" name="warn_before_ca_expires_days" class="form-control" value="{{ mail_cfg.warn_before_ca_expires_days }}" min="1" max="730">
+                        <span style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            Triggers staged advance warnings (at 90, 60, 30, 14, 7, and 1 days) before Root CA expiration.
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Card: Test Email Delivery -->

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Root CA Certificate{% endblock %}
+{% block title %}Root CA Certificate Authority{% endblock %}
 {% block head %}
 {{ super() }}
 <style type="text/css">
@@ -27,6 +27,7 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        flex-wrap: wrap;
     }
 
     .ca-title {
@@ -37,6 +38,7 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        margin: 0;
     }
 
     .ca-title svg {
@@ -69,23 +71,21 @@
         background-color: var(--status-valid-text);
     }
 
-    /* Actions Bar */
     .actions-bar {
         display: flex;
         align-items: center;
-        gap: 0.85rem;
+        gap: 0.75rem;
         flex-wrap: wrap;
-        margin-bottom: 2rem;
     }
 
     .btn-primary {
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.75rem 1.4rem;
+        padding: 0.7rem 1.3rem;
         background-color: var(--primary);
         color: #ffffff;
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         font-weight: 600;
         border-radius: var(--radius-md);
         text-decoration: none;
@@ -102,20 +102,20 @@
     }
 
     .btn-primary svg {
-        width: 18px;
-        height: 18px;
+        width: 17px;
+        height: 17px;
         fill: currentColor;
     }
 
     .btn-secondary {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.75rem 1.4rem;
+        gap: 0.45rem;
+        padding: 0.7rem 1.2rem;
         background-color: #ffffff;
         color: var(--primary);
         border: 1px solid var(--primary-border);
-        font-size: 0.95rem;
+        font-size: 0.92rem;
         font-weight: 600;
         border-radius: var(--radius-md);
         text-decoration: none;
@@ -129,20 +129,96 @@
     }
 
     .btn-secondary svg {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         fill: currentColor;
+    }
+
+    /* Expiration Timeline Bar */
+    .timeline-container {
+        background: #fbf9ff;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.6rem;
+        font-size: 0.88rem;
+    }
+
+    .timeline-title {
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .timeline-badge {
+        font-weight: 700;
+        padding: 0.15rem 0.6rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.8rem;
+    }
+
+    .badge-ok {
+        background: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .badge-warn {
+        background: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border: 1px solid var(--status-warning-border);
+    }
+
+    .badge-danger {
+        background: var(--status-error-bg);
+        color: var(--status-error-text);
+        border: 1px solid var(--status-error-border);
+    }
+
+    .progress-bar-bg {
+        width: 100%;
+        height: 9px;
+        background: #e2e8f0;
+        border-radius: 9999px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 9999px;
+        transition: width 0.4s ease;
+    }
+
+    .fill-ok {
+        background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .fill-warn {
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+
+    .fill-danger {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
     }
 
     /* Details Grid (40% left, 60% right) */
     .details-grid {
         display: grid;
         grid-template-columns: 2fr 3fr;
-        gap: 1.5rem;
+        gap: 1.25rem;
         margin-bottom: 2rem;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 800px) {
         .details-grid {
             grid-template-columns: 1fr;
         }
@@ -156,7 +232,7 @@
     }
 
     .detail-label {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -168,7 +244,7 @@
     }
 
     .detail-value {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 600;
         color: var(--text-heading);
         word-break: break-all;
@@ -203,8 +279,8 @@
     }
 
     .copy-btn svg {
-        width: 15px;
-        height: 15px;
+        width: 14px;
+        height: 14px;
         fill: currentColor;
     }
 
@@ -241,7 +317,7 @@
         overflow-x: auto;
         white-space: pre;
         line-height: 1.45;
-        max-height: 280px;
+        max-height: 240px;
         user-select: all;
     }
 
@@ -449,17 +525,390 @@
         color: var(--text-muted);
         word-break: break-word;
     }
+
+    /* CA Repository Table */
+    .repo-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 2.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .repo-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .repo-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .repo-title {
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .repo-title svg {
+        width: 24px;
+        height: 24px;
+        fill: var(--primary);
+    }
+
+    .repo-desc {
+        color: var(--text-muted);
+        font-size: 0.88rem;
+        margin: 0;
+    }
+
+    .table-container {
+        overflow-x: auto;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+    }
+
+    .ca-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        text-align: left;
+    }
+
+    .ca-table th {
+        background: #f8fafc;
+        padding: 0.85rem 1rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        border-bottom: 1px solid var(--border-card);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .ca-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-card);
+        vertical-align: middle;
+    }
+
+    .ca-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .ca-table tr:hover td {
+        background: #fcfbfe;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: capitalize;
+    }
+
+    .status-badge.status-active {
+        background: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .status-badge.status-standby {
+        background: #f3e8ff;
+        color: #7e22ce;
+        border: 1px solid #d8b4fe;
+    }
+
+    .status-badge.status-expiring {
+        background: var(--status-warning-bg);
+        color: var(--status-warning-text);
+        border: 1px solid var(--status-warning-border);
+    }
+
+    .status-badge.status-expired {
+        background: var(--status-error-bg);
+        color: var(--status-error-text);
+        border: 1px solid var(--status-error-border);
+    }
+
+    .status-badge.status-retired {
+        background: #f1f5f9;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
+    .actions-group {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.38rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 1px solid;
+    }
+
+    .btn-action-primary {
+        background: #f5f3ff;
+        color: var(--primary);
+        border-color: #ddd6fe;
+    }
+
+    .btn-action-primary:hover {
+        background: var(--primary);
+        color: #ffffff;
+        border-color: var(--primary);
+    }
+
+    .btn-action-activate {
+        background: #ecfdf5;
+        color: #047857;
+        border-color: #a7f3d0;
+    }
+
+    .btn-action-activate:hover {
+        background: #059669;
+        color: #ffffff;
+        border-color: #059669;
+    }
+
+    .btn-action-retire {
+        background: #fffbeb;
+        color: #b45309;
+        border-color: #fde68a;
+    }
+
+    .btn-action-retire:hover {
+        background: #d97706;
+        color: #ffffff;
+        border-color: #d97706;
+    }
+
+    .btn-action-delete {
+        background: #fef2f2;
+        color: #b91c1c;
+        border-color: #fecaca;
+    }
+
+    .btn-action-delete:hover {
+        background: #dc2626;
+        color: #ffffff;
+        border-color: #dc2626;
+    }
+
+    /* Modal Backdrop and Box */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 1.5rem;
+        box-sizing: border-box;
+    }
+
+    .modal-card {
+        background: #ffffff;
+        border-radius: var(--radius-lg);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        max-width: 650px;
+        max-height: 90vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem 1.75rem;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .modal-close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        line-height: 1;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+    }
+
+    .modal-close-btn:hover {
+        color: var(--text-heading);
+    }
+
+    .modal-body {
+        padding: 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .form-label {
+        font-size: 0.86rem;
+        font-weight: 600;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .form-label .hint {
+        font-size: 0.76rem;
+        font-weight: normal;
+        color: var(--text-muted);
+    }
+
+    .form-control {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.65rem 0.85rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        font-size: 0.9rem;
+        color: var(--text-heading);
+        background: #ffffff;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .modal-footer {
+        padding: 1.25rem 1.75rem;
+        background: #f8fafc;
+        border-top: 1px solid var(--border-card);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+
+    .alert-banner {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+        padding: 0.9rem 1.25rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.92rem;
+        font-weight: 500;
+    }
+
+    .alert-banner.alert-error {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #991b1b;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+
 {% if status_msg == 'ca_created' %}
 <div class="alert-banner">
     <span>✓ Root Certificate Authority created and initialized successfully!</span>
     <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
 </div>
+{% elif status_msg == 'ca_renewed_standby' %}
+<div class="alert-banner">
+    <span>✓ Replacement Root CA successfully generated and saved in <strong>Standby mode</strong>! You can now deploy its certificate to endpoint trust stores before activating issuance.</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% elif status_msg == 'ca_renewed_active' %}
+<div class="alert-banner">
+    <span>✓ Replacement Root CA generated and set as the <strong>Active Issuing CA</strong>!</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% elif status_msg == 'ca_activated' %}
+<div class="alert-banner">
+    <span>✓ Active issuing Root CA updated successfully. Future certificates will be issued under this CA.</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% elif status_msg == 'ca_retired' %}
+<div class="alert-banner">
+    <span>✓ Root CA marked as retired / decommissioned.</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% elif status_msg == 'ca_deleted' %}
+<div class="alert-banner">
+    <span>✓ CA certificate and private key removed from database.</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
 {% endif %}
 
+{% if error %}
+<div class="alert-banner alert-error">
+    <span>⚠ {{ error }}</span>
+    <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+<!-- Active Issuing CA Card -->
 <div class="ca-card">
     <div class="ca-header">
         <div class="ca-title-group">
@@ -467,11 +916,11 @@
                 <svg viewBox="0 0 24 24">
                     <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
                 </svg>
-                Root Certificate Authority
+                Active Issuing Root CA
             </h1>
             <span class="badge-status">
                 <span class="badge-dot"></span>
-                Active
+                Active Issuing
             </span>
             {% if ca.x509_strict is defined %}
             <button type="button" class="btn-strict-pill {% if ca.x509_strict.is_compliant %}strict-compliant{% else %}strict-warning{% endif %}" id="btnToggleStrict" onclick="toggleStrictDetails()" title="Click to view RFC 5280 / X.509 Strict compliance details" aria-expanded="false" aria-controls="strictDetailsBanner">
@@ -492,19 +941,53 @@
             </button>
             {% endif %}
         </div>
-        <div class="actions-bar" style="margin-bottom: 0;">
-            <a href="/ca/download" class="btn-primary">
+        <div class="actions-bar">
+            <button type="button" class="btn-primary" onclick="openRenewModal()">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+                Renew / Rollover CA
+            </button>
+            <a href="/ca/download" class="btn-secondary">
                 <svg viewBox="0 0 24 24">
                     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                 </svg>
-                Download Certificate (.crt)
+                Download Active (.crt)
             </a>
             <a href="/ca/download-crl" class="btn-secondary">
                 <svg viewBox="0 0 24 24">
                     <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                 </svg>
-                Download CRL (.crl)
+                Download Active CRL (.crl)
             </a>
+        </div>
+    </div>
+
+    <!-- Timeline & Expiration Countdown -->
+    <div class="timeline-container">
+        <div class="timeline-header">
+            <div class="timeline-title">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                </svg>
+                Validity &amp; Expiration Timeline
+            </div>
+            <div>
+                {% if ca.days_remaining > 90 %}
+                <span class="timeline-badge badge-ok">{{ ca.days_remaining }} days remaining</span>
+                {% elif ca.days_remaining > 30 %}
+                <span class="timeline-badge badge-warn">{{ ca.days_remaining }} days remaining (Expiring Soon)</span>
+                {% else %}
+                <span class="timeline-badge badge-danger">{{ ca.days_remaining }} days remaining (Action Urgently Required)</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="progress-bar-bg" title="{{ ca.validity_pct }}% of lifetime elapsed">
+            <div class="progress-bar-fill {% if ca.days_remaining > 90 %}fill-ok{% elif ca.days_remaining > 30 %}fill-warn{% else %}fill-danger{% endif %}" style="width: {{ ca.validity_pct }}%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-muted);">
+            <span>Issued: {{ ca.not_valid_before }}</span>
+            <span>Expires: {{ ca.not_valid_after }}</span>
         </div>
     </div>
 
@@ -595,10 +1078,9 @@
         </div>
 
         <div class="detail-item">
-            <div class="detail-label">Validity Period</div>
+            <div class="detail-label">Active Issued Certificates</div>
             <div class="detail-value">
-                <span>{{ ca.not_valid_before }} &mdash; {{ ca.not_valid_after }}</span>
-                <span style="margin-left: 0.5rem; font-size: 12px; color: var(--status-valid-text); font-weight: 700;">({{ ca.days_remaining }} days left)</span>
+                <span style="font-weight: 700; color: var(--primary);">{{ ca.active_certs_count }}</span> active certificate{% if ca.active_certs_count != 1 %}s{% endif %} signed
             </div>
         </div>
 
@@ -619,12 +1101,247 @@
     <div class="pem-section">
         <div class="pem-header">
             <span class="pem-title">PEM Encoded CA Certificate</span>
-            <button class="btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.84rem;" onclick="copyToClipboard(document.getElementById('pemCode').textContent, this)">
+            <button class="btn-secondary" style="padding: 0.35rem 0.8rem; font-size: 0.82rem;" onclick="copyToClipboard(document.getElementById('pemCode').textContent, this)">
                 <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
                 Copy PEM
             </button>
         </div>
         <pre class="pem-content" id="pemCode">{{ ca.cert_pem }}</pre>
+    </div>
+</div>
+
+<!-- CA Certificates Repository Card -->
+<div class="repo-card">
+    <div class="repo-header">
+        <div class="repo-title-group">
+            <h2 class="repo-title">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+                </svg>
+                Root CA Repository
+                <span style="font-size: 0.85rem; font-weight: 600; padding: 0.15rem 0.6rem; background: #ede9fe; color: var(--primary); border-radius: var(--radius-pill);">{{ all_cas|length }}</span>
+            </h2>
+            <p class="repo-desc">
+                All managed Root Certificate Authorities. Standby CAs can be pre-distributed to client endpoints prior to activating issuance.
+            </p>
+        </div>
+        <button type="button" class="btn-primary" onclick="openRenewModal()">
+            <svg viewBox="0 0 24 24">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            Add / Rollover Root CA
+        </button>
+    </div>
+
+    <div class="table-container">
+        <table class="ca-table">
+            <thead>
+                <tr>
+                    <th style="width: 130px;">Status</th>
+                    <th>CA Common Name &amp; Subject</th>
+                    <th>Serial Number</th>
+                    <th>Key &amp; Digest</th>
+                    <th style="min-width: 170px;">Validity Period</th>
+                    <th style="text-align: center;">Active Certs</th>
+                    <th style="min-width: 200px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in all_cas %}
+                <tr>
+                    <td>
+                        {% if item.status_label == 'active' %}
+                        <span class="status-badge status-active">
+                            <span class="badge-dot" style="width: 6px; height: 6px;"></span>
+                            Active
+                        </span>
+                        {% elif item.status_label == 'standby' %}
+                        <span class="status-badge status-standby">Standby</span>
+                        {% elif item.status_label == 'expiring' %}
+                        <span class="status-badge status-expiring">Expiring Soon</span>
+                        {% elif item.status_label == 'expired' %}
+                        <span class="status-badge status-expired">Expired</span>
+                        {% elif item.status_label == 'retired' %}
+                        <span class="status-badge status-retired">Retired</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="font-weight: 700; color: var(--text-heading); margin-bottom: 2px;">{{ item.common_name }}</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); word-break: break-word;">{{ item.subject }}</div>
+                    </td>
+                    <td>
+                        <span class="mono-code" style="font-size: 11px;">
+                            <span>{{ item.serial_number[:12] }}...</span>
+                            <button class="copy-btn" onclick="copyToClipboard('{{ item.serial_number }}', this)" title="Copy full serial number">
+                                <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                            </button>
+                        </span>
+                    </td>
+                    <td>
+                        <div style="font-size: 0.8rem; font-weight: 600; color: #334155;">{{ item.key_info }}</div>
+                    </td>
+                    <td>
+                        <div style="font-size: 0.78rem; color: var(--text-heading); font-weight: 600; margin-bottom: 4px;">
+                            {{ item.days_remaining }} days left
+                        </div>
+                        <div class="progress-bar-bg" style="height: 6px;" title="{{ item.validity_pct }}% elapsed">
+                            <div class="progress-bar-fill {% if item.days_remaining > 90 %}fill-ok{% elif item.days_remaining > 30 %}fill-warn{% else %}fill-danger{% endif %}" style="width: {{ item.validity_pct }}%;"></div>
+                        </div>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                            Expires {{ item.not_valid_after[:10] }}
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <span style="font-weight: 700; color: var(--primary);">{{ item.active_certs_count }}</span>
+                    </td>
+                    <td>
+                        <div class="actions-group">
+                            <a href="/ca/{{ item.serial_number }}/download" class="btn-action btn-action-primary" title="Download .crt">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                .CRT
+                            </a>
+                            <a href="/ca/{{ item.serial_number }}/download-pem" class="btn-action btn-action-primary" title="Download .pem">
+                                .PEM
+                            </a>
+
+                            {% if not item.active and not item.revoked_at and not item.is_expired %}
+                            <form method="POST" action="/ca/{{ item.serial_number }}/activate" style="margin: 0;" onsubmit="return confirm('Switch active CA to {{ item.common_name }} (Serial: {{ item.serial_number[:8] }})? Future certificate requests will be signed by this CA.');">
+                                <button type="submit" class="btn-action btn-action-activate" title="Make this the active issuing CA">
+                                    Set as Active
+                                </button>
+                            </form>
+                            {% endif %}
+
+                            {% if not item.active and not item.revoked_at %}
+                            <form method="POST" action="/ca/{{ item.serial_number }}/retire" style="margin: 0;" onsubmit="return confirm('Retire CA {{ item.common_name }}? It will be permanently marked as decommissioned.');">
+                                <button type="submit" class="btn-action btn-action-retire" title="Retire / Decommission CA">
+                                    Retire
+                                </button>
+                            </form>
+                            {% endif %}
+
+                            {% if not item.active %}
+                            <form method="POST" action="/ca/{{ item.serial_number }}/delete" style="margin: 0;" onsubmit="return confirm('Permanently delete CA {{ item.common_name }}? This action cannot be undone.');">
+                                <button type="submit" class="btn-action btn-action-delete" title="Delete CA">
+                                    Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Renew / Rollover Modal Dialog -->
+<div id="renewModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="var(--primary)">
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+                Renew / Rollover Root CA
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closeRenewModal()">&times;</button>
+        </div>
+        <form method="POST" action="/ca/renew" style="margin: 0;">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="commonNameInput">
+                        <span>Common Name (CN) *</span>
+                        <span class="hint">e.g. ACME Root CA G2</span>
+                    </label>
+                    <input type="text" id="commonNameInput" name="common_name" class="form-control" value="{{ renew_form.common_name }}" required maxlength="64">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="orgInput">Organization (O)</label>
+                        <input type="text" id="orgInput" name="organization" class="form-control" value="{{ renew_form.organization }}" placeholder="e.g. My Organization">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="ouInput">Organizational Unit (OU)</label>
+                        <input type="text" id="ouInput" name="organizational_unit" class="form-control" value="{{ renew_form.organizational_unit }}" placeholder="e.g. Security Operations">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="countryInput">
+                            <span>Country (C)</span>
+                            <span class="hint">2-letter ISO code</span>
+                        </label>
+                        <input type="text" id="countryInput" name="country" class="form-control" value="{{ renew_form.country }}" maxlength="2" placeholder="e.g. US, DE, GB">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="validityInput">Validity Period (Years)</label>
+                        <select id="validityInput" name="validity_years" class="form-control">
+                            <option value="1">1 Year</option>
+                            <option value="2">2 Years</option>
+                            <option value="5">5 Years</option>
+                            <option value="10" selected>10 Years (Recommended)</option>
+                            <option value="15">15 Years</option>
+                            <option value="20">20 Years</option>
+                            <option value="30">30 Years</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="keyTypeInput">Key Type &amp; Size</label>
+                        <select id="keyTypeInput" name="key_type" class="form-control" onchange="updateKeySizeOptions(this.value)">
+                            <option value="RSA" {% if renew_form.key_type == 'RSA' %}selected{% endif %}>RSA</option>
+                            <option value="ECDSA" {% if renew_form.key_type == 'ECDSA' %}selected{% endif %}>ECDSA</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="keySizeInput">Key Size / Curve</label>
+                        <select id="keySizeInput" name="key_size_or_curve" class="form-control">
+                            <option value="4096" selected>4096-bit (Strong, Recommended)</option>
+                            <option value="3072">3072-bit</option>
+                            <option value="2048">2048-bit</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="digestInput">Digest Hash Algorithm</label>
+                    <select id="digestInput" name="digest_algorithm" class="form-control">
+                        <option value="SHA-384" selected>SHA-384 (Recommended)</option>
+                        <option value="SHA-256">SHA-256</option>
+                        <option value="SHA-512">SHA-512</option>
+                    </select>
+                </div>
+
+                <div style="background: #f8fafc; border: 1px solid var(--border-card); border-radius: var(--radius-md); padding: 1rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.65rem; cursor: pointer;">
+                        <input type="checkbox" name="activate_immediately" id="activateImmediatelyCheckbox" style="margin-top: 3px; accent-color: var(--primary);">
+                        <div>
+                            <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-heading); display: block;">
+                                Activate immediately for certificate issuance
+                            </span>
+                            <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 2px;">
+                                <strong>Recommended practice:</strong> Leave unchecked to keep the new CA in <em>Standby mode</em>. This gives you time to distribute the new root certificate to endpoints before flipping issuance.
+                            </span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeRenewModal()">Cancel</button>
+                <button type="submit" class="btn-primary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                    </svg>
+                    Generate &amp; Rollover CA
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -655,5 +1372,44 @@
             if (chevron) chevron.style.transform = 'rotate(0deg)';
         }
     }
+
+    function openRenewModal() {
+        const modal = document.getElementById('renewModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    function closeRenewModal() {
+        const modal = document.getElementById('renewModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function updateKeySizeOptions(keyType) {
+        const sel = document.getElementById('keySizeInput');
+        if (!sel) return;
+        sel.innerHTML = '';
+        if (keyType === 'ECDSA') {
+            sel.innerHTML = `
+                <option value="P-384" selected>NIST P-384 / SECP384R1 (Recommended)</option>
+                <option value="P-256">NIST P-256 / SECP256R1</option>
+                <option value="P-521">NIST P-521 / SECP521R1</option>
+            `;
+        } else {
+            sel.innerHTML = `
+                <option value="4096" selected>4096-bit (Strong, Recommended)</option>
+                <option value="3072">3072-bit</option>
+                <option value="2048">2048-bit</option>
+            `;
+        }
+    }
+
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeRenewModal();
+        }
+    });
 </script>
 {% endblock %}

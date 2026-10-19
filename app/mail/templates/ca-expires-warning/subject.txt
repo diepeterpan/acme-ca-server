@@ -1,0 +1,1 @@
+[{{app_title}}] WARNING: Root CA Certificate Expiring in {{days_remaining}} Days
