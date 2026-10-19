@@ -4,6 +4,7 @@ import hashlib
 import json
 import ssl
 from unittest.mock import AsyncMock, patch
+from urllib.parse import unquote
 
 import config
 import httpx
@@ -151,7 +152,7 @@ def test_oidc_callback_unprovisioned_user_rejected(anon_client: httpx.Client):
         resp = anon_client.get(f'/oidc/callback?code=mock_code&state={state}', follow_redirects=False)
         assert resp.status_code == 303
         assert '/login' in resp.headers['Location']
-        assert 'not+pre-provisioned' in resp.headers['Location']
+        assert 'not pre-provisioned' in unquote(resp.headers['Location'])
 
     config.settings.oidc.enabled = False
 
