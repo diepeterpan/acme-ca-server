@@ -257,6 +257,71 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Windows Server 2016', os_detail)
         self.assertIn('10.0.14393', os_detail)
 
+    async def test_get_endpoint_not_found(self):
+        class MockEmptySql:
+            async def record(self, *args, **kwargs):
+                return None
+
+        class MockEmptyTx:
+            async def __aenter__(self):
+                return MockEmptySql()
+
+            async def __aexit__(self, *args):
+                pass
+
+        with mock.patch('ca.distribution.db.transaction', return_value=MockEmptyTx()):
+            ep = await dist.get_endpoint('nonexistent-id')
+            self.assertIsNone(ep)
+
+    async def test_distribute_to_ssh_endpoint_connection_failure(self):
+        ep = dist.Endpoint(
+            id='ep-fail',
+            name='Failing Host',
+            type='ssh',
+            host='unreachable.example.org',
+            port=22,
+            username='root',
+            auth_type='password',
+            target_dir='/etc/ssl/certs',
+        )
+        cert = self._build_cert('Test Org', 'Root CA', datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+        class MockSecretSql:
+            async def record(self, *args, **kwargs):
+                return {'auth_secret_enc': dist.encrypt_secret('test_key')}
+
+        class MockSecretTx:
+            async def __aenter__(self):
+                return MockSecretSql()
+
+            async def __aexit__(self, *args):
+                pass
+
+        with mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()):
+            with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
+                with mock.patch('ca.distribution.asyncssh.connect', side_effect=OSError('Network unreachable')):
+                    res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_CONTENT')
+                    self.assertFalse(res.status)
+                    self.assertIn('Network unreachable', res.message)
+                    self.assertEqual(res.endpoint_id, 'ep-fail')
+
+    async def test_distribute_to_email_endpoint_disabled_mail(self):
+        ep = dist.Endpoint(
+            id='ep-email-fail',
+            name='Email Fail',
+            type='email',
+            email_addresses=['user@example.com'],
+        )
+        cert = self._build_cert('Test Org', 'Root CA', datetime(2026, 1, 1, tzinfo=timezone.utc))
+        mock_cfg = mock.MagicMock(enabled=False, host='smtp.example.org')
+
+        with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
+            with mock.patch('mail.service.get_mail_settings', new=mock.AsyncMock(return_value=mock_cfg)):
+                res = await dist.distribute_to_email_endpoint(ep, cert, 'CERT_PEM_CONTENT')
+                self.assertFalse(res.status)
+                self.assertIn('disabled', res.message)
+
 
 if __name__ == '__main__':
     unittest.main()
+

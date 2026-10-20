@@ -409,34 +409,24 @@
     }
 
     .table-popover {
-        position: absolute;
-        top: calc(100% - 2px);
-        left: 0;
-        z-index: 100;
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        z-index: 9999;
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
         transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
         transform: translateY(4px);
-        padding-top: 6px;
+        margin: 0;
+        padding: 0;
     }
 
     .table-popover.popover-up {
-        top: auto;
-        bottom: calc(100% - 2px);
-        padding-top: 0;
-        padding-bottom: 6px;
         transform: translateY(-4px);
     }
 
-    .table-popover.popover-right {
-        left: auto;
-        right: 0;
-    }
-
-    .table-popover-wrapper:hover .table-popover,
-    .table-popover:hover,
-    .table-popover-wrapper:focus-within .table-popover {
+    .table-popover.is-visible {
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
@@ -2042,29 +2032,84 @@ document.addEventListener('DOMContentLoaded', function() {
         if (btn) switchTab('logsTab', btn);
     }
 
-    // Auto-flip table popover upward if near bottom of table container or viewport
+    // Top-Layer Floating popover engine for distribution tables (zero table scrollbars)
     document.querySelectorAll('.table-popover-wrapper').forEach(wrapper => {
-        function checkPopoverPosition() {
-            const popover = wrapper.querySelector('.table-popover');
-            if (!popover) return;
-            const scrollContainer = wrapper.closest('div[style*="overflow-x"], .table-container') || wrapper.closest('table');
-            const wrapperRect = wrapper.getBoundingClientRect();
-            let spaceBelow = window.innerHeight - wrapperRect.bottom;
-            if (scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                spaceBelow = Math.min(spaceBelow, containerRect.bottom - wrapperRect.bottom);
+        const popover = wrapper.querySelector('.table-popover');
+        if (!popover) return;
+
+        let hideTimeout = null;
+
+        function show() {
+            clearTimeout(hideTimeout);
+            document.querySelectorAll('.table-popover.is-visible').forEach(p => {
+                if (p !== popover) {
+                    p.classList.remove('is-visible', 'popover-up');
+                    p.style.top = '-9999px';
+                    p.style.left = '-9999px';
+                }
+            });
+
+            popover.style.display = 'block';
+            popover.style.visibility = 'hidden';
+            popover.style.top = '-9999px';
+            popover.style.left = '-9999px';
+
+            const rect = wrapper.getBoundingClientRect();
+            const popRect = popover.getBoundingClientRect();
+            const margin = 6;
+            const popHeight = popRect.height || 40;
+            const popWidth = popRect.width || 200;
+
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const placeUp = (spaceBelow < popHeight + margin + 10) && (rect.top > popHeight + margin);
+
+            let top = placeUp ? (rect.top - popHeight - margin) : (rect.bottom + margin);
+            let left = rect.left;
+
+            if (popover.classList.contains('popover-right')) {
+                left = rect.right - popWidth;
             }
-            const isMultiline = popover.querySelector('.multiline');
-            const requiredSpace = isMultiline ? 240 : 85;
-            if (spaceBelow < requiredSpace) {
+            if (left + popWidth > window.innerWidth - 12) {
+                left = window.innerWidth - popWidth - 12;
+            }
+            if (left < 12) left = 12;
+
+            popover.style.top = `${Math.round(top)}px`;
+            popover.style.left = `${Math.round(left)}px`;
+            popover.style.visibility = '';
+
+            if (placeUp) {
                 popover.classList.add('popover-up');
             } else {
                 popover.classList.remove('popover-up');
             }
+            popover.classList.add('is-visible');
         }
-        wrapper.addEventListener('mouseenter', checkPopoverPosition);
-        wrapper.addEventListener('focusin', checkPopoverPosition);
+
+        function scheduleHide() {
+            hideTimeout = setTimeout(() => {
+                popover.classList.remove('is-visible', 'popover-up');
+                popover.style.top = '-9999px';
+                popover.style.left = '-9999px';
+            }, 120);
+        }
+
+        wrapper.addEventListener('mouseenter', show);
+        wrapper.addEventListener('mouseleave', scheduleHide);
+        wrapper.addEventListener('focusin', show);
+        wrapper.addEventListener('focusout', scheduleHide);
+
+        popover.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+        popover.addEventListener('mouseleave', scheduleHide);
     });
+
+    window.addEventListener('scroll', () => {
+        document.querySelectorAll('.table-popover.is-visible').forEach(p => {
+            p.classList.remove('is-visible', 'popover-up');
+            p.style.top = '-9999px';
+            p.style.left = '-9999px';
+        });
+    }, { passive: true });
 });
 </script>
 {% endblock %}

@@ -13,6 +13,9 @@ Captures high-resolution screenshots of all web UI screens:
   8. Accounts Management
   9. Account Orders & Error Details Modal
   10. Mail Settings & Delivery Diagnostics
+  11. User Management & Access Control
+  12. CA Certificate Distribution Hub
+  12b. Root CA Certificate Distribution & Deployment Modal
 
 Usage:
   python3 scripts/capture_ui_screens.py
@@ -23,6 +26,7 @@ import argparse
 import asyncio
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Resolve repository paths
@@ -169,7 +173,7 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
 
     default_params = {
         'app_title': 'ACME CA Server',
-        'app_version': 'v0.9.1',
+        'app_version': 'v0.9.8',
         'is_authenticated': False,
         'current_user': None,
         'active_tab': '',
@@ -192,12 +196,14 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
         # 01: Login Screen
         print("--> Capturing 01_login_screen.png...")
         try:
-            await page_guest.goto(f"{base_url}/login", wait_until='networkidle')
+            await page_guest.goto(f"{base_url}/login", wait_until='networkidle', timeout=3000)
             if obfuscate:
                 await obfuscate_page(page_guest)
             await page_guest.screenshot(path=str(output_dir / "01_login_screen.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not fetch {base_url}/login: {e}")
+            await page_guest.close()
+            page_guest = await context_guest.new_page()
 
         # 02: Admin Setup / Onboarding
         print("--> Capturing 02_admin_setup_onboarding.png...")
@@ -399,6 +405,267 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             await page_auth.screenshot(path=str(output_dir / "10_mail_settings.png"), full_page=False)
         except Exception as e:
             print(f"    Warning: Could not capture mail settings: {e}")
+
+        # 11: Users & Access
+        print("--> Capturing 11_users_and_access.png...")
+        try:
+            captured = False
+            try:
+                resp = await page_auth.goto(f"{base_url}/users", wait_until='networkidle', timeout=3000)
+                if resp and resp.status == 200:
+                    captured = True
+            except Exception:
+                captured = False
+
+            if not captured:
+                users_template = env.get_template('users.html')
+                sample_users = [
+                    {
+                        'id': 'u-1',
+                        'username': 'admin',
+                        'email': 'admin@example.com',
+                        'user_type': 'local',
+                        'created_at': datetime(2026, 10, 1, 10, 0, tzinfo=timezone.utc),
+                        'last_login_at': datetime(2026, 10, 19, 22, 15, tzinfo=timezone.utc),
+                    },
+                    {
+                        'id': 'u-2',
+                        'username': 'secops-operator',
+                        'email': 'secops@example.com',
+                        'user_type': 'local',
+                        'created_at': datetime(2026, 10, 5, 14, 30, tzinfo=timezone.utc),
+                        'last_login_at': datetime(2026, 10, 18, 9, 20, tzinfo=timezone.utc),
+                    },
+                    {
+                        'id': 'u-3',
+                        'username': 'johndoe',
+                        'email': 'johndoe@example.com',
+                        'user_type': 'oidc',
+                        'created_at': datetime(2026, 10, 12, 11, 45, tzinfo=timezone.utc),
+                        'last_login_at': datetime(2026, 10, 19, 16, 50, tzinfo=timezone.utc),
+                    },
+                ]
+                users_params = dict(default_params)
+                users_params.update({
+                    'is_authenticated': True,
+                    'current_user': admin_user,
+                    'request': MockRequest('/users', admin_user),
+                    'users': sample_users,
+                    'error': '',
+                    'success': '',
+                })
+                users_html = await users_template.render_async(**users_params)
+                await page_auth.set_content(users_html, wait_until='networkidle')
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "11_users_and_access.png"), full_page=False)
+            print("    Users & Access captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture users and access: {e}")
+
+        # 12: CA Certificate Distribution Hub
+        print("--> Capturing 12_ca_distribution.png...")
+        try:
+            captured = False
+            try:
+                resp = await page_auth.goto(f"{base_url}/ca-distribution", wait_until='networkidle', timeout=3000)
+                if resp and resp.status == 200:
+                    captured = True
+            except Exception:
+                captured = False
+
+            if not captured:
+                import ca.distribution as ca_dist
+                sample_ssh = [
+                    ca_dist.Endpoint(
+                        id='ep-01', name='Ubuntu Web Cluster', type='ssh', host='web01.example.org', port=22,
+                        username='deploy', auth_type='key', target_dir='/usr/local/share/ca-certificates',
+                        target_os_list=['linux'], detected_os='linux', os_detail='Ubuntu 24.04 LTS (Noble Numbat)',
+                        last_test_at=datetime(2026, 10, 19, 20, 15, tzinfo=timezone.utc), last_test_status=True,
+                        last_test_message='SSH connection successful. SFTP directory writable.', has_secret=True,
+                    ),
+                    ca_dist.Endpoint(
+                        id='ep-02', name='Core OpenWrt Router', type='ssh', host='192.168.1.1', port=22,
+                        username='root', auth_type='key', target_dir='/etc/ssl/certs',
+                        target_os_list=['openwrt'], detected_os='openwrt', os_detail='OpenWrt 23.05.2 (r23630-9429070123)',
+                        last_test_at=datetime(2026, 10, 19, 21, 30, tzinfo=timezone.utc), last_test_status=True,
+                        last_test_message='SSH connection successful. Ready for automated CA installation.', has_secret=True,
+                    ),
+                    ca_dist.Endpoint(
+                        id='ep-03', name='Active Directory WinServer', type='ssh', host='dc01.example.org', port=22,
+                        username='Administrator', auth_type='password', target_dir='C:\\ProgramData\\Certificates',
+                        target_os_list=['windows'], detected_os='windows', os_detail='Windows Server 2022 Datacenter (10.0.20348)',
+                        last_test_at=datetime(2026, 10, 19, 22, 10, tzinfo=timezone.utc), last_test_status=True,
+                        last_test_message='SSH connection and PowerShell execution verified.', has_secret=True,
+                    ),
+                ]
+                sample_email = [
+                    ca_dist.Endpoint(
+                        id='ep-04', name='SecOps & IT Administrators', type='email',
+                        email_addresses=['secops@example.com', 'it-alerts@example.com'],
+                        target_os_list=['linux', 'windows', 'macos', 'ios', 'android'],
+                        last_test_at=datetime(2026, 10, 19, 19, 45, tzinfo=timezone.utc), last_test_status=True,
+                        last_test_message='2 valid recipient(s). Outbound SMTP ready.',
+                    ),
+                ]
+                sample_logs = [
+                    {
+                        'id': 'log-1', 'ca_serial': '7A1EC5392C74', 'endpoint_id': 'ep-01', 'endpoint_name': 'Ubuntu Web Cluster',
+                        'endpoint_type': 'ssh', 'filename': 'AcmeCorp_20261019.crt', 'status': 'ok',
+                        'status_message': 'Uploaded AcmeCorp_20261019.crt, .pem, .cer and README.txt. update-ca-certificates verified.',
+                        'distributed_at': datetime(2026, 10, 19, 23, 10, tzinfo=timezone.utc),
+                    },
+                    {
+                        'id': 'log-2', 'ca_serial': '7A1EC5392C74', 'endpoint_id': 'ep-02', 'endpoint_name': 'Core OpenWrt Router',
+                        'endpoint_type': 'ssh', 'filename': 'AcmeCorp_20261019.crt', 'status': 'ok',
+                        'status_message': 'Uploaded certificates to /etc/ssl/certs/ with OpenWrt deployment script.',
+                        'distributed_at': datetime(2026, 10, 19, 23, 12, tzinfo=timezone.utc),
+                    },
+                    {
+                        'id': 'log-3', 'ca_serial': '7A1EC5392C74', 'endpoint_id': 'ep-04', 'endpoint_name': 'SecOps & IT Administrators',
+                        'endpoint_type': 'email', 'filename': 'AcmeCorp_20261019', 'status': 'ok',
+                        'status_message': 'Email successfully sent to 2 recipient(s) with .crt, .pem, and .cer attachments.',
+                        'distributed_at': datetime(2026, 10, 19, 23, 15, tzinfo=timezone.utc),
+                    },
+                ]
+                dist_template = env.get_template('ca-distribution.html')
+                dist_params = dict(default_params)
+                dist_params.update({
+                    'is_authenticated': True,
+                    'current_user': admin_user,
+                    'request': MockRequest('/ca-distribution', admin_user),
+                    'active_tab': 'ssh',
+                    'ssh_endpoints': sample_ssh,
+                    'email_endpoints': sample_email,
+                    'logs': sample_logs,
+                    'error': '',
+                    'status_msg': '',
+                })
+                dist_html = await dist_template.render_async(**dist_params)
+                await page_auth.set_content(dist_html, wait_until='networkidle')
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "12_ca_distribution.png"), full_page=False)
+            print("    CA Certificate Distribution Hub captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture CA distribution hub: {e}")
+
+        # 12b: Root CA Certificate Distribution & Deployment Modal
+        print("--> Capturing 12b_ca_distribution_modal.png...")
+        try:
+            captured = False
+            try:
+                resp = await page_auth.goto(f"{base_url}/ca", wait_until='networkidle', timeout=3000)
+                if resp and resp.status == 200:
+                    dist_btn = page_auth.locator(".btn-action-distribute, button:has-text('Distribute')").first
+                    if await dist_btn.count() > 0:
+                        await dist_btn.click()
+                        await page_auth.wait_for_selector("#distributeModal", state='visible', timeout=3000)
+                        await asyncio.sleep(0.4)
+                        chks = page_auth.locator(".dist-endpoint-chk")
+                        if await chks.count() > 0:
+                            await chks.first.check()
+                        captured = True
+            except Exception:
+                captured = False
+
+            if not captured:
+                ca_template = env.get_template('ca-details.html')
+                ca_mock = {
+                    'serial_number': '7A1EC5392C74',
+                    'common_name': 'ACME Root CA',
+                    'subject': 'CN=ACME Root CA, O=Example Security Corp, C=US',
+                    'not_valid_before': '2026-10-01 00:00:00',
+                    'not_valid_after': '2036-10-01 00:00:00',
+                    'days_remaining': 3632,
+                    'validity_pct': 99,
+                    'key_type': 'RSA',
+                    'key_size_or_curve': '4096-bit',
+                    'digest_algorithm': 'SHA-256',
+                    'fingerprint_sha256': 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855',
+                    'cert_pem': '-----BEGIN CERTIFICATE-----\nMIIEczCCA1ugAwIBAgIUQ4hO7qB0h1P9Y7h8m0xX+R1a5qYwDQYJKoZIhvcNAQEL\n... [SAMPLE ROOT CA CERTIFICATE] ...\n-----END CERTIFICATE-----',
+                    'is_active': True,
+                    'active_certs_count': 42,
+                    'x509_strict': {
+                        'is_compliant': True,
+                        'badge_class': 'strict-compliant',
+                        'badge_text': 'X.509 Strict Compliant',
+                        'home_badge_text': 'Strict',
+                        'summary': 'All RFC 5280 and OpenSSL strict profile requirements are satisfied.',
+                        'issues': [],
+                        'checks': [],
+                    },
+                }
+                ca_params = dict(default_params)
+                ca_params.update({
+                    'is_authenticated': True,
+                    'current_user': admin_user,
+                    'request': MockRequest('/ca', admin_user),
+                    'ca': ca_mock,
+                    'all_cas': [ca_mock],
+                    'renew_form': {
+                        'common_name': 'ACME Root CA',
+                        'organization': 'Example Security Corp',
+                        'organizational_unit': 'Security Operations',
+                        'country': 'US',
+                        'key_type': 'RSA',
+                        'key_size_or_curve': '4096',
+                        'digest_algorithm': 'SHA-256',
+                    },
+                    'error': '',
+                    'status_msg': '',
+                })
+                ca_html = await ca_template.render_async(**ca_params)
+                await page_auth.set_content(ca_html, wait_until='networkidle')
+                # Inject sample endpoints into modal table and open modal
+                js_populate_modal = """() => {
+                    const modal = document.getElementById('distributeModal');
+                    if (modal) {
+                        modal.style.display = 'flex';
+                        const body = document.getElementById('distributeEndpointsBody');
+                        if (body) {
+                            body.innerHTML = `
+                                <tr>
+                                    <td style="width: 36px; text-align: center;"><input type="checkbox" class="dist-endpoint-chk" checked></td>
+                                    <td><strong>Ubuntu Web Cluster</strong></td>
+                                    <td><span class="badge-type badge-type-local">SSH</span></td>
+                                    <td><code>web01.example.org:22</code></td>
+                                    <td><span style="font-family: monospace; font-size: 0.8rem;">/usr/local/share/ca-certificates</span></td>
+                                    <td><span class="badge badge-valid">Ready</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="width: 36px; text-align: center;"><input type="checkbox" class="dist-endpoint-chk" checked></td>
+                                    <td><strong>Core OpenWrt Router</strong></td>
+                                    <td><span class="badge-type badge-type-local">SSH</span></td>
+                                    <td><code>192.168.1.1:22</code></td>
+                                    <td><span style="font-family: monospace; font-size: 0.8rem;">/etc/ssl/certs</span></td>
+                                    <td><span class="badge badge-valid">Ready</span></td>
+                                </tr>
+                                <tr>
+                                    <td style="width: 36px; text-align: center;"><input type="checkbox" class="dist-endpoint-chk"></td>
+                                    <td><strong>SecOps & IT Administrators</strong></td>
+                                    <td><span class="badge-type badge-type-oidc">Email</span></td>
+                                    <td><code>2 Recipients</code></td>
+                                    <td><span style="color: var(--text-muted); font-size: 0.8rem;">Inbox (.crt/.pem/.cer)</span></td>
+                                    <td><span class="badge badge-valid">Ready</span></td>
+                                </tr>
+                            `;
+                        }
+                        const countSpan = document.getElementById('distributeSelectedCount');
+                        if (countSpan) countSpan.textContent = '2';
+                    }
+                }"""
+                await page_auth.evaluate(js_populate_modal)
+                await asyncio.sleep(0.3)
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "12b_ca_distribution_modal.png"), full_page=False)
+            print("    Root CA Certificate Distribution Modal captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture CA distribution modal: {e}")
 
         await context_auth.close()
         await browser.close()

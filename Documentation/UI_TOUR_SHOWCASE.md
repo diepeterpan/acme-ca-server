@@ -23,6 +23,9 @@ To re-generate or update these captures at any time, run:
    - [08. Accounts Management](#08-accounts-management)
    - [09. Account Orders & Error Details Modal](#09-account-orders--error-details-modal)
    - [10. Mail Settings & Delivery Diagnostics](#10-mail-settings--delivery-diagnostics)
+   - [11. User Management & Access Control](#11-user-management--access-control)
+   - [12. CA Certificate Distribution Hub](#12-ca-certificate-distribution-hub)
+   - [12b. Root CA Certificate Deployment & Distribution Modal](#12b-root-ca-certificate-deployment--distribution-modal)
 
 ---
 
@@ -168,5 +171,41 @@ Dedicated management interface for outbound email delivery and automated notific
 - **Live Connection & Delivery Test**: Interactive "Send Test Email" test suite that runs via AJAX against current form inputs before saving, displaying immediate real-time diagnostics (success confirmation, connection refusal, authentication rejection, or SSL/TLS handshake errors).
 
 ![Mail Settings & Delivery Diagnostics](screenshots/10_mail_settings.png)
+
+---
+
+### 11. User Management & Access Control
+Dedicated administrative portal (`/users`) for user lifecycle management, authentication modes, and identity federation:
+- **Account Type Differentiation**: Visual badges clearly differentiating between standard Local Accounts (purple shield icon) and OpenID Connect (OIDC) Single Sign-On users (blue globe icon).
+- **Guided User Creation Modal**: Interactive dialog to onboard new local operators (with automatic PBKDF2 password hashing) or pre-provision federated OIDC identity providers (Authelia, Keycloak, Authentik).
+- **Password Administration & Self-Service**: Direct modal dialogs for administrators to reset credentials, with live password confirmation validation.
+- **Critical Deletion Safeguards**: Built-in safeguards that disable deletion of currently active sessions and prevent removing the last remaining local administrator account.
+- **Audit Details**: Shows username, email address, registration timestamp, last login date, and authentication provider.
+
+![User Management & Access Control](screenshots/11_users_and_access.png)
+
+---
+
+### 12. CA Certificate Distribution Hub
+Centralized fleet orchestration interface (`/ca-distribution`) for automated certificate delivery across heterogeneous network infrastructure and servers:
+- **Dual Delivery Channels**: High-contrast tabbed management switching between **SSH / SCP Endpoints** and **Email Distribution Groups**, accompanied by real-time KPI counter badges.
+- **Intelligent Remote OS Auto-Detection**: Live SSH probe engine (`uname`, `/etc/os-release`, `sw_vers`, `cmd.exe /c ver`) that identifies remote platforms (Ubuntu, Debian, RHEL, CentOS, Fedora, Alpine, Arch Linux, OpenWrt routers, macOS Darwin, and Windows Server 2016/2019/2022/10/11 with exact build mapping).
+- **Platform-Tailored Installation Bundles**: Automatically generates OS-specific `README.txt` installation instructions (e.g. `update-ca-certificates`, `certutil.exe -addstore`, `security add-trusted-cert`, OpenWrt `/etc/ssl/certs/`) transferred alongside sanitized `.crt`, `.pem`, and `.cer` certificate formats.
+- **Encrypted Credential Protection**: Remote SSH passwords and private keys are encrypted at rest using Fernet symmetric cryptography (`CA_ENCRYPTION_KEY`).
+- **Interactive Connection & Diagnostics Testing**: Real-time AJAX test buttons that execute end-to-end handshakes, directory permission checks, or SMTP validation before deployment.
+- **Distribution History & Audit Logs**: Detailed audit table logging every distribution run with timestamp, destination endpoint, certificate serial number, formatted filename, status badges, and expandable response detail popovers.
+
+![CA Certificate Distribution Hub](screenshots/12_ca_distribution.png)
+
+---
+
+### 12b. Root CA Certificate Deployment & Distribution Modal
+Direct distribution workflow triggered by clicking **Distribute** from the active Root CA Certificate screen (`/ca`):
+- **Immediate Deployment Modal**: High-contrast modal overlay with backdrop blur showing the active CA Common Name, Subject DN, and validity period.
+- **Multi-Endpoint Target Selection**: Interactive data table with row selection checkboxes, "Select All" header toggle, and live selected count counter.
+- **Comprehensive Target Metadata**: Renders destination types (SSH server vs. Email group), hostnames, target directory paths, recipient counts, and operating system tags.
+- **One-Click Batch Execution**: Dispatches certificate packages across all selected infrastructure targets simultaneously with real-time delivery status feedback.
+
+![Root CA Certificate Deployment Modal](screenshots/12b_ca_distribution_modal.png)
 
 

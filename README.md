@@ -11,10 +11,12 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 * ✅ **ACME Server** implementation (supports `http-01` and `dns-01` challenges, including wildcard certificates)
 * 🔐 **Built-in CA** to sign/revoke certificates (can be replaced with an external CA), CA rollover is supported
 * 📡 **OpenWrt Router Integration** &mdash; One-command automated configuration (`run_openwrt_config.sh`) for OpenWrt routers: configures `acme.sh` with dynamic `dnsmasq` hooks for zero-touch RFC 8555 `dns-01` wildcard issuance, cleans stale static TXT entries, sets up daily renewal checks, and preserves scripts across sysupgrades.
+* 🚀 **Automated CA Distribution** &mdash; Fleet delivery and installation of Root CA certificates via SSH/SCP and Email distribution groups. Features intelligent remote OS auto-detection (Ubuntu/Debian, RHEL/CentOS, Alpine, Arch, OpenWrt, macOS, Windows Server/Desktop), platform-tailored installation guides (`README.txt`), encrypted credential storage at rest (`CA_ENCRYPTION_KEY`), multi-endpoint batch distribution, and audit logging.
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (accounts, domains, certificates, root CA status) and ACME Entrypoint hero card with 1-click clipboard copy.
   * 🏛️ **Root CA & X.509 Strict Compliance**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, PEM viewer, and interactive RFC 5280 strict compliance diagnostics.
+  * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with live connectivity and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
   * 📜 **Certificates & Deep Capability Inspector**: Searchable audit logs with status tabs (Valid, Revoked, Expired), direct downloads, and an interactive **Certificate Details Modal** detailing cryptographic properties, health audits, and application capabilities (TLS Server, mTLS Client, Code Signing, S/MIME, Digital Signatures).
   * 🌐 **Domains Registry**: Domain status monitoring, cross-view certificate navigation, and safe deletion of stale domains.
   * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
@@ -586,12 +588,12 @@ An interactive script to safely create, update, and push git release tags to tri
 
 ### 7. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
 
-A Playwright-driven automation utility that captures high-resolution screenshots of all 11 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, and the account orders & error modal).
+A Playwright-driven automation utility that captures high-resolution screenshots of all 14 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, Root CA distribution deployment modal, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, the account orders & error modal, mail settings, users & access control, and the CA distribution hub).
 
 **Key capabilities:**
 * Automatically generates signed session cookies to capture both guest and authenticated administrative screens.
 * **Automatic Privacy Obfuscation**: Sanitizes real personal email addresses (`admin@example.com`), domain names (`app.example.com`), and Subject DN location fields with generic demonstration data (disable with `--no-obfuscate`).
-* Interacts with UI components (e.g. opens the Order Requests & Error modal and the Certificate Details & Capability Inspector modal).
+* Interacts with UI components (e.g. opens the Order Requests & Error modal, the Certificate Details & Capability Inspector modal, and the Root CA Distribute modal).
 * Automatically updates images in `Documentation/screenshots/` to keep [Documentation/UI_TOUR_SHOWCASE.md](./Documentation/UI_TOUR_SHOWCASE.md) fresh.
 
 **Usage:**

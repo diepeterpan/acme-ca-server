@@ -482,3 +482,140 @@ def test_x509_strict_evaluator():
     assert bad_res['is_compliant'] is False
     assert any('Basic Constraints extension is not marked critical' in iss for iss in bad_res['issues'])
     assert any('Key Usage extension is missing' in iss for iss in bad_res['issues'])
+
+
+def test_get_ca_distribution_page(testclient: TestClient):
+    response = testclient.get('/ca-distribution')
+    assert response.status_code == 200, response.text
+    assert 'CA Certificate Distribution' in response.text
+    assert 'SSH Endpoints' in response.text
+    assert 'Email Endpoints' in response.text
+    assert 'Add SSH Endpoint' in response.text
+    assert 'Add Email Endpoint' in response.text
+
+
+def test_get_ca_distribution_email_tab(testclient: TestClient):
+    response = testclient.get('/ca-distribution?tab=email')
+    assert response.status_code == 200, response.text
+    assert 'Email Endpoints' in response.text
+    assert 'Email Distribution Groups' in response.text
+    assert 'Recipient Email Addresses' in response.text
+
+
+def test_ca_distribution_list_active(testclient: TestClient):
+    response = testclient.get('/ca-distribution/list-active')
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert 'endpoints' in data
+    assert isinstance(data['endpoints'], list)
+
+
+def test_ca_distribution_ssh_endpoint_lifecycle(testclient: TestClient, db):
+    # 1. Validation error on missing name
+    resp_empty = testclient.post('/ca-distribution/endpoint/save', data={'endpoint_type': 'ssh', 'name': ''}, follow_redirects=False)
+    assert resp_empty.status_code == 303
+    assert 'error=' in resp_empty.headers['Location']
+
+    # 2. Validation error on missing host or username
+    resp_nohost = testclient.post('/ca-distribution/endpoint/save', data={'endpoint_type': 'ssh', 'name': 'Node No Host'}, follow_redirects=False)
+    assert resp_nohost.status_code == 303
+    assert 'error=' in resp_nohost.headers['Location']
+
+    # 3. Create valid SSH endpoint
+    resp_create = testclient.post(
+        '/ca-distribution/endpoint/save',
+        data={
+            'endpoint_type': 'ssh',
+            'name': 'Pytest Test Node',
+            'host': '127.0.0.1',
+            'port': '22',
+            'username': 'root',
+            'auth_type': 'password',
+            'auth_secret': 'password123',
+            'target_dir': '/etc/ssl/certs',
+        },
+        follow_redirects=False,
+    )
+    assert resp_create.status_code == 303
+    assert 'status_msg=' in resp_create.headers['Location']
+
+    # 4. Verify in active endpoints list
+    resp_list = testclient.get('/ca-distribution/list-active')
+    assert resp_list.status_code == 200
+    eps = resp_list.json()['endpoints']
+    created_ep = next((e for e in eps if e['name'] == 'Pytest Test Node'), None)
+    assert created_ep is not None
+    ep_id = created_ep['id']
+
+    # 5. Test endpoint diagnostic AJAX route
+    with mock.patch('ca.distribution.test_endpoint', return_value=(True, 'Connection OK', 'linux', 'Ubuntu 24.04')):
+        resp_test = testclient.post(f'/ca-distribution/endpoint/{ep_id}/test')
+        assert resp_test.status_code == 200
+        test_data = resp_test.json()
+        assert test_data['success'] is True
+        assert 'Connection OK' in test_data['message']
+
+    # 6. Delete endpoint
+    resp_del = testclient.post(f'/ca-distribution/endpoint/{ep_id}/delete', follow_redirects=False)
+    assert resp_del.status_code == 303
+
+    # 7. Verify deletion
+    resp_list2 = testclient.get('/ca-distribution/list-active')
+    assert not any(e['id'] == ep_id for e in resp_list2.json()['endpoints'])
+
+
+def test_ca_distribution_email_endpoint_lifecycle(testclient: TestClient, db):
+    # 1. Validation error on missing email address
+    resp_noemail = testclient.post(
+        '/ca-distribution/endpoint/save',
+        data={'endpoint_type': 'email', 'name': 'Alert Group', 'email_addresses_raw': ''},
+        follow_redirects=False,
+    )
+    assert resp_noemail.status_code == 303
+    assert 'error=' in resp_noemail.headers['Location']
+
+    # 2. Create valid email endpoint
+    resp_create = testclient.post(
+        '/ca-distribution/endpoint/save',
+        data={
+            'endpoint_type': 'email',
+            'name': 'Pytest Alerts Group',
+            'email_addresses_raw': 'alerts@example.com, ops@example.org',
+            'target_os': ['linux', 'windows'],
+        },
+        follow_redirects=False,
+    )
+    assert resp_create.status_code == 303
+    assert 'status_msg=' in resp_create.headers['Location']
+
+    # 3. Verify in active list
+    resp_list = testclient.get('/ca-distribution/list-active')
+    eps = resp_list.json()['endpoints']
+    created_ep = next((e for e in eps if e['name'] == 'Pytest Alerts Group'), None)
+    assert created_ep is not None
+    ep_id = created_ep['id']
+
+    # 4. Clean up / delete
+    resp_del = testclient.post(f'/ca-distribution/endpoint/{ep_id}/delete', follow_redirects=False)
+    assert resp_del.status_code == 303
+
+
+def test_ca_distribute_empty_selection(testclient: TestClient):
+    response = testclient.post('/ca/DEADBEEF/distribute', json={'endpoint_ids': []})
+    assert response.status_code == 400, response.text
+    assert 'No endpoints selected' in response.json()['detail']
+
+
+def test_ca_distribute_nonexistent_ca(testclient: TestClient):
+    response = testclient.post('/ca/NONEXISTENTSERIAL/distribute', json={'endpoint_ids': ['ep-1']})
+    assert response.status_code == 404, response.text
+    assert 'not found' in response.json()['detail']
+
+
+def test_get_users_page(testclient: TestClient):
+    response = testclient.get('/users')
+    assert response.status_code == 200, response.text
+    assert 'Users & Access' in response.text
+    assert 'Registered Accounts' in response.text
+    assert 'Add User' in response.text
+
