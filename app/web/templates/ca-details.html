@@ -1622,6 +1622,11 @@
 
         document.getElementById('distProgressContainer').style.display = 'none';
         document.getElementById('distProgressList').innerHTML = '';
+        const execBtn = document.getElementById('executeDistBtn');
+        if (execBtn) {
+            execBtn.innerHTML = 'Execute Distribution (<span id="selectedDistCount">0</span> Selected)';
+            execBtn.disabled = true;
+        }
         document.getElementById('distributeModal').style.display = 'flex';
 
         const listContainer = document.getElementById('distEndpointsList');
@@ -1640,11 +1645,11 @@
                         </a>
                     </div>
                 `;
-                document.getElementById('executeDistBtn').disabled = true;
+                if (execBtn) execBtn.disabled = true;
                 return;
             }
 
-            document.getElementById('executeDistBtn').disabled = false;
+            if (execBtn) execBtn.disabled = false;
             function renderEndpointOsBadges(ep) {
                 if (ep.type === 'ssh') {
                     const os = ep.detected_os;
@@ -1719,6 +1724,11 @@
 
     function closeDistributeModal() {
         document.getElementById('distributeModal').style.display = 'none';
+        const execBtn = document.getElementById('executeDistBtn');
+        if (execBtn) {
+            execBtn.innerHTML = 'Execute Distribution (<span id="selectedDistCount">0</span> Selected)';
+            execBtn.disabled = true;
+        }
     }
 
     function selectAllDistEndpoints(select) {
@@ -1730,8 +1740,18 @@
 
     function updateSelectedDistCount() {
         const checked = document.querySelectorAll('#distEndpointsList input[type="checkbox"]:checked');
-        document.getElementById('selectedDistCount').innerText = checked.length;
-        document.getElementById('executeDistBtn').disabled = checked.length === 0;
+        let countSpan = document.getElementById('selectedDistCount');
+        const execBtn = document.getElementById('executeDistBtn');
+        if (!countSpan && execBtn) {
+            execBtn.innerHTML = `Execute Distribution (<span id="selectedDistCount">${checked.length}</span> Selected)`;
+            countSpan = document.getElementById('selectedDistCount');
+        }
+        if (countSpan) {
+            countSpan.innerText = checked.length;
+        }
+        if (execBtn) {
+            execBtn.disabled = checked.length === 0;
+        }
     }
 
     async function executeDistribution() {
@@ -1740,9 +1760,10 @@
         if (endpointIds.length === 0) return;
 
         const execBtn = document.getElementById('executeDistBtn');
-        const origBtnText = execBtn.innerText;
-        execBtn.disabled = true;
-        execBtn.innerText = 'Distributing...';
+        if (execBtn) {
+            execBtn.disabled = true;
+            execBtn.innerText = 'Distributing...';
+        }
 
         const progressContainer = document.getElementById('distProgressContainer');
         const progressList = document.getElementById('distProgressList');
@@ -1779,12 +1800,11 @@
                 resHtml = `<div style="color: #dc2626; padding: 0.5rem;">${data.detail || 'Distribution failed.'}</div>`;
             }
             progressList.innerHTML = resHtml;
-            execBtn.innerText = 'Completed';
+            if (execBtn) execBtn.innerText = 'Completed';
 
         } catch (err) {
             progressList.innerHTML = `<div style="color: #dc2626; padding: 0.5rem;">Connection error: ${err}</div>`;
-            execBtn.disabled = false;
-            execBtn.innerText = origBtnText;
+            updateSelectedDistCount();
         }
     }
 </script>

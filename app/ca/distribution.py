@@ -112,14 +112,34 @@ def format_ca_filename(ca_cert: x509.Certificate, ext: str = '') -> str:
     return base_name
 
 
-def generate_readme(base_name: str, os_target: TargetOsType, ca_name: str, serial: str) -> str:
+def format_ca_subdirectory(ca_cert: x509.Certificate) -> str:
+    """
+    Formulate a subdirectory name for SSH target distribution:
+    CACert_{Sanitized_Common_Name}_{First6HexOfSerial}
+    e.g., CACert_RootCA_4A1B2C
+    """
+    cn_attrs = ca_cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+    raw_name = str(cn_attrs[0].value).strip() if cn_attrs and cn_attrs[0].value else 'RootCA'
+    clean_name = re.sub(r'[^a-zA-Z0-9]+', '', raw_name) or 'RootCA'
+    serial_hex = f'{ca_cert.serial_number:X}'.zfill(6)[:6]
+    return f'CACert_{clean_name}_{serial_hex}'
+
+
+def generate_readme(
+    base_name: str,
+    os_target: TargetOsType,
+    ca_name: str,
+    serial: str,
+    subdir: str = '',
+) -> str:
+    subdir_line = f'Subdirectory          : {subdir}\n' if subdir else ''
     header = f"""================================================================================
   ACME CA SERVER - ROOT CA CERTIFICATE INSTALLATION GUIDE
 ================================================================================
 Certificate Authority : {ca_name}
 Serial Number         : {serial}
 Base Filename         : {base_name}
-Target Operating Sys  : {os_target.upper()}
+{subdir_line}Target Operating Sys  : {os_target.upper()}
 Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
 ================================================================================
 """
@@ -782,7 +802,9 @@ async def distribute_to_ssh_endpoint(
     else:
         password = secret.strip() if secret else ''
 
-    target_dir = (endpoint.target_dir or '/tmp').rstrip('/')  # noqa: S108
+    target_base = (endpoint.target_dir or '/tmp').rstrip('/\\')  # noqa: S108
+    subdir_name = format_ca_subdirectory(ca_cert)
+    dest_dir = f'{target_base}/{subdir_name}'
 
     try:
         async with asyncssh.connect(
@@ -804,47 +826,47 @@ async def distribute_to_ssh_endpoint(
             ca_name = str(cn_attr[0].value) if cn_attr else 'Root CA'
             serial_hex = f'{ca_cert.serial_number:X}'
 
-            readme_content = generate_readme(base_name, detected_os, ca_name, serial_hex)
+            readme_content = generate_readme(base_name, detected_os, ca_name, serial_hex, subdir=subdir_name)
 
             async with conn.start_sftp_client() as sftp:
-                # Ensure directory exists or create it
+                # Ensure destination subdirectory exists or create it
                 try:
-                    await sftp.stat(target_dir)
+                    await sftp.stat(dest_dir)
                 except asyncssh.SFTPNoSuchFile:
                     try:
-                        await sftp.makedirs(target_dir)
+                        await sftp.makedirs(dest_dir)
                     except Exception as ex:  # noqa: BLE001
-                        logger.debug('Could not create directory %s: %s', target_dir, ex)
+                        logger.debug('Could not create directory %s: %s', dest_dir, ex)
 
                 uploaded_files = []
 
                 # Always upload .crt
-                crt_path = f'{target_dir}/{base_name}.crt'
+                crt_path = f'{dest_dir}/{base_name}.crt'
                 async with sftp.open(crt_path, 'w') as f:
                     await f.write(cert_pem)
                 uploaded_files.append(f'{base_name}.crt')
 
                 # Upload .pem
-                pem_path = f'{target_dir}/{base_name}.pem'
+                pem_path = f'{dest_dir}/{base_name}.pem'
                 async with sftp.open(pem_path, 'w') as f:
                     await f.write(cert_pem)
                 uploaded_files.append(f'{base_name}.pem')
 
                 # If Windows, upload DER .cer
                 if detected_os == 'windows':
-                    cer_path = f'{target_dir}/{base_name}.cer'
+                    cer_path = f'{dest_dir}/{base_name}.cer'
                     der_bytes = ca_cert.public_bytes(serialization.Encoding.DER)
                     async with sftp.open(cer_path, 'wb') as f:
                         await f.write(der_bytes)
                     uploaded_files.append(f'{base_name}.cer')
 
                 # Upload README.TXT
-                readme_path = f'{target_dir}/README.TXT'
+                readme_path = f'{dest_dir}/README.TXT'
                 async with sftp.open(readme_path, 'w') as f:
                     await f.write(readme_content)
                 uploaded_files.append('README.TXT')
 
-            msg = f'Successfully deployed {len(uploaded_files)} files ({", ".join(uploaded_files)}) to {target_dir}'
+            msg = f'Successfully deployed {len(uploaded_files)} files ({", ".join(uploaded_files)}) to {dest_dir}'
             await log_distribution(
                 ca_serial=serial_hex,
                 endpoint_id=endpoint.id,

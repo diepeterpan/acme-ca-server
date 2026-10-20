@@ -67,13 +67,13 @@ if settings.ca.enabled:
             await cronjob.start()
         else:
             async with db.transaction() as sql:
-                ok = await sql.value("""select count(serial_number)=1 from cas where active=true""")
+                ok = await sql.value("""select count(serial_number)=1 from cas where active=true and not_valid_after > now()""")
             if ok:
                 is_initialized = True
                 await cronjob.start()
             else:
                 is_initialized = False
-                logger.warning('Internal CA is enabled, but no CA certificate is active. Waiting for initial CA creation.')
+                logger.warning('Internal CA is enabled, but no valid active CA certificate is available (expired or missing). Waiting for CA creation.')
 else:
     is_initialized = True
 

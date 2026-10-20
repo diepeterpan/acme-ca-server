@@ -162,6 +162,29 @@ class TestCALifecycleUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('FFEEDDCC', exp_body)
         self.assertIn('CRITICAL', exp_body)
 
+    async def test_ca_init_expired_ca_marks_uninitialized(self):
+        import ca
+        with mock.patch('ca.settings.ca.import_dir', Path('/nonexistent')), \
+             mock.patch('db.transaction') as mock_tx:
+            mock_sql = mock.AsyncMock()
+            mock_tx.return_value.__aenter__.return_value = mock_sql
+            mock_sql.value.return_value = False
+
+            await ca.init()
+            self.assertFalse(ca.is_initialized)
+
+    async def test_ca_init_valid_ca_marks_initialized(self):
+        import ca
+        with mock.patch('ca.settings.ca.import_dir', Path('/nonexistent')), \
+             mock.patch('db.transaction') as mock_tx, \
+             mock.patch('ca.cronjob.start', new_callable=mock.AsyncMock):
+            mock_sql = mock.AsyncMock()
+            mock_tx.return_value.__aenter__.return_value = mock_sql
+            mock_sql.value.return_value = True
+
+            await ca.init()
+            self.assertTrue(ca.is_initialized)
+
 
 if __name__ == '__main__':
     unittest.main()

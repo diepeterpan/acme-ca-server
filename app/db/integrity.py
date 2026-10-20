@@ -90,6 +90,7 @@ class Discrepancy:
     details: dict[str, Any] = field(default_factory=dict)
     action_needed: str = ''
     repair_type: str = ''
+    severity: str = 'error'  # 'error' or 'warning'
 
 
 class IntegrityAuditReport:
@@ -98,8 +99,29 @@ class IntegrityAuditReport:
         self.passed_checks: list[str] = []
 
     @property
+    def errors(self) -> list[Discrepancy]:
+        return [d for d in self.discrepancies if d.severity == 'error']
+
+    @property
+    def warnings(self) -> list[Discrepancy]:
+        return [d for d in self.discrepancies if d.severity == 'warning']
+
+    @property
+    def has_errors(self) -> bool:
+        return len(self.errors) > 0
+
+    @property
+    def has_warnings(self) -> bool:
+        return len(self.warnings) > 0
+
+    @property
     def has_issues(self) -> bool:
         return len(self.discrepancies) > 0
+
+    @property
+    def requires_repair_prompt(self) -> bool:
+        """Only true blocking database errors halt startup and prompt for repair."""
+        return self.has_errors
 
     def add_discrepancy(self, d: Discrepancy) -> None:
         self.discrepancies.append(d)
@@ -255,6 +277,7 @@ async def inspect_database() -> IntegrityAuditReport:
                         },
                         action_needed="Transition order status to 'invalid' (no cert issued)",
                         repair_type='valid_order_missing_cert',
+                        severity='warning',
                     )
                 )
         else:
@@ -285,6 +308,7 @@ async def inspect_database() -> IntegrityAuditReport:
                         },
                         action_needed=f"Create dummy Authorization and Challenge for Order '{row['id']}'",
                         repair_type='order_without_authz',
+                        severity='warning',
                     )
                 )
         else:
@@ -314,6 +338,7 @@ async def inspect_database() -> IntegrityAuditReport:
                         },
                         action_needed=f"Create dummy Challenge for Authorization '{row['id']}'",
                         repair_type='authz_without_challenge',
+                        severity='warning',
                     )
                 )
         else:
@@ -346,6 +371,7 @@ async def inspect_database() -> IntegrityAuditReport:
                         },
                         action_needed="Synchronize order status to 'valid'",
                         repair_type='cert_on_non_valid_order',
+                        severity='warning',
                     )
                 )
         else:
@@ -375,6 +401,7 @@ async def inspect_database() -> IntegrityAuditReport:
                         },
                         action_needed="Transition expired order to 'invalid'",
                         repair_type='expired_pending_order',
+                        severity='warning',
                     )
                 )
         else:
@@ -445,8 +472,9 @@ async def inspect_database() -> IntegrityAuditReport:
                                     'CA Serial': cas_rows[0]['serial_number'],
                                     'Expired At': str(ca_cert.not_valid_after_utc),
                                 },
-                                action_needed='Generate or import updated Root CA certificate',
+                                action_needed='Create new Root CA certificate via /ca/setup',
                                 repair_type='ca_expired',
+                                severity='warning',
                             )
                         )
                     else:
@@ -497,27 +525,45 @@ def render_report_to_terminal(report: IntegrityAuditReport) -> None:
         _print(f'{COLOR_CYAN_BOLD}{"=" * 80}{COLOR_RESET}\n')
         return
 
-    # Print grouped discrepancies
-    _print(f'{COLOR_RED_BOLD}[!] DISCREPANCIES DETECTED IN DATABASE ({len(report.discrepancies)} issues):{COLOR_RESET}\n')
+    # Print blocking errors if any
+    if report.has_errors:
+        _print(f'{COLOR_RED_BOLD}[!] BLOCKING DATABASE ERRORS DETECTED ({len(report.errors)} issues):{COLOR_RESET}\n')
+        current_cat = ''
+        for idx, disc in enumerate(report.errors, 1):
+            if disc.category != current_cat:
+                current_cat = disc.category
+                _print(f'{COLOR_CYAN_BOLD}--- Category: {current_cat} ---{COLOR_RESET}')
 
-    current_cat = ''
-    for idx, disc in enumerate(report.discrepancies, 1):
-        if disc.category != current_cat:
-            current_cat = disc.category
-            _print(f'{COLOR_CYAN_BOLD}--- Category: {current_cat} ---{COLOR_RESET}')
+            _print(f'  {COLOR_RED_BOLD}#{idx}. [{disc.issue_type}] {disc.record_id}{COLOR_RESET}')
+            for k, v in disc.details.items():
+                _print(f'      {COLOR_BOLD}{k:<22}:{COLOR_RESET} {COLOR_YELLOW}{v}{COLOR_RESET}')
+            if disc.action_needed:
+                _print(f'      {COLOR_DIM}{"Action Proposed":<22}:{COLOR_RESET} {COLOR_GREEN}{disc.action_needed}{COLOR_RESET}')
+            _print()
 
-        _print(f'  {COLOR_RED_BOLD}#{idx}. [{disc.issue_type}] {disc.record_id}{COLOR_RESET}')
-        for k, v in disc.details.items():
-            _print(f'      {COLOR_BOLD}{k:<22}:{COLOR_RESET} {COLOR_YELLOW}{v}{COLOR_RESET}')
-        if disc.action_needed:
-            _print(f'      {COLOR_DIM}{"Action Proposed":<22}:{COLOR_RESET} {COLOR_GREEN}{disc.action_needed}{COLOR_RESET}')
-        _print()
+    # Print non-blocking warnings if any
+    if report.has_warnings:
+        _print(f'{COLOR_YELLOW_BOLD}[*] DATABASE INTEGRITY WARNINGS ({len(report.warnings)} issues - non-blocking):{COLOR_RESET}\n')
+        current_cat = ''
+        for idx, disc in enumerate(report.warnings, 1):
+            if disc.category != current_cat:
+                current_cat = disc.category
+                _print(f'{COLOR_CYAN_BOLD}--- Category: {current_cat} ---{COLOR_RESET}')
+
+            _print(f'  {COLOR_YELLOW_BOLD}#{idx}. [WARN: {disc.issue_type}] {disc.record_id}{COLOR_RESET}')
+            for k, v in disc.details.items():
+                _print(f'      {COLOR_BOLD}{k:<22}:{COLOR_RESET} {COLOR_YELLOW}{v}{COLOR_RESET}')
+            if disc.action_needed:
+                _print(f'      {COLOR_DIM}{"Action Proposed":<22}:{COLOR_RESET} {COLOR_GREEN}{disc.action_needed}{COLOR_RESET}')
+            _print()
 
     # Print summary statistics
     _print(f'{COLOR_CYAN_BOLD}{"-" * 80}{COLOR_RESET}')
+    err_part = f'{COLOR_RED_BOLD}{len(report.errors)} error(s) (blocking){COLOR_RESET}' if report.has_errors else f'{COLOR_GREEN}0 errors{COLOR_RESET}'
+    warn_part = f'{COLOR_YELLOW_BOLD}{len(report.warnings)} warning(s){COLOR_RESET}' if report.has_warnings else '0 warnings'
     _print(
         f'{COLOR_BOLD}Integrity Summary: {COLOR_GREEN}{len(report.passed_checks)} checks passed{COLOR_RESET}, '
-        f'{COLOR_RED_BOLD}{len(report.discrepancies)} discrepancies detected.{COLOR_RESET}'
+        f'{err_part}, {warn_part}.'
     )
     _print(f'{COLOR_CYAN_BOLD}{"=" * 80}{COLOR_RESET}\n')
 
@@ -842,14 +888,17 @@ async def run_integrity_check_workflow(
 
     if report.has_issues:
         if auto_repair is True:
-            should_repair = True
-        elif auto_repair is False:
-            should_repair = False
-        else:
-            should_repair = await prompt_for_repair(timeout_seconds=timeout_seconds)
-
-        if should_repair:
             return await apply_repairs(report)
+        elif auto_repair is False:
+            return 0
+
+        # During standard startup, only prompt and halt for blocking ERRORS!
+        if report.requires_repair_prompt:
+            should_repair = await prompt_for_repair(timeout_seconds=timeout_seconds)
+            if should_repair:
+                return await apply_repairs(report)
+        elif report.has_warnings:
+            logger.info('Database integrity audit completed with %d non-blocking warning(s). Startup continuing.', len(report.warnings))
 
     return 0
 

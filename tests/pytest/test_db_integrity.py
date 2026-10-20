@@ -43,7 +43,7 @@ def test_render_report(capsys):
     assert 'DATABASE INTEGRITY AUDIT' in captured.out
     assert '0 integrity issues detected' in captured.out
 
-    # Report with discrepancies
+    # Report with discrepancies (Error)
     dirty_report = IntegrityAuditReport()
     dirty_report.add_discrepancy(
         Discrepancy(
@@ -53,13 +53,34 @@ def test_render_report(capsys):
             details={'Missing Order ID': 'ord_missing_123456789012345'},
             action_needed='Create dummy Order',
             repair_type='orphan_certificate',
+            severity='error',
         )
     )
     render_report_to_terminal(dirty_report)
     captured = capsys.readouterr()
-    assert 'DISCREPANCIES DETECTED' in captured.out
+    assert 'BLOCKING DATABASE ERRORS DETECTED' in captured.out
     assert 'Orphan Certificate' in captured.out
     assert 'Create dummy Order' in captured.out
+    assert dirty_report.requires_repair_prompt is True
+
+    # Report with warnings
+    warn_report = IntegrityAuditReport()
+    warn_report.add_discrepancy(
+        Discrepancy(
+            category='State & Temporal Sanity',
+            issue_type='Expired Pending Order',
+            record_id='Order ID: ord_exp_123',
+            details={'Status': 'pending'},
+            action_needed="Transition expired order to 'invalid'",
+            repair_type='expired_pending_order',
+            severity='warning',
+        )
+    )
+    render_report_to_terminal(warn_report)
+    captured = capsys.readouterr()
+    assert 'DATABASE INTEGRITY WARNINGS' in captured.out
+    assert 'WARN: Expired Pending Order' in captured.out
+    assert warn_report.requires_repair_prompt is False
 
 
 def test_prompt_for_repair_non_tty():
@@ -176,11 +197,15 @@ def test_db_integrity_inspection_and_repair():
         # Run inspection
         report = await inspect_database()
         assert report.has_issues is True
+        assert report.has_warnings is True
+        assert report.has_errors is False
+        assert report.requires_repair_prompt is False
 
-        # Verify both issues are caught
+        # Verify both issues are caught and classified as warnings
         types = [d.issue_type for d in report.discrepancies]
         assert 'Valid Order Missing Certificate' in types
         assert 'Expired Pending Order' in types
+        assert all(d.severity == 'warning' for d in report.discrepancies)
 
         # Apply repairs
         repaired_count = await apply_repairs(report)

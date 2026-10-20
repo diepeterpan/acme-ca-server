@@ -55,6 +55,18 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         filename_base = dist.format_ca_filename(cert)
         self.assertEqual(filename_base, 'InternalSecurity_202505010930')
 
+    def test_format_ca_subdirectory(self):
+        nvb = datetime(2026, 10, 19, 17, 18, 23, tzinfo=timezone.utc)
+        # Serial 123456789 in hex is 75BCD15, first 6 chars are 75BCD1
+        cert = self._build_cert('Acme Corporation', 'Root CA', nvb)
+        subdir = dist.format_ca_subdirectory(cert)
+        self.assertEqual(subdir, 'CACert_RootCA_75BCD1')
+
+        # Test CN with special characters
+        cert2 = self._build_cert(None, 'My-Company / Org @ Root CA', nvb)
+        subdir2 = dist.format_ca_subdirectory(cert2)
+        self.assertEqual(subdir2, 'CACert_MyCompanyOrgRootCA_75BCD1')
+
     def test_secret_encryption_roundtrip(self):
         secret = 'my_super_secret_ssh_key_or_password_123!'
         enc = dist.encrypt_secret(secret)
@@ -64,10 +76,11 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
 
     def test_readme_generation(self):
         # Linux
-        linux_readme = dist.generate_readme('TestCA_2026', 'linux', 'Test Root CA', 'DEADBEEF')
+        linux_readme = dist.generate_readme('TestCA_2026', 'linux', 'Test Root CA', 'DEADBEEF', subdir='CACert_TestRootCA_DEADBE')
         self.assertIn('update-ca-certificates', linux_readme)
         self.assertIn('update-ca-trust', linux_readme)
         self.assertIn('TestCA_2026.crt', linux_readme)
+        self.assertIn('Subdirectory          : CACert_TestRootCA_DEADBE', linux_readme)
 
         # OpenWrt
         openwrt_readme = dist.generate_readme('TestCA_2026', 'openwrt', 'Test Root CA', 'DEADBEEF')
@@ -320,6 +333,68 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
                 res = await dist.distribute_to_email_endpoint(ep, cert, 'CERT_PEM_CONTENT')
                 self.assertFalse(res.status)
                 self.assertIn('disabled', res.message)
+
+    async def test_distribute_to_ssh_endpoint_success_subdirectory(self):
+        ep = dist.Endpoint(
+            id='ep-ssh-1',
+            name='Test SSH Target',
+            type='ssh',
+            host='192.168.1.50',
+            port=22,
+            username='admin',
+            auth_type='password',
+            target_dir='/data/certs',
+        )
+        nvb = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        cert = self._build_cert('Acme Corp', 'Root CA', nvb)
+        serial_hex = f'{cert.serial_number:X}'.zfill(6)[:6]
+        expected_subdir = f'CACert_RootCA_{serial_hex}'
+        expected_dest = f'/data/certs/{expected_subdir}'
+
+        mock_sftp = mock.AsyncMock()
+        mock_file = mock.AsyncMock()
+
+        class MockAsyncContext:
+            def __init__(self, target):
+                self._target = target
+
+            async def __aenter__(self):
+                return self._target
+
+            async def __aexit__(self, *args):
+                pass
+
+        mock_sftp.open = mock.MagicMock(side_effect=lambda *args, **kwargs: MockAsyncContext(mock_file))
+        mock_sftp.stat.side_effect = dist.asyncssh.SFTPNoSuchFile('Not found')
+
+        mock_conn = mock.AsyncMock()
+        mock_conn.start_sftp_client = mock.MagicMock(return_value=MockAsyncContext(mock_sftp))
+
+        class MockSecretSql:
+            async def record(self, *args, **kwargs):
+                return {'auth_secret_enc': dist.encrypt_secret('test_pw')}
+
+        class MockSecretTx:
+            async def __aenter__(self):
+                return MockSecretSql()
+
+            async def __aexit__(self, *args):
+                pass
+
+        with mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()):
+            with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
+                with mock.patch('ca.distribution.asyncssh.connect') as mock_connect:
+                    mock_connect.return_value.__aenter__.return_value = mock_conn
+                    with mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Ubuntu 24.04'))):
+                        res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_DATA')
+                        self.assertTrue(res.status)
+                        self.assertIn(expected_dest, res.message)
+                        mock_sftp.makedirs.assert_awaited_once_with(expected_dest)
+
+                        # Verify all files were uploaded to expected_dest
+                        opened_paths = [call[0][0] for call in mock_sftp.open.call_args_list]
+                        self.assertTrue(all(p.startswith(expected_dest) for p in opened_paths))
+                        self.assertIn(f'{expected_dest}/README.TXT', opened_paths)
 
 
 if __name__ == '__main__':
