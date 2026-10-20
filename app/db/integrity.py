@@ -561,10 +561,7 @@ def render_report_to_terminal(report: IntegrityAuditReport) -> None:
     _print(f'{COLOR_CYAN_BOLD}{"-" * 80}{COLOR_RESET}')
     err_part = f'{COLOR_RED_BOLD}{len(report.errors)} error(s) (blocking){COLOR_RESET}' if report.has_errors else f'{COLOR_GREEN}0 errors{COLOR_RESET}'
     warn_part = f'{COLOR_YELLOW_BOLD}{len(report.warnings)} warning(s){COLOR_RESET}' if report.has_warnings else '0 warnings'
-    _print(
-        f'{COLOR_BOLD}Integrity Summary: {COLOR_GREEN}{len(report.passed_checks)} checks passed{COLOR_RESET}, '
-        f'{err_part}, {warn_part}.'
-    )
+    _print(f'{COLOR_BOLD}Integrity Summary: {COLOR_GREEN}{len(report.passed_checks)} checks passed{COLOR_RESET}, {err_part}, {warn_part}.')
     _print(f'{COLOR_CYAN_BOLD}{"=" * 80}{COLOR_RESET}\n')
 
 
