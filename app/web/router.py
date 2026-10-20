@@ -9,13 +9,14 @@ import ca
 import db
 import mail.service
 from ca import distribution as ca_distribution
+from ca import fleet_trust as ca_fleet_trust
 from ca import service as ca_service
 from config import settings
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from logger import logger
 from pydantic import constr
@@ -2226,3 +2227,212 @@ async def ca_distribute_post(serial_number: str, request: Request):
 async def maintenance_status():
     """Return status of maintenance mode for UI polling."""
     return JSONResponse({'maintenance': False, 'status': 'ready'})
+
+
+# --------------------------------------------------------------------------
+# CA Fleet Trust & Audit Verification Endpoints
+# --------------------------------------------------------------------------
+
+
+@api.get('/ca-trust/probe.sh')
+async def ca_trust_probe_script():
+    """Return dynamic, zero-dependency POSIX bash probe script for curl/wget execution."""
+    script = ca_fleet_trust.generate_cli_probe_script(str(settings.external_url))
+    return Response(content=script, media_type='text/plain; charset=utf-8')
+
+
+@api.get('/ca-trust/api/cas')
+async def ca_trust_api_cas():
+    """Return list of active and known CA certificates for client verification."""
+    cas = await ca_fleet_trust.get_expected_cas()
+    return JSONResponse(cas)
+
+
+@api.post('/ca-trust/api/report')
+async def ca_trust_api_report(request: Request):
+    """Ingest verification audit telemetry from CLI probe or browser portal."""
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    client_ip = request.client.host if request.client else '127.0.0.1'
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded:
+        client_ip = forwarded.split(',')[0].strip()
+
+    reported_ip = body.get('ip_address')
+    ip_to_use = client_ip if (not reported_ip or reported_ip in ('127.0.0.1', 'localhost', '::1')) else reported_ip
+
+    user_agent = request.headers.get('user-agent', '')
+
+    audit_id = await ca_fleet_trust.record_audit(
+        device_name=body.get('device_name', ''),
+        device_type=body.get('device_type', 'unknown'),
+        os_name=body.get('os', 'unknown'),
+        os_detail=body.get('os_detail', ''),
+        ip_address=ip_to_use,
+        user_agent=user_agent,
+        endpoint_id=body.get('endpoint_id'),
+        verification_method=body.get('verification_method', 'browser'),
+        results=body.get('results', []),
+    )
+    return JSONResponse({'status': 'ok', 'audit_id': audit_id})
+
+
+@api.get('/ca-trust/api/probe-active')
+async def ca_trust_probe_active():
+    """Lightweight probe endpoint for client browser TLS verification."""
+    stats = await ca_fleet_trust.get_compliance_stats()
+    return JSONResponse(
+        {'status': 'ok', 'active_ca': stats.active_ca_name, 'serial': stats.active_ca_serial},
+        headers={'Access-Control-Allow-Origin': '*'},
+    )
+
+
+@api.get('/ca-trust/verify', response_class=HTMLResponse)
+async def ca_trust_verify_portal(
+    request: Request,
+    endpoint_id: str | None = None,
+    device_name: str | None = None,
+    email: str | None = None,
+):
+    """Client browser trust verification portal for mobile devices and workstations."""
+    cas = await ca_fleet_trust.get_expected_cas()
+
+    client_ip = request.client.host if request.client else '127.0.0.1'
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded:
+        client_ip = forwarded.split(',')[0].strip()
+
+    prefill_name = device_name or email or ''
+    if not prefill_name and endpoint_id:
+        ep = await ca_distribution.get_endpoint(endpoint_id)
+        if ep:
+            prefill_name = ep.name
+
+    template = template_engine.get_template('ca-trust-verify.html')
+    content = await template.render_async(
+        **default_params,
+        request=request,
+        cas=cas,
+        cas_json=json.dumps(cas),
+        endpoint_id=endpoint_id or '',
+        client_ip=client_ip,
+        prefill_device_name=prefill_name,
+    )
+    return HTMLResponse(content)
+
+
+@api.get('/ca-fleet-trust', response_class=HTMLResponse)
+@api.get('/ca-compliance', response_class=HTMLResponse)
+@api.get('/ca-availability', response_class=HTMLResponse)
+async def ca_fleet_trust_dashboard(  # pylint: disable=redefined-outer-name
+    request: Request,
+    search: str | None = None,
+    ca: str | None = None,
+    status: str | None = None,  # noqa: A002
+    os: str | None = None,  # noqa: A002
+    status_msg: str | None = None,
+    error: str | None = None,
+    page: int = 1,
+):
+    """Admin dashboard for CA fleet trust compliance and audit telemetry."""
+    stats = await ca_fleet_trust.get_compliance_stats()
+    cas = await ca_fleet_trust.get_expected_cas()
+
+    limit = 100
+    offset = max(0, page - 1) * limit
+    audits, _total_count = await ca_fleet_trust.list_audited_devices(
+        device_filter=search,
+        ca_serial=ca,
+        status_filter=status,
+        os_filter=os,
+        limit=limit,
+        offset=offset,
+    )
+
+    audits_json = json.dumps(
+        [
+            {
+                'id': a.id,
+                'device_name': a.device_name,
+                'device_type': a.device_type,
+                'os': a.os,
+                'os_detail': a.os_detail,
+                'ip_address': a.ip_address,
+                'user_agent': a.user_agent,
+                'verification_method': a.verification_method,
+                'overall_status': a.overall_status,
+                'audited_at': format_datetime(a.audited_at),
+                'results': [
+                    {
+                        'ca_serial': r.ca_serial,
+                        'ca_cn': r.ca_cn,
+                        'is_trusted': r.is_trusted,
+                        'details': r.details,
+                    }
+                    for r in a.results
+                ],
+            }
+            for a in audits
+        ]
+    )
+
+    template = template_engine.get_template('ca-fleet-trust.html')
+    content = await template.render_async(
+        **default_params,
+        request=request,
+        stats=stats,
+        cas=cas,
+        audits=audits,
+        audits_json=audits_json,
+        search=search,
+        selected_ca=ca,
+        selected_status=status or 'all',
+        selected_os=os or 'all',
+        status_msg=status_msg,
+        error=error,
+        external_url=str(settings.external_url).rstrip('/'),
+    )
+    return HTMLResponse(content)
+
+
+@api.post('/ca-fleet-trust/sweep')
+async def ca_fleet_trust_sweep_post():
+    """Trigger background SSH fleet trust sweep across configured SSH distribution endpoints."""
+    res = await ca_fleet_trust.sweep_all_ssh_endpoints()
+    msg = res.get('message', 'Fleet sweep completed.')
+    return RedirectResponse(
+        url=f'/ca-fleet-trust?status_msg={quote(msg)}',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@api.get('/ca-fleet-trust/sweep/stream')
+async def ca_fleet_trust_sweep_stream():
+    """Server-Sent Events (SSE) stream for real-time fleet sweep progress."""
+
+    async def event_generator():
+        async for event in ca_fleet_trust.sweep_all_ssh_endpoints_stream():
+            yield f'data: {json.dumps(event)}\n\n'
+
+    return StreamingResponse(
+        event_generator(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
+        },
+    )
+
+
+@api.post('/ca-fleet-trust/audit/{audit_id}/delete')
+async def ca_fleet_trust_delete_audit(audit_id: str):
+    """Delete an audited device telemetry entry."""
+    await ca_fleet_trust.delete_audit(audit_id)
+    return RedirectResponse(
+        url=f'/ca-fleet-trust?status_msg={quote("Audit record deleted successfully.")}',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )

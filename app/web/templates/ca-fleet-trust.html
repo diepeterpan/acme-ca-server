@@ -1,0 +1,1200 @@
+{% extends "base.html" %}
+
+{% block title %}CA Fleet Trust{% endblock %}
+
+{% block content %}
+<style>
+    .fleet-header {
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .fleet-title-group h1 {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: var(--text-heading);
+        margin: 0 0 0.25rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    .fleet-title-group p {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .fleet-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem 1.5rem;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.kpi-total::before { background: var(--primary); }
+    .kpi-card.kpi-compliant::before { background: #10b981; }
+    .kpi-card.kpi-partial::before { background: #f59e0b; }
+    .kpi-card.kpi-untrusted::before { background: #ef4444; }
+
+    .kpi-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-val-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+    }
+
+    .kpi-number {
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.03em;
+    }
+
+    .kpi-card.kpi-total .kpi-number { color: var(--text-heading); }
+    .kpi-card.kpi-compliant .kpi-number { color: #059669; }
+    .kpi-card.kpi-partial .kpi-number { color: #d97706; }
+    .kpi-card.kpi-untrusted .kpi-number { color: #dc2626; }
+
+    .kpi-badge {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.2rem 0.6rem;
+        border-radius: var(--radius-pill);
+    }
+
+    .kpi-compliant .kpi-badge { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+    .kpi-partial .kpi-badge { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+    .kpi-untrusted .kpi-badge { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+    /* Filter & Search Toolbar */
+    .filter-toolbar {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .filter-primary-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .search-input-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 240px;
+    }
+
+    .search-input-wrap svg {
+        position: absolute;
+        left: 0.85rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.55rem 0.85rem 0.55rem 2.4rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        color: var(--text-body);
+        background: #f8fafc;
+        transition: all 0.15s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    }
+
+    .select-wrap {
+        min-width: 200px;
+    }
+
+    .select-wrap select {
+        width: 100%;
+        padding: 0.55rem 0.85rem;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        background: #f8fafc;
+        color: var(--text-body);
+    }
+
+    .filter-secondary-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 0.75rem;
+    }
+
+    .filter-pill-group {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-group-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-right: 0.25rem;
+    }
+
+    .filter-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-pill);
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--text-body);
+        background: #f1f5f9;
+        border: 1px solid transparent;
+        transition: all 0.15s ease;
+    }
+
+    .filter-pill:hover {
+        background: #e2e8f0;
+    }
+
+    .filter-pill.active {
+        background: var(--primary);
+        color: #ffffff;
+    }
+
+    .filter-pill.pill-compliant.active { background: #10b981; }
+    .filter-pill.pill-partial.active { background: #f59e0b; }
+    .filter-pill.pill-untrusted.active { background: #ef4444; }
+
+    /* OS Badge & Device Cell in Table */
+    .device-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .os-icon-circle {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        cursor: help;
+    }
+
+    .os-icon-circle.os-linux { background: #e0f2fe; color: #0284c7; }
+    .os-icon-circle.os-windows { background: #e0e7ff; color: #4338ca; }
+    .os-icon-circle.os-macos { background: #f1f5f9; color: #334155; }
+    .os-icon-circle.os-ios { background: #f5f3ff; color: #7c3aed; }
+    .os-icon-circle.os-android { background: #ecfdf5; color: #059669; }
+    .os-icon-circle.os-openwrt { background: #fef3c7; color: #b45309; }
+    .os-icon-circle.os-unknown { background: #f1f5f9; color: #64748b; }
+
+    /* Compliance Badges */
+    .status-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.22rem 0.65rem;
+        border-radius: var(--radius-pill);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+    }
+
+    .status-tag.tag-compliant {
+        background: #ecfdf5;
+        color: #059669;
+        border: 1px solid #a7f3d0;
+    }
+
+    .status-tag.tag-partial {
+        background: #fffbeb;
+        color: #d97706;
+        border: 1px solid #fde68a;
+    }
+
+    .status-tag.tag-untrusted {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    /* Trust Matrix Dot Indicator */
+    .trust-matrix-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .trust-dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .trust-dot.dot-trusted {
+        background: #10b981;
+        color: #ffffff;
+    }
+
+    .trust-dot.dot-untrusted {
+        background: #ef4444;
+        color: #ffffff;
+    }
+
+    .method-tag {
+        font-size: 11px;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        background: #f1f5f9;
+        color: var(--text-muted);
+        font-family: monospace;
+    }
+
+    /* Standard Button Styles matching ACME CA Server */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
+        font-weight: 600;
+        border-radius: var(--radius-md);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        line-height: 1.2;
+    }
+
+    .btn-primary {
+        background-color: var(--primary);
+        color: #ffffff;
+        border: none;
+        padding: 0.55rem 1.15rem;
+        font-size: 0.88rem;
+        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .btn-secondary {
+        background-color: #ffffff;
+        color: var(--primary);
+        border: 1px solid var(--primary-border);
+        padding: 0.55rem 1rem;
+        font-size: 0.88rem;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary);
+    }
+
+    /* Table Grid Styling (max 12px content and heading) */
+    .table-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+    }
+
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    table.fleet-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 12px;
+    }
+
+    table.fleet-table th {
+        background-color: #faf5ff;
+        color: var(--text-heading);
+        font-weight: 600;
+        padding: 0.50rem 0.65rem;
+        border-bottom: 1px solid #f1f5f9;
+        white-space: nowrap;
+        font-size: 12px;
+    }
+
+    table.fleet-table th:first-child,
+    table.fleet-table td:first-child {
+        padding-left: 0.85rem;
+    }
+
+    table.fleet-table th:last-child,
+    table.fleet-table td:last-child {
+        padding-right: 0.85rem;
+    }
+
+    table.fleet-table td {
+        padding: 0.45rem 0.65rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+        font-size: 12px;
+    }
+
+    table.fleet-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    table.fleet-table tbody tr:hover {
+        background-color: #fbf9ff;
+    }
+
+    table.fleet-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    table.fleet-table strong {
+        font-size: 12px;
+    }
+
+    /* Grid Action Buttons matching system table action style */
+    .actions-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        justify-content: flex-end;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.25rem 0.55rem;
+        border-radius: var(--radius-md);
+        font-size: 11px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        line-height: 1.2;
+    }
+
+    .btn-action-secondary {
+        background-color: #ffffff;
+        color: var(--primary);
+        border: 1px solid var(--primary-border);
+    }
+
+    .btn-action-secondary:hover {
+        background-color: var(--primary-light);
+        border-color: var(--primary);
+    }
+
+    .btn-action-delete {
+        background-color: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+
+    .btn-action-delete:hover {
+        background-color: #dc2626;
+        color: #ffffff;
+        border-color: #dc2626;
+    }
+
+    .btn-action-delete svg {
+        width: 12px;
+        height: 12px;
+        fill: none;
+        stroke: currentColor;
+    }
+
+    /* Modal styling */
+    .code-block {
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 1rem 1.25rem;
+        border-radius: var(--radius-md);
+        font-family: monospace;
+        font-size: 0.85rem;
+        position: relative;
+        overflow-x: auto;
+        margin-top: 0.5rem;
+    }
+
+    .copy-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        border: none;
+        padding: 0.25rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Sweep Progress Veil Overlay */
+    .sweep-veil-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 1.5rem;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .sweep-veil-overlay.active {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .sweep-veil-card {
+        background: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 16px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+        width: 100%;
+        max-width: 540px;
+        padding: 2.25rem 2rem;
+        text-align: center;
+        position: relative;
+        animation: veilSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes veilSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.97);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .sweep-veil-spinner-wrap {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 1.5rem auto;
+    }
+
+    .sweep-spinner {
+        width: 72px;
+        height: 72px;
+        border: 4px solid #f1f5f9;
+        border-top-color: var(--primary);
+        border-right-color: var(--primary);
+        border-radius: 50%;
+        animation: sweepSpin 1s linear infinite;
+    }
+
+    @keyframes sweepSpin {
+        to { transform: rotate(360deg); }
+    }
+
+    .sweep-spinner-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--primary);
+    }
+
+    .sweep-progress-track {
+        width: 100%;
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 9999px;
+        overflow: hidden;
+        margin: 1.5rem 0 1rem 0;
+        position: relative;
+    }
+
+    .sweep-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--primary), #38bdf8);
+        border-radius: 9999px;
+        transition: width 0.35s ease;
+    }
+
+    .sweep-step-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-top: 1.25rem;
+        text-align: left;
+    }
+
+    .sweep-step-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .sweep-step-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .sweep-step-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: 0.04em;
+        width: 110px;
+        flex-shrink: 0;
+    }
+
+    .sweep-step-val {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #0f172a;
+        word-break: break-all;
+        flex-grow: 1;
+    }
+
+    .sweep-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .sweep-badge-testing {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    .sweep-badge-warning {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .sweep-badge-success {
+        background: #ecfdf5;
+        color: #059669;
+    }
+</style>
+
+<div class="fleet-header">
+    <div class="fleet-title-group">
+        <h1>CA Fleet Trust</h1>
+        <p>Real-time trust verification, OS compliance auditing, and root certificate fleet readiness</p>
+    </div>
+    <div class="fleet-header-actions">
+        <button type="button" class="btn btn-secondary" id="openCliProbeModal">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+            <span>CLI Probe Snippet</span>
+        </button>
+        <form method="post" action="/ca-fleet-trust/sweep" style="margin: 0;" id="sweepForm">
+            <button type="submit" class="btn btn-primary" id="sweepBtn">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                <span id="sweepBtnText">Sweep All SSH Endpoints</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if status_msg %}
+<div class="info-alert" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 0.85rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+    <span>{{ status_msg }}</span>
+    <button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:#065f46; cursor:pointer;">&times;</button>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="info-alert" style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 0.85rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+    <span>{{ error }}</span>
+    <button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:#991b1b; cursor:pointer;">&times;</button>
+</div>
+{% endif %}
+
+<!-- KPI Cards -->
+<div class="kpi-grid">
+    <div class="kpi-card kpi-total">
+        <div class="kpi-label">Audited Endpoints</div>
+        <div class="kpi-val-row">
+            <div class="kpi-number">{{ stats.total_audited }}</div>
+            <div class="kpi-badge" style="background: #f1f5f9; color: var(--text-muted);">Active Devices</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-compliant">
+        <div class="kpi-label">Fully Compliant</div>
+        <div class="kpi-val-row">
+            <div class="kpi-number">{{ stats.compliant_count }}</div>
+            <div class="kpi-badge">{{ stats.compliant_pct }}% Fleet</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-partial">
+        <div class="kpi-label">Partial Trust</div>
+        <div class="kpi-val-row">
+            <div class="kpi-number">{{ stats.partial_count }}</div>
+            <div class="kpi-badge">{{ stats.partial_pct }}% Fleet</div>
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-untrusted">
+        <div class="kpi-label">Non-Compliant / Untrusted</div>
+        <div class="kpi-val-row">
+            <div class="kpi-number">{{ stats.untrusted_count }}</div>
+            <div class="kpi-badge">{{ stats.untrusted_pct }}% Fleet</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Toolbar -->
+<div class="filter-toolbar">
+    <form method="get" action="/ca-fleet-trust" id="filterForm">
+        <div class="filter-primary-row">
+            <div class="search-input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" name="search" class="search-input" placeholder="Search by device name, IP address, or OS..." value="{{ search or '' }}">
+            </div>
+
+            <div class="select-wrap">
+                <select name="ca" onchange="document.getElementById('filterForm').submit()">
+                    <option value="">All CA Certificates</option>
+                    {% for c in cas %}
+                    <option value="{{ c.serial_number }}" {% if selected_ca == c.serial_number %}selected{% endif %}>
+                        {{ c.cn }} ({{ c.serial_number[:8] }}...)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <input type="hidden" name="status" id="filterStatusInput" value="{{ selected_status or 'all' }}">
+            <input type="hidden" name="os" id="filterOsInput" value="{{ selected_os or 'all' }}">
+
+            <button type="submit" class="btn btn-secondary">Filter</button>
+            {% if search or (selected_status and selected_status != 'all') or (selected_os and selected_os != 'all') or selected_ca %}
+            <a href="/ca-fleet-trust" class="btn btn-secondary">Reset</a>
+            {% endif %}
+        </div>
+
+        <div class="filter-secondary-row">
+            <!-- Status Filters -->
+            <div class="filter-pill-group">
+                <span class="filter-group-label">Status:</span>
+                <a href="javascript:void(0)" onclick="setStatusFilter('all')" class="filter-pill {% if not selected_status or selected_status == 'all' %}active{% endif %}">All</a>
+                <a href="javascript:void(0)" onclick="setStatusFilter('compliant')" class="filter-pill pill-compliant {% if selected_status == 'compliant' %}active{% endif %}">Compliant</a>
+                <a href="javascript:void(0)" onclick="setStatusFilter('partial')" class="filter-pill pill-partial {% if selected_status == 'partial' %}active{% endif %}">Partial</a>
+                <a href="javascript:void(0)" onclick="setStatusFilter('untrusted')" class="filter-pill pill-untrusted {% if selected_status == 'untrusted' %}active{% endif %}">Untrusted</a>
+            </div>
+
+            <!-- OS Filters -->
+            <div class="filter-pill-group">
+                <span class="filter-group-label">OS:</span>
+                <a href="javascript:void(0)" onclick="setOsFilter('all')" class="filter-pill {% if not selected_os or selected_os == 'all' %}active{% endif %}">All</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('linux')" class="filter-pill {% if selected_os == 'linux' %}active{% endif %}">Linux</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('windows')" class="filter-pill {% if selected_os == 'windows' %}active{% endif %}">Windows</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('macos')" class="filter-pill {% if selected_os == 'macos' %}active{% endif %}">macOS</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('ios')" class="filter-pill {% if selected_os == 'ios' %}active{% endif %}">iOS</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('android')" class="filter-pill {% if selected_os == 'android' %}active{% endif %}">Android</a>
+                <a href="javascript:void(0)" onclick="setOsFilter('openwrt')" class="filter-pill {% if selected_os == 'openwrt' %}active{% endif %}">OpenWrt</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Audited Devices Table -->
+<div class="table-card">
+    <div class="table-responsive">
+        <table class="fleet-table">
+            <thead>
+                <tr>
+                    <th>Device / Hostname</th>
+                    <th>IP Address</th>
+                    <th>Last Audited</th>
+                    <th>Method</th>
+                    <th>CA Trust Matrix</th>
+                    <th>Compliance</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if audits %}
+                {% for a in audits %}
+                <tr>
+                    <td>
+                        <div class="device-cell">
+                            <span class="os-icon-circle os-{{ a.os }}" title="OS: {{ a.os_detail or a.os.upper() }}">
+                                {% if a.os == 'linux' %}
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2z"/></svg>
+                                {% elif a.os == 'windows' %}
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg>
+                                {% elif a.os == 'macos' %}
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                                {% elif a.os == 'ios' %}
+                                <svg viewBox="0 0 170 170" width="13" height="13" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg>
+                                {% elif a.os == 'android' %}
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.6 9.48l1.84-3.18a.5.5 0 0 0-.86-.5l-1.9 3.29A8.93 8.93 0 0 0 12 8c-1.68 0-3.23.47-4.68 1.09L5.42 5.8a.5.5 0 0 0-.86.5l1.84 3.18A9.06 9.06 0 0 0 3 17h18c0-3.08-1.97-5.7-4.4-6.52zM7 14c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm10 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+                                {% elif a.os == 'openwrt' %}
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                                {% else %}
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
+                                {% endif %}
+                            </span>
+                            <strong style="color: var(--text-heading);">{{ a.device_name }}</strong>
+                        </div>
+                    </td>
+                    <td><span style="font-family: monospace;">{{ a.ip_address }}</span></td>
+                    <td>{{ a.audited_at | format_datetime }}</td>
+                    <td><span class="method-tag">{{ a.verification_method }}</span></td>
+                    <td>
+                        <div class="trust-matrix-dots">
+                            {% for r in a.results %}
+                            <span class="trust-dot {% if r.is_trusted %}dot-trusted{% else %}dot-untrusted{% endif %}"
+                                  title="{{ r.ca_cn }} ({{ r.ca_serial[:8] }}): {% if r.is_trusted %}Trusted{% else %}Missing / Untrusted{% endif %} &mdash; {{ r.details }}">
+                                {% if r.is_trusted %}✓{% else %}✗{% endif %}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if a.overall_status == 'compliant' %}
+                        <span class="status-tag tag-compliant">✓ Compliant</span>
+                        {% elif a.overall_status == 'partial' %}
+                        <span class="status-tag tag-partial">! Partial</span>
+                        {% else %}
+                        <span class="status-tag tag-untrusted">✗ Untrusted</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <div class="actions-cell">
+                            <button type="button" class="btn-action btn-action-secondary"
+                                     onclick="showAuditDetails({{ loop.index0 }})" title="View Details">
+                                Details
+                            </button>
+                            <form method="post" action="/ca-fleet-trust/audit/{{ a.id }}/delete" style="display: inline; margin: 0;"
+                                  onsubmit="return confirm('Remove audit telemetry record for {{ a.device_name }}?')">
+                                <button type="submit" class="btn-action btn-action-delete" title="Delete Record">
+                                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                    <span>Delete</span>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+                        No audited devices match your filter criteria.
+                        Run the CLI probe on servers or share the verification link with users to begin collecting compliance telemetry.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: CLI Probe Commands -->
+<div class="modal-overlay" id="cliProbeModal">
+    <div class="modal-card" style="max-width: 620px;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-card); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700;">Server / SSH Probe Commands</h3>
+            <button type="button" class="modal-close-btn" onclick="closeModal('cliProbeModal')">&times;</button>
+        </div>
+        <div style="padding: 1.5rem;">
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Run these commands on any server or workstation terminal to audit its local trust store and report compliance telemetry back to this ACME CA Server:
+            </p>
+
+            <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Using cURL (Recommended):</label>
+            <div class="code-block">
+                <button type="button" class="copy-btn" onclick="copyText('curl -sSL {{ external_url }}/ca-trust/probe.sh | sudo bash')">Copy</button>
+                <code>curl -sSL {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
+            </div>
+
+            <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-top: 1rem; display: block;">Using Wget:</label>
+            <div class="code-block">
+                <button type="button" class="copy-btn" onclick="copyText('wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash')">Copy</button>
+                <code>wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
+            </div>
+
+            <div style="margin-top: 1.25rem; font-size: 0.82rem; color: var(--text-muted); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+                <strong>Browser Link for Workstations & Mobile Devices:</strong><br>
+                <code style="word-break: break-all; color: var(--primary);">{{ external_url }}/ca-trust/verify</code>
+            </div>
+        </div>
+        <div style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1px solid var(--border-card); text-align: right;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('cliProbeModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Device Audit Details Inspection -->
+<div class="modal-overlay" id="auditDetailModal">
+    <div class="modal-card" style="max-width: 640px;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-card); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700;" id="detailModalTitle">Device Audit Details</h3>
+            <button type="button" class="modal-close-btn" onclick="closeModal('auditDetailModal')">&times;</button>
+        </div>
+        <div style="padding: 1.5rem;" id="detailModalBody">
+            <!-- Dynamically populated -->
+        </div>
+        <div style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1px solid var(--border-card); text-align: right;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('auditDetailModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Veil Overlay: Sweep All SSH Endpoints Live Progress -->
+<div class="sweep-veil-overlay" id="sweepVeilOverlay">
+    <div class="sweep-veil-card">
+        <div class="sweep-veil-spinner-wrap">
+            <div class="sweep-spinner" id="sweepSpinner"></div>
+            <div class="sweep-spinner-icon" id="sweepSpinnerIcon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+        </div>
+
+        <h3 style="margin: 0 0 0.35rem 0; font-size: 1.25rem; font-weight: 700; color: #0f172a;" id="sweepVeilTitle">
+            Sweeping SSH Endpoints...
+        </h3>
+        <p style="margin: 0; font-size: 0.85rem; color: #64748b;" id="sweepVeilSubtitle">
+            Connecting and verifying local system certificate trust stores
+        </p>
+
+        <!-- Progress Counter & Bar -->
+        <div class="sweep-progress-track">
+            <div class="sweep-progress-fill" id="sweepProgressFill"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; font-weight: 700; color: #475569;">
+            <span id="sweepCounterText">Endpoint 0 of 0</span>
+            <span id="sweepPercentText">0%</span>
+        </div>
+
+        <!-- Live Step Box -->
+        <div class="sweep-step-box">
+            <div class="sweep-step-row">
+                <span class="sweep-step-label">Endpoint:</span>
+                <span class="sweep-step-val" id="sweepCurrentHost">&mdash;</span>
+            </div>
+            <div class="sweep-step-row">
+                <span class="sweep-step-label">Certificate:</span>
+                <span class="sweep-step-val" id="sweepCurrentCert">&mdash;</span>
+            </div>
+            <div class="sweep-step-row">
+                <span class="sweep-step-label">Status:</span>
+                <div class="sweep-step-val" id="sweepCurrentStatus">
+                    <span class="sweep-badge sweep-badge-testing">Initializing</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; justify-content: center; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary" id="sweepDismissBtn" style="display: none; padding: 0.45rem 1.25rem; font-size: 0.85rem;" onclick="closeSweepVeil()">
+                Dismiss
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const auditData = {{ audits_json | safe }};
+
+    function setStatusFilter(val) {
+        document.getElementById('filterStatusInput').value = val;
+        document.getElementById('filterForm').submit();
+    }
+
+    function setOsFilter(val) {
+        document.getElementById('filterOsInput').value = val;
+        document.getElementById('filterForm').submit();
+    }
+
+    function openModal(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('active');
+    }
+
+    function closeModal(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+    }
+
+    document.getElementById('openCliProbeModal').addEventListener('click', () => {
+        openModal('cliProbeModal');
+    });
+
+    function copyText(txt) {
+        navigator.clipboard.writeText(txt).then(() => {
+            alert('Copied snippet to clipboard!');
+        });
+    }
+
+    function showAuditDetails(idx) {
+        const item = auditData[idx];
+        if (!item) return;
+
+        document.getElementById('detailModalTitle').innerText = `${item.device_name} — Audit Details`;
+
+        let resultsHtml = '';
+        if (item.results && item.results.length > 0) {
+            resultsHtml = item.results.map(r => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; background: ${r.is_trusted ? '#ecfdf5' : '#fef2f2'}; border: 1px solid ${r.is_trusted ? '#a7f3d0' : '#fecaca'}; border-radius: 6px; margin-bottom: 0.5rem;">
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: #1e1b4b;">${r.ca_cn}</div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">Serial: ${r.ca_serial}</div>
+                        <div style="font-size: 0.8rem; color: ${r.is_trusted ? '#065f46' : '#991b1b'}; margin-top: 2px;">${r.details || (r.is_trusted ? 'Verified in trust store' : 'Not trusted')}</div>
+                    </div>
+                    <span style="font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 9999px; background: ${r.is_trusted ? '#10b981' : '#ef4444'}; color: #fff;">
+                        ${r.is_trusted ? 'TRUSTED' : 'UNTRUSTED'}
+                    </span>
+                </div>
+            `).join('');
+        } else {
+            resultsHtml = '<div style="color: #64748b; font-size: 0.85rem;">No certificate results attached.</div>';
+        }
+
+        document.getElementById('detailModalBody').innerHTML = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.25rem;">
+                <tr><td style="padding: 4px 0; color: #64748b; width: 140px; font-weight: 600;">Device Name:</td><td style="font-weight: 700; color: #1e1b4b;">${item.device_name}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Platform / OS:</td><td>${item.os_detail || item.os}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">IP Address:</td><td style="font-family: monospace;">${item.ip_address}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Audit Timestamp:</td><td>${item.audited_at}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Method:</td><td><code>${item.verification_method}</code></td></tr>
+                ${item.user_agent ? `<tr><td style="padding: 4px 0; color: #64748b; font-weight: 600; vertical-align: top;">User Agent:</td><td style="font-size: 0.75rem; color: #64748b; word-break: break-all;">${item.user_agent}</td></tr>` : ''}
+            </table>
+
+            <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0 0 0.6rem 0; color: #1e1b4b;">CA Certificates Tested</h4>
+            ${resultsHtml}
+        `;
+
+        openModal('auditDetailModal');
+    }
+
+    function openSweepVeil() {
+        const v = document.getElementById('sweepVeilOverlay');
+        if (v) v.classList.add('active');
+        document.getElementById('sweepDismissBtn').style.display = 'none';
+        document.getElementById('sweepProgressFill').style.width = '0%';
+        document.getElementById('sweepPercentText').innerText = '0%';
+        document.getElementById('sweepCounterText').innerText = 'Starting...';
+        document.getElementById('sweepCurrentHost').innerText = 'Initializing SSH connections...';
+        document.getElementById('sweepCurrentCert').innerText = '&mdash;';
+        document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-testing">Initializing</span>';
+        document.getElementById('sweepVeilTitle').innerText = 'Sweeping SSH Endpoints...';
+        document.getElementById('sweepVeilSubtitle').innerText = 'Connecting and verifying local system certificate trust stores';
+        document.getElementById('sweepSpinner').style.display = 'block';
+    }
+
+    function closeSweepVeil() {
+        const v = document.getElementById('sweepVeilOverlay');
+        if (v) v.classList.remove('active');
+    }
+
+    document.getElementById('sweepForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('sweepBtn');
+        const txt = document.getElementById('sweepBtnText');
+        btn.disabled = true;
+        txt.innerText = 'Sweeping Endpoints...';
+
+        openSweepVeil();
+
+        const evtSource = new EventSource('/ca-fleet-trust/sweep/stream');
+
+        evtSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                handleSweepEvent(data, evtSource);
+            } catch (err) {
+                console.error('Failed to parse SSE event:', err);
+            }
+        };
+
+        evtSource.onerror = (err) => {
+            console.warn('SSE connection error or closed:', err);
+            evtSource.close();
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-warning">Stream Disconnected</span>';
+            document.getElementById('sweepDismissBtn').style.display = 'inline-block';
+            document.getElementById('sweepVeilSubtitle').innerText = 'Stream closed or connection lost. You can refresh or dismiss.';
+            btn.disabled = false;
+            txt.innerText = 'Sweep All SSH Endpoints';
+        };
+    });
+
+    function handleSweepEvent(data, evtSource) {
+        const idx = data.index || 0;
+        const total = data.total || 0;
+        const host = data.host || data.device_name || 'SSH Endpoint';
+        const certName = data.ca_cn ? `${data.ca_cn} (${data.ca_serial ? data.ca_serial.substring(0, 8) + '...' : ''})` : '&mdash;';
+
+        if (total > 0 && idx > 0) {
+            const pct = Math.round((idx / total) * 100);
+            document.getElementById('sweepCounterText').innerText = `Endpoint ${idx} of ${total}`;
+            document.getElementById('sweepPercentText').innerText = `${pct}%`;
+            document.getElementById('sweepProgressFill').style.width = `${pct}%`;
+        }
+
+        if (data.stage === 'endpoint_start') {
+            document.getElementById('sweepCurrentHost').innerText = `${host} (${data.device_name || ''})`;
+            document.getElementById('sweepCurrentCert').innerHTML = '<em>Connecting SSH session...</em>';
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-testing">Connecting</span>';
+        } else if (data.stage === 'cert_testing') {
+            document.getElementById('sweepCurrentHost').innerText = `${host}`;
+            document.getElementById('sweepCurrentCert').innerText = certName;
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-testing">Testing Anchor</span>';
+        } else if (data.stage === 'endpoint_done') {
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-success">Audit Complete</span>';
+        } else if (data.stage === 'endpoint_error') {
+            document.getElementById('sweepCurrentStatus').innerHTML = `<span class="sweep-badge sweep-badge-warning" title="${data.message || 'Warning'}">Warning (Skipped)</span>`;
+        } else if (data.stage === 'complete') {
+            evtSource.close();
+            document.getElementById('sweepProgressFill').style.width = '100%';
+            document.getElementById('sweepPercentText').innerText = '100%';
+            document.getElementById('sweepVeilTitle').innerText = 'Fleet Sweep Complete!';
+            document.getElementById('sweepVeilSubtitle').innerText = data.message || 'All endpoints swept successfully.';
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-success">Done</span>';
+            document.getElementById('sweepSpinner').style.display = 'none';
+
+            // Auto-refresh after 1.2s to show updated table
+            setTimeout(() => {
+                const encodedMsg = encodeURIComponent(data.message || 'Fleet sweep completed.');
+                window.location.href = `/ca-fleet-trust?status_msg=${encodedMsg}`;
+            }, 1200);
+        } else if (data.stage === 'error') {
+            evtSource.close();
+            document.getElementById('sweepVeilTitle').innerText = 'Sweep Error';
+            document.getElementById('sweepVeilSubtitle').innerText = data.message || 'Failed to complete sweep.';
+            document.getElementById('sweepCurrentStatus').innerHTML = '<span class="sweep-badge sweep-badge-warning">Error</span>';
+            document.getElementById('sweepDismissBtn').style.display = 'inline-block';
+            const btn = document.getElementById('sweepBtn');
+            const txt = document.getElementById('sweepBtnText');
+            btn.disabled = false;
+            txt.innerText = 'Sweep All SSH Endpoints';
+        }
+    }
+</script>
+{% endblock %}

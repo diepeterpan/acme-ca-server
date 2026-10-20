@@ -115,6 +115,7 @@ class WebAuthMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-m
             '/libs/',
             '/static/',
             '/ca/download',
+            '/ca-trust/',
         )
         if path == '/directory' or any(path.startswith(prefix) for prefix in public_prefixes):
             return await call_next(request)
@@ -180,6 +181,7 @@ class CaSetupRedirectMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-
                 '/favicon.svg',
                 '/libs/',
                 '/static/',
+                '/ca-trust/',
             )
             if any(path.startswith(prefix) for prefix in allowed_prefixes):
                 return await call_next(request)

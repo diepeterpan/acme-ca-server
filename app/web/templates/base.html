@@ -465,6 +465,26 @@
             color: #ffffff;
         }
 
+        .badge-beta {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.1rem 0.4rem;
+            border-radius: 9999px;
+            background: #ede9fe;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-left: auto;
+            line-height: 1.2;
+        }
+
+        .dropdown-item.active .badge-beta {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
         .dropdown-divider {
             height: 1px;
             background-color: #f1f5f9;
@@ -660,6 +680,14 @@
                                     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                                 </svg>
                                 <span>CA Distribution</span>
+                            </a>
+                            <a href="/ca-fleet-trust" class="dropdown-item {% if request is defined and (request.url.path.startswith('/ca-fleet-trust') or request.url.path.startswith('/ca-compliance') or request.url.path.startswith('/ca-availability')) %}active{% endif %}">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                    <polyline points="9 12 11 14 15 10"></polyline>
+                                </svg>
+                                <span>CA Fleet Trust</span>
+                                <span class="badge-beta">Beta</span>
                             </a>
                             <div class="dropdown-divider"></div>
                             <a href="/endpoints" class="dropdown-item" target="_blank" rel="noopener noreferrer">

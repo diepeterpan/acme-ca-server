@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <title>Root CA Trust Verification - {{app_title}}</title>
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --primary-hover: #6d28d9;
+            --primary-light: #f5f3ff;
+            --primary-border: #ede9fe;
+            --text-heading: #1e1b4b;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border-card: #e2e8f0;
+            --status-ok-bg: #ecfdf5;
+            --status-ok-text: #059669;
+            --status-ok-border: #a7f3d0;
+            --status-err-bg: #fef2f2;
+            --status-err-text: #dc2626;
+            --status-err-border: #fecaca;
+            --status-warn-bg: #fffbeb;
+            --status-warn-text: #d97706;
+            --status-warn-border: #fde68a;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --radius-pill: 9999px;
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(124, 58, 237, 0.08), 0 2px 4px -2px rgba(124, 58, 237, 0.04);
+            --shadow-lg: 0 10px 25px -5px rgba(124, 58, 237, 0.12), 0 8px 10px -6px rgba(124, 58, 237, 0.04);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-body);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem 1rem;
+        }
+
+        .verify-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+            max-width: 680px;
+            overflow: hidden;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .verify-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            color: #ffffff;
+            padding: 1.75rem 2rem;
+            position: relative;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(4px);
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-pill);
+            margin-bottom: 0.75rem;
+        }
+
+        .brand-badge svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .verify-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.25rem;
+        }
+
+        .verify-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .verify-body {
+            padding: 1.75rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .device-info-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--primary-light);
+            border: 1px solid var(--primary-border);
+            border-radius: var(--radius-md);
+            padding: 0.85rem 1.25rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .device-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .device-os-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: #ffffff;
+            border: 1px solid var(--primary-border);
+            border-radius: 50%;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .device-os-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .device-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .device-val {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-heading);
+        }
+
+        .device-ip-badge {
+            background: #ffffff;
+            border: 1px solid var(--primary-border);
+            border-radius: var(--radius-pill);
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--text-muted);
+        }
+
+        .section-heading {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .ca-item-card {
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .ca-item-card.trusted {
+            border-color: var(--status-ok-border);
+            background: #f0fdf4;
+        }
+
+        .ca-item-card.untrusted {
+            border-color: var(--status-err-border);
+            background: #fff5f5;
+        }
+
+        .ca-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .status-icon-circle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .status-icon-circle.testing {
+            background: #e2e8f0;
+            color: #64748b;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.96); opacity: 0.8; }
+            50% { transform: scale(1.04); opacity: 1; }
+            100% { transform: scale(0.96); opacity: 0.8; }
+        }
+
+        .status-icon-circle.ok {
+            background: #10b981;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        }
+
+        .status-icon-circle.error {
+            background: #ef4444;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        }
+
+        .ca-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 0.15rem;
+        }
+
+        .ca-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: var(--radius-pill);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .status-pill.ok {
+            background: var(--status-ok-bg);
+            color: var(--status-ok-text);
+            border: 1px solid var(--status-ok-border);
+        }
+
+        .status-pill.error {
+            background: var(--status-err-bg);
+            color: var(--status-err-text);
+            border: 1px solid var(--status-err-border);
+        }
+
+        .status-pill.testing {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #cbd5e1;
+        }
+
+        .info-box {
+            padding: 1rem 1.25rem;
+            border-radius: var(--radius-md);
+            font-size: 0.88rem;
+            line-height: 1.5;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+
+        .info-box.info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+
+        .info-box.success {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+        }
+
+        .info-box.warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+        }
+
+        .info-box svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .os-instructions-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            font-size: 0.85rem;
+        }
+
+        .os-instructions-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-list {
+            padding-left: 1.2rem;
+            margin-top: 0.5rem;
+        }
+
+        .step-list li {
+            margin-bottom: 0.4rem;
+            color: var(--text-body);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1.25rem;
+            border-radius: var(--radius-md);
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: var(--text-body);
+        }
+
+        .btn-secondary:hover {
+            background: #f1f5f9;
+        }
+
+        .custom-name-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .custom-name-input {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+        }
+
+        .custom-name-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+        }
+
+        .verify-footer {
+            border-top: 1px solid var(--border-card);
+            padding: 1rem 2rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-align: center;
+            background: #fcfdfe;
+        }
+
+        .verify-footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .verify-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<div class="verify-card">
+    <div class="verify-header">
+        <div class="brand-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="m9 12 2 2 4-4"></path>
+            </svg>
+            <span>Security Diagnostics</span>
+        </div>
+        <h1 class="verify-title">Root CA Trust Verification</h1>
+        <p class="verify-subtitle">Verifying that your device trusts the internal Certificate Authority</p>
+    </div>
+
+    <div class="verify-body">
+        <!-- Device Info Banner -->
+        <div class="device-info-bar">
+            <div class="device-meta">
+                <div class="device-os-icon" id="deviceOsIcon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                    </svg>
+                </div>
+                <div>
+                    <div class="device-label">Detected Device</div>
+                    <div class="device-val" id="deviceDisplayStr">Analyzing...</div>
+                </div>
+            </div>
+            <div class="device-ip-badge" id="deviceIpBadge">
+                IP: {{ client_ip }}
+            </div>
+        </div>
+
+        <!-- Optional Device Name Input -->
+        <div>
+            <div class="section-heading">Device Identification</div>
+            <div class="custom-name-row">
+                <input type="text" id="deviceNameInput" class="custom-name-input"
+                       value="{{ prefill_device_name }}" placeholder="e.g. Sarah's iPhone 15 or Workstation-DELL">
+                <button type="button" class="btn btn-secondary" style="flex: 0; min-width: auto; padding: 0.5rem 1rem;" id="saveNameBtn">
+                    Update Name
+                </button>
+            </div>
+        </div>
+
+        <!-- Trust Status Checklist -->
+        <div>
+            <div class="section-heading">Certificate Authority Trust Status</div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;" id="caListContainer">
+                {% for ca in cas %}
+                <div class="ca-item-card" id="card_{{ ca.serial_number }}" data-serial="{{ ca.serial_number }}" data-active="{{ ca.active }}">
+                    <div class="ca-meta">
+                        <div class="status-icon-circle testing" id="icon_{{ ca.serial_number }}">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 14 14"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="ca-title">
+                                {{ ca.cn }}
+                                {% if ca.active %}
+                                <span style="font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: #f5f3ff; border: 1px solid #ede9fe; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">ACTIVE</span>
+                                {% endif %}
+                            </div>
+                            <div class="ca-sub">Serial: {{ ca.serial_number[:12] }}... | Fingerprint: {{ ca.fingerprint_sha256[:20] }}...</div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="status-pill testing" id="pill_{{ ca.serial_number }}">Testing...</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Dynamic Feedback Box -->
+        <div id="feedbackBox" class="info-box info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <div id="feedbackText">Running real-time TLS handshake probe to verify certificate trust...</div>
+        </div>
+
+        <!-- Platform Remediation Guidance (hidden if compliant) -->
+        <div id="remediationBox" class="os-instructions-box" style="display: none;">
+            <div class="os-instructions-title" id="remediationTitle">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#d97706" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span>How to Install & Trust This Certificate</span>
+            </div>
+            <div id="remediationSteps"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="btn-group">
+            <a href="/ca/download" class="btn btn-primary" id="downloadCertBtn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download CA Certificate (.crt)</span>
+            </a>
+            <button type="button" class="btn btn-secondary" id="retestBtn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>Re-run Verification Check</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="verify-footer">
+        Verified securely by {{ app_title }} &bull; Telemetry logged for fleet compliance.
+    </div>
+</div>
+
+<script>
+(function() {
+    const rawCas = {{ cas_json | safe }};
+    const endpointId = "{{ endpoint_id or '' }}";
+    const clientIp = "{{ client_ip }}";
+
+    // 1. Detect OS & Platform
+    function detectPlatform() {
+        const ua = navigator.userAgent || '';
+        let os = 'unknown';
+        let detail = 'Generic Device';
+        let iconSvg = '';
+
+        if (/iPhone|iPad|iPod/i.test(ua)) {
+            os = 'ios';
+            const match = ua.match(/OS (\d+[_\.]\d+)/i);
+            const ver = match ? match[1].replace('_', '.') : '';
+            detail = `Apple iOS ${ver}`.trim();
+            iconSvg = '<svg viewBox="0 0 170 170" width="18" height="18" fill="currentColor"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.59-7.71-11.66-14-5.33-8.2-9.61-17.76-12.83-28.67-3.21-10.91-4.83-21.43-4.83-31.55 0-16.19 4.35-29.42 13.06-39.7 8.71-10.28 19.32-15.54 31.84-15.79 4.9 0 10.42 1.37 16.58 4.11 6.16 2.74 10.36 4.16 12.61 4.26 1.9-.1 6.27-1.57 13.12-4.42 6.84-2.85 12.74-4.14 17.69-3.87 13.48 1.05 24.16 6.3 32.04 15.74-11.96 7.22-17.83 17.1-17.62 29.63.21 9.87 4.04 18.06 11.47 24.58 7.44 6.51 16.32 10.23 26.65 11.16-2.54 7.74-5.71 15.22-9.52 22.45zM119.22 31.83c0-7.39 2.67-14.33 8.01-20.82 5.34-6.49 11.96-10.46 19.86-11.91.43 1.9.64 3.7.64 5.4 0 7.39-2.78 14.49-8.34 21.3-5.56 6.82-12.33 10.74-20.31 11.76-.22-1.9-.33-3.8-.33-5.73z"/></svg>';
+        } else if (/Android/i.test(ua)) {
+            os = 'android';
+            const match = ua.match(/Android\s+([0-9\.]+)/i);
+            const ver = match ? match[1] : '';
+            detail = `Android ${ver}`.trim();
+            iconSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.6 9.48l1.84-3.18a.5.5 0 0 0-.86-.5l-1.9 3.29A8.93 8.93 0 0 0 12 8c-1.68 0-3.23.47-4.68 1.09L5.42 5.8a.5.5 0 0 0-.86.5l1.84 3.18A9.06 9.06 0 0 0 3 17h18c0-3.08-1.97-5.7-4.4-6.52zM7 14c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm10 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>';
+        } else if (/Macintosh|Mac OS X/i.test(ua)) {
+            os = 'macos';
+            detail = 'Apple macOS';
+            iconSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>';
+        } else if (/Windows NT/i.test(ua)) {
+            os = 'windows';
+            detail = 'Microsoft Windows';
+            iconSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M0 3.45L9.75 2.1v9.45H0m10.95-9.6L24 0v11.4H10.95M0 12.6h9.75v9.45L0 20.7m10.95-8.1H24V24l-12.9-1.8"/></svg>';
+        } else if (/Linux/i.test(ua)) {
+            os = 'linux';
+            detail = 'Linux';
+            iconSvg = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C9.5 2 8 3.8 8 6.5v2.8C6.9 10 6 11.8 6 14.2c0 2.5 1.2 4.6 3.1 5.3-.2.8-.7 1.5-1.6 1.8-.4.1-.6.6-.4 1 .2.4.6.6 1 .4 1.8-.7 2.8-2.1 3-3.7h1.8c.2 1.6 1.2 3 3 3.7.4.2.8 0 1-.4.2-.4 0-.9-.4-1-.9-.3-1.4-1-1.6-1.8 1.9-.7 3.1-2.8 3.1-5.3 0-2.4-.9-4.2-2-4.9V6.5C16 3.8 14.5 2 12 2z"/></svg>';
+        }
+
+        return { os, detail, iconSvg };
+    }
+
+    const platform = detectPlatform();
+    document.getElementById('deviceDisplayStr').innerText = platform.detail;
+    if (platform.iconSvg) {
+        document.getElementById('deviceOsIcon').innerHTML = platform.iconSvg;
+    }
+
+    // Default device name if blank
+    const nameInput = document.getElementById('deviceNameInput');
+    if (!nameInput.value.trim()) {
+        nameInput.value = `${platform.detail} (${clientIp})`;
+    }
+
+    // Render remediation instructions based on detected OS
+    function updateRemediation(allTrusted) {
+        const box = document.getElementById('remediationBox');
+        const steps = document.getElementById('remediationSteps');
+        if (allTrusted) {
+            box.style.display = 'none';
+            return;
+        }
+
+        box.style.display = 'block';
+        if (platform.os === 'ios') {
+            steps.innerHTML = `
+                <ol class="step-list">
+                    <li>Tap <strong>Download CA Certificate</strong> above. Tap <em>Allow</em> when prompted to download the configuration profile.</li>
+                    <li>Open your iPhone/iPad <strong>Settings</strong> app and tap <strong>Profile Downloaded</strong> at the top.</li>
+                    <li>Tap <strong>Install</strong> in the top-right corner and enter your passcode.</li>
+                    <li><strong style="color: #dc2626;">CRITICAL STEP:</strong> Navigate to <strong>Settings &rarr; General &rarr; About &rarr; Certificate Trust Settings</strong>.</li>
+                    <li>Under <em>Enable Full Trust for Root Certificates</em>, toggle the switch <strong>ON</strong> for this Root CA.</li>
+                    <li>Return here and tap <strong>Re-run Verification Check</strong>.</li>
+                </ol>
+            `;
+        } else if (platform.os === 'android') {
+            steps.innerHTML = `
+                <ol class="step-list">
+                    <li>Tap <strong>Download CA Certificate</strong> above to save the <code>.crt</code> file.</li>
+                    <li>Open Android <strong>Settings &rarr; Security &rarr; Encryption &amp; credentials</strong> (or <em>Install a certificate</em>).</li>
+                    <li>Select <strong>CA certificate</strong> (confirm security prompt).</li>
+                    <li>Browse and select the downloaded certificate file.</li>
+                    <li>Return here and tap <strong>Re-run Verification Check</strong>.</li>
+                </ol>
+            `;
+        } else if (platform.os === 'macos') {
+            steps.innerHTML = `
+                <ol class="step-list">
+                    <li>Download the certificate and double-click to open in <strong>Keychain Access</strong>.</li>
+                    <li>Select the <strong>System</strong> keychain, drag the certificate into the list.</li>
+                    <li>Double-click the certificate, expand <strong>Trust</strong>, and set <em>When using this certificate</em> to <strong>Always Trust</strong>.</li>
+                    <li>Close the window, authenticate with Touch ID/Password, and re-run check.</li>
+                </ol>
+            `;
+        } else {
+            steps.innerHTML = `
+                <ol class="step-list">
+                    <li>Download the certificate using the button above.</li>
+                    <li>Import the certificate into your system's <strong>Trusted Root Certification Authorities</strong> store.</li>
+                    <li>Restart or refresh your browser and tap <strong>Re-run Verification Check</strong>.</li>
+                </ol>
+            `;
+        }
+    }
+
+    // 2. Perform Verification Check
+    async function runVerification() {
+        const feedbackBox = document.getElementById('feedbackBox');
+        const feedbackText = document.getElementById('feedbackText');
+
+        feedbackBox.className = 'info-box info';
+        feedbackText.innerText = 'Testing TLS trust connection against Certificate Authority...';
+
+        const results = [];
+        let anyUntrusted = false;
+
+        for (const ca of rawCas) {
+            const serial = ca.serial_number;
+            const iconEl = document.getElementById(`icon_${serial}`);
+            const pillEl = document.getElementById(`pill_${serial}`);
+            const cardEl = document.getElementById(`card_${serial}`);
+
+            let isTrusted = false;
+            let details = '';
+
+            try {
+                // If running over HTTPS, probe /ca-trust/api/probe-active
+                // If the probe succeeds over HTTPS, the active CA is proven trusted!
+                const res = await fetch('/ca-trust/api/probe-active', {
+                    method: 'GET',
+                    cache: 'no-store',
+                    credentials: 'omit'
+                });
+
+                if (res.ok) {
+                    isTrusted = true;
+                    details = 'Verified via browser TLS handshake';
+                } else {
+                    isTrusted = false;
+                    details = `Probe returned status ${res.status}`;
+                }
+            } catch (err) {
+                isTrusted = false;
+                details = `TLS handshake rejected: ${err.message || 'Untrusted issuer'}`;
+            }
+
+            if (isTrusted) {
+                cardEl.className = 'ca-item-card trusted';
+                iconEl.className = 'status-icon-circle ok';
+                iconEl.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                pillEl.className = 'status-pill ok';
+                pillEl.innerText = '✓ TRUSTED & COMPLIANT';
+            } else {
+                anyUntrusted = true;
+                cardEl.className = 'ca-item-card untrusted';
+                iconEl.className = 'status-icon-circle error';
+                iconEl.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                pillEl.className = 'status-pill error';
+                pillEl.innerText = '✗ NOT INSTALLED';
+            }
+
+            results.push({
+                ca_serial: serial,
+                is_trusted: isTrusted,
+                details: details
+            });
+        }
+
+        // Update overall feedback box
+        if (!anyUntrusted) {
+            feedbackBox.className = 'info-box success';
+            feedbackText.innerHTML = '<strong>Success!</strong> This device trusts your Certificate Authority. All internal encrypted connections are secure.';
+            updateRemediation(true);
+        } else {
+            feedbackBox.className = 'info-box warning';
+            feedbackText.innerHTML = '<strong>Action Required:</strong> The Root CA certificate is not yet trusted by this device. Follow the installation steps below.';
+            updateRemediation(false);
+        }
+
+        // 3. Post telemetry back to ACME CA Server
+        try {
+            const devName = document.getElementById('deviceNameInput').value.trim() || platform.detail;
+            const devType = (platform.os === 'ios' || platform.os === 'android') ? 'mobile' : 'workstation';
+
+            await fetch('/ca-trust/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    device_name: devName,
+                    device_type: devType,
+                    os: platform.os,
+                    os_detail: platform.detail,
+                    ip_address: clientIp,
+                    endpoint_id: endpointId || null,
+                    verification_method: 'browser',
+                    results: results
+                })
+            });
+        } catch (e) {
+            console.error('Failed to report telemetry:', e);
+        }
+    }
+
+    document.getElementById('retestBtn').addEventListener('click', runVerification);
+    document.getElementById('saveNameBtn').addEventListener('click', runVerification);
+
+    // Run automatically on initial load
+    setTimeout(runVerification, 400);
+})();
+</script>
+
+</body>
+</html>

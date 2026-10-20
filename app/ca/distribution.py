@@ -144,6 +144,19 @@ Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S 
 ================================================================================
 """
 
+    ext_url = str(settings.external_url).rstrip('/')
+    verify_section = f"""[AUTOMATED TRUST VERIFICATION & FLEET AUDITING]
+After completing the installation above, verify that this system trusts
+the newly installed CA certificate by running the automated audit probe:
+
+Option 1: Using cURL (Recommended)
+   curl -sSL {ext_url}/ca-trust/probe.sh | sudo bash
+
+Option 2: Using Wget
+   wget -qO- {ext_url}/ca-trust/probe.sh | sudo bash
+================================================================================
+"""
+
     if os_target == 'linux':
         return f"""{header}
 [DEBIAN / UBUNTU / LINUX MINT]
@@ -168,7 +181,7 @@ Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S 
 1. Copy certificate:
    sudo trust anchor --store {base_name}.crt
 ================================================================================
-"""
+{verify_section}"""
 
     if os_target == 'openwrt':
         return f"""{header}
@@ -180,7 +193,7 @@ Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S 
 3. Re-hash the certificate directory or append to ca-certificates bundle:
    c_rehash /etc/ssl/certs/ 2>/dev/null || cat {base_name}.crt >> /etc/ssl/certs/ca-certificates.crt
 ================================================================================
-"""
+{verify_section}"""
 
     if os_target == 'windows':
         return f"""{header}
@@ -203,7 +216,7 @@ Option C: Graphical Interface (Certmgr)
    5. Select 'Place all certificates in the following store: Trusted Root Certification Authorities'.
    6. Click Finish.
 ================================================================================
-"""
+{verify_section}"""
 
     if os_target == 'macos':
         return f"""{header}
@@ -222,7 +235,7 @@ Option B: Keychain Access (GUI)
    6. Set 'When using this certificate:' to 'Always Trust'.
    7. Close the window and enter your administrator credentials when prompted.
 ================================================================================
-"""
+{verify_section}"""
 
     # Default / Generic instructions
     return f"""{header}
@@ -232,7 +245,7 @@ Certificate File: {base_name}.crt
 Please copy '{base_name}.crt' to your operating system's root certificate trust store
 and update the trust cache according to your platform guidelines.
 ================================================================================
-"""
+{verify_section}"""
 
 
 def _to_str(val: bytes | str | None) -> str:
@@ -1150,6 +1163,9 @@ opkg update && opkg install ca-certificates && cp {base_name}.crt /etc/ssl/certs
 """
         )
 
+    ext_url = str(settings.external_url).rstrip('/')
+    verify_url = f'{ext_url}/ca-trust/verify?endpoint_id={endpoint.id}'
+
     instructions_html = '\n'.join(html_sections)
     instructions_text = '\n'.join(text_sections)
 
@@ -1203,6 +1219,22 @@ opkg update && opkg install ca-certificates && cp {base_name}.crt /etc/ssl/certs
             <h3 style="color: #1e1b4b; font-size: 15px; margin: 0 0 12px 0;">Installation Instructions by Operating System:</h3>
             {instructions_html}
 
+            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 18px; margin: 24px 0; text-align: center;">
+                <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #1e1b4b; font-weight: 700;">Verify Your Installation</h4>
+                <p style="margin: 0 0 14px 0; font-size: 13px; color: #4b5563;">
+                    After installing the certificate, click the button below on your device to verify that the Root CA is properly trusted:
+                </p>
+                <a href="{verify_url}"
+                   style="display: inline-block; background: #7c3aed; color: #ffffff;
+                          text-decoration: none; font-weight: 700; font-size: 14px;
+                          padding: 10px 22px; border-radius: 6px;">
+                    ✓ Verify CA Trust on This Device
+                </a>
+                <div style="margin-top: 10px; font-size: 11px; color: #6b7280;">
+                    Or visit directly: <a href="{verify_url}" style="color: #7c3aed;">{verify_url}</a>
+                </div>
+            </div>
+
             <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 16px; font-size: 12px; color: #64748b; text-align: center;">
                 Sent automatically by {settings.web.app_title} CA Distribution Engine.
             </div>
@@ -1231,6 +1263,10 @@ Attached Files:
 
 Instructions:
 {instructions_text}
+
+Verification:
+After installing the certificate, verify your device's trust status at:
+{verify_url}
 
 Sent automatically by {settings.web.app_title}.
 """
