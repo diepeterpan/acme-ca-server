@@ -103,6 +103,10 @@ async def get_expected_cas() -> list[dict[str, Any]]:
             nvb = cert.not_valid_before_utc
             nva = cert.not_valid_after_utc
 
+            # Extract first non-header base64 line for high-speed signature matching on embedded devices
+            pem_lines = [line.strip() for line in cert_pem.splitlines() if line.strip() and not line.startswith('-----')]
+            pem_sig = pem_lines[0] if pem_lines else ''
+
             cas.append(
                 {
                     'serial_number': serial,
@@ -110,6 +114,7 @@ async def get_expected_cas() -> list[dict[str, Any]]:
                     'org': org,
                     'fingerprint_sha256': fp_hex,
                     'fingerprint_sha256_raw': fp_raw,
+                    'pem_signature': pem_sig,
                     'active': active,
                     'not_valid_before': nvb.isoformat(),
                     'not_valid_after': nva.isoformat(),
@@ -843,27 +848,41 @@ echo "$FOUND"
                         details = out[:100]
 
                 elif detected_os == 'openwrt':
+                    pem_sig = ca.get('pem_signature', '')
                     check_cmd = f"""
 SN="{serial_norm}"
+SIG="{pem_sig}"
 FOUND=""
-for f in /etc/ssl/certs/*.crt /etc/ssl/certs/*.pem; do
-    [ -f "$f" ] || continue
-    sn=$(openssl x509 -in "$f" -noout -serial 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
-    if [ -n "$sn" ] && [ "$sn" = "$SN" ]; then
-        FOUND="Verified by serial in $f"
-        break
-    fi
-done
-if [ -z "$FOUND" ]; then
-    if [ -f /etc/ssl/certs/ca-certificates.crt ] && grep -qi "$SN" /etc/ssl/certs/ca-certificates.crt 2>/dev/null; then
+
+# 1. High-speed signature search in bundles and anchor stores (instantaneous, 0-forks)
+if [ -n "$SIG" ]; then
+    if [ -f /etc/ssl/certs/ca-certificates.crt ] && grep -Fq "$SIG" /etc/ssl/certs/ca-certificates.crt 2>/dev/null; then
         FOUND="Found in /etc/ssl/certs/ca-certificates.crt"
-    elif grep -ri "{cn}" /etc/ssl/certs/ >/dev/null 2>&1; then
-        FOUND="Found by Common Name in /etc/ssl/certs/"
+    elif [ -f /etc/ssl/cert.pem ] && grep -Fq "$SIG" /etc/ssl/cert.pem 2>/dev/null; then
+        FOUND="Found in /etc/ssl/cert.pem"
+    else
+        MATCH=$(grep -Frl "$SIG" /etc/ssl/certs /usr/local/share/ca-certificates 2>/dev/null | head -n 1)
+        if [ -n "$MATCH" ]; then
+            FOUND="Verified by PEM signature in $MATCH"
+        fi
     fi
 fi
+
+# 2. Targeted OpenSSL inspection (only on custom candidate certificates, avoiding full directory fork storms)
+if [ -z "$FOUND" ] && command -v openssl >/dev/null 2>&1; then
+    for f in /usr/local/share/ca-certificates/*.crt /etc/ssl/certs/*{serial_norm[:8]}*.crt /etc/ssl/certs/*{serial_norm[:8]}*.pem; do
+        [ -f "$f" ] || continue
+        sn=$(openssl x509 -in "$f" -noout -serial 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
+        if [ -n "$sn" ] && [ "$sn" = "$SN" ]; then
+            FOUND="Verified by serial in $f"
+            break
+        fi
+    done
+fi
+
 echo "$FOUND"
 """
-                    res = await conn.run(check_cmd, check=False, timeout=8)
+                    res = await conn.run(check_cmd, check=False, timeout=15)
                     out = str(res.stdout or '').strip()
                     if out:
                         is_trusted = True
@@ -873,9 +892,7 @@ echo "$FOUND"
                     ps_cmd = (
                         f'powershell -NoProfile -Command "'
                         f"$cert = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ ($_.SerialNumber -eq '{serial_norm}') -or ($_.Thumbprint -eq '{fp_raw}') }}; "
-                        f"if ($cert) {{ Write-Output ('Verified in Cert:\\LocalMachine\\Root (Thumbprint: ' + $cert.Thumbprint + ')') }} "
-                        f"else {{ $c2 = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ $_.Subject -like '*{cn}*' }} | Select-Object -First 1; "
-                        f"if ($c2) {{ Write-Output ('Found by Subject in Cert:\\LocalMachine\\Root') }} }}\""
+                        f"if ($cert) {{ Write-Output ('Verified in Cert:\\LocalMachine\\Root (Thumbprint: ' + $cert.Thumbprint + ')') }}\""
                     )
                     res = await conn.run(ps_cmd, check=False, timeout=10)
                     out = str(res.stdout or '').strip()
