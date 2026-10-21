@@ -131,6 +131,7 @@ def generate_readme(
     ca_name: str,
     serial: str,
     subdir: str = '',
+    endpoint_id: str | None = None,
 ) -> str:
     subdir_line = f'Subdirectory          : {subdir}\n' if subdir else ''
     header = f"""================================================================================
@@ -145,15 +146,16 @@ Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S 
 """
 
     ext_url = str(settings.external_url).rstrip('/')
+    probe_param = f'?endpoint_id={endpoint_id}' if endpoint_id else ''
     verify_section = f"""[AUTOMATED TRUST VERIFICATION & FLEET AUDITING]
 After completing the installation above, verify that this system trusts
 the newly installed CA certificate by running the automated audit probe:
 
 Option 1: Using cURL (Recommended)
-   curl -sSL {ext_url}/ca-trust/probe.sh | sudo bash
+   curl -sSL {ext_url}/ca-trust/probe.sh{probe_param} | sudo bash
 
 Option 2: Using Wget
-   wget -qO- {ext_url}/ca-trust/probe.sh | sudo bash
+   wget -qO- {ext_url}/ca-trust/probe.sh{probe_param} | sudo bash
 ================================================================================
 """
 
@@ -548,6 +550,51 @@ async def get_endpoint(endpoint_id: str) -> Endpoint | None:
     )
 
 
+async def find_endpoint_by_host_or_name(*identifiers: str | None) -> Endpoint | None:
+    """Find a configured distribution endpoint matching any candidate hostnames, IPs, or names."""
+    clean_ids = [i.strip() for i in identifiers if i and isinstance(i, str) and i.strip()]
+    if not clean_ids:
+        return None
+    async with db.transaction(readonly=True) as sql:
+        for ident in clean_ids:
+            r = await sql.record(
+                """
+                SELECT
+                    id, name, type, host, port, username, auth_type, target_dir,
+                    email_addresses, target_os_list, detected_os, os_detail,
+                    last_test_at, last_test_status, last_test_message,
+                    (auth_secret_enc IS NOT NULL AND length(auth_secret_enc) > 0) AS has_secret,
+                    created_at, updated_at
+                FROM distribution_endpoints
+                WHERE LOWER(host) = LOWER($1) OR LOWER(name) = LOWER($1)
+                LIMIT 1
+                """,
+                ident,
+            )
+            if r:
+                return Endpoint(
+                    id=r['id'],
+                    name=r['name'],
+                    type=r['type'],
+                    host=r['host'],
+                    port=r['port'] or 22,
+                    username=r['username'],
+                    auth_type=r['auth_type'] or 'key',
+                    target_dir=r['target_dir'],
+                    email_addresses=list(r['email_addresses']) if r['email_addresses'] else [],
+                    target_os_list=list(r['target_os_list']) if r['target_os_list'] else [],
+                    detected_os=r['detected_os'] or 'unknown',
+                    os_detail=r['os_detail'],
+                    last_test_at=r['last_test_at'],
+                    last_test_status=r['last_test_status'],
+                    last_test_message=r['last_test_message'],
+                    has_secret=bool(r['has_secret']),
+                    created_at=r['created_at'],
+                    updated_at=r['updated_at'],
+                )
+    return None
+
+
 async def create_endpoint(
     *,
     name: str,
@@ -839,7 +886,14 @@ async def distribute_to_ssh_endpoint(
             ca_name = str(cn_attr[0].value) if cn_attr else 'Root CA'
             serial_hex = f'{ca_cert.serial_number:X}'
 
-            readme_content = generate_readme(base_name, detected_os, ca_name, serial_hex, subdir=subdir_name)
+            readme_content = generate_readme(
+                base_name,
+                detected_os,
+                ca_name,
+                serial_hex,
+                subdir=subdir_name,
+                endpoint_id=endpoint.id,
+            )
 
             async with conn.start_sftp_client() as sftp:
                 # Ensure destination subdirectory exists or create it

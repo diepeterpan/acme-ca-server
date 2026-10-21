@@ -310,13 +310,15 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
             async def __aexit__(self, *args):
                 pass
 
-        with mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()):
-            with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
-                with mock.patch('ca.distribution.asyncssh.connect', side_effect=OSError('Network unreachable')):
-                    res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_CONTENT')
-                    self.assertFalse(res.status)
-                    self.assertIn('Network unreachable', res.message)
-                    self.assertEqual(res.endpoint_id, 'ep-fail')
+        with (
+            mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()),
+            mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()),
+            mock.patch('ca.distribution.asyncssh.connect', side_effect=OSError('Network unreachable')),
+        ):
+            res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_CONTENT')
+            self.assertFalse(res.status)
+            self.assertIn('Network unreachable', res.message)
+            self.assertEqual(res.endpoint_id, 'ep-fail')
 
     async def test_distribute_to_email_endpoint_disabled_mail(self):
         ep = dist.Endpoint(
@@ -328,11 +330,10 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         cert = self._build_cert('Test Org', 'Root CA', datetime(2026, 1, 1, tzinfo=timezone.utc))
         mock_cfg = mock.MagicMock(enabled=False, host='smtp.example.org')
 
-        with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
-            with mock.patch('mail.service.get_mail_settings', new=mock.AsyncMock(return_value=mock_cfg)):
-                res = await dist.distribute_to_email_endpoint(ep, cert, 'CERT_PEM_CONTENT')
-                self.assertFalse(res.status)
-                self.assertIn('disabled', res.message)
+        with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()), mock.patch('mail.service.get_mail_settings', new=mock.AsyncMock(return_value=mock_cfg)):
+            res = await dist.distribute_to_email_endpoint(ep, cert, 'CERT_PEM_CONTENT')
+            self.assertFalse(res.status)
+            self.assertIn('disabled', res.message)
 
     async def test_distribute_to_ssh_endpoint_success_subdirectory(self):
         ep = dist.Endpoint(
@@ -381,20 +382,22 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
             async def __aexit__(self, *args):
                 pass
 
-        with mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()):
-            with mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()):
-                with mock.patch('ca.distribution.asyncssh.connect') as mock_connect:
-                    mock_connect.return_value.__aenter__.return_value = mock_conn
-                    with mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Ubuntu 24.04'))):
-                        res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_DATA')
-                        self.assertTrue(res.status)
-                        self.assertIn(expected_dest, res.message)
-                        mock_sftp.makedirs.assert_awaited_once_with(expected_dest)
+        with (
+            mock.patch('ca.distribution.db.transaction', return_value=MockSecretTx()),
+            mock.patch('ca.distribution.log_distribution', new=mock.AsyncMock()),
+            mock.patch('ca.distribution.asyncssh.connect') as mock_connect,
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Ubuntu 24.04'))),
+        ):
+            mock_connect.return_value.__aenter__.return_value = mock_conn
+            res = await dist.distribute_to_ssh_endpoint(ep, cert, 'CERT_PEM_DATA')
+            self.assertTrue(res.status)
+            self.assertIn(expected_dest, res.message)
+            mock_sftp.makedirs.assert_awaited_once_with(expected_dest)
 
-                        # Verify all files were uploaded to expected_dest
-                        opened_paths = [call[0][0] for call in mock_sftp.open.call_args_list]
-                        self.assertTrue(all(p.startswith(expected_dest) for p in opened_paths))
-                        self.assertIn(f'{expected_dest}/README.TXT', opened_paths)
+            # Verify all files were uploaded to expected_dest
+            opened_paths = [call[0][0] for call in mock_sftp.open.call_args_list]
+            self.assertTrue(all(p.startswith(expected_dest) for p in opened_paths))
+            self.assertIn(f'{expected_dest}/README.TXT', opened_paths)
 
 
 if __name__ == '__main__':

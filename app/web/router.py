@@ -1,5 +1,9 @@
 # pylint: disable=too-many-lines,duplicate-code
+import asyncio
+import ipaddress
 import json
+import secrets
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -2234,10 +2238,48 @@ async def maintenance_status():
 # --------------------------------------------------------------------------
 
 
+async def _resolve_fqdn(ip: str) -> str | None:
+    """Attempt non-blocking reverse DNS lookup with 1.5s timeout; return FQDN if valid."""
+    if not ip or ip in ('127.0.0.1', '::1', 'localhost'):
+        return None
+    try:
+        loop = asyncio.get_running_loop()
+        host, _, _ = await asyncio.wait_for(
+            loop.run_in_executor(None, socket.gethostbyaddr, ip),
+            timeout=1.5,
+        )
+        if host and '.' in host and not host.replace('.', '').isdigit():
+            return host
+    except Exception as ex:  # noqa: BLE001
+        logger.debug('Reverse DNS lookup failed for %s: %s', ip, ex)
+    return None
+
+
 @api.get('/ca-trust/probe.sh')
-async def ca_trust_probe_script():
+async def ca_trust_probe_script(request: Request, endpoint_id: str | None = None):
     """Return dynamic, zero-dependency POSIX bash probe script for curl/wget execution."""
-    script = ca_fleet_trust.generate_cli_probe_script(str(settings.external_url))
+    client_ip = request.client.host if request.client else '127.0.0.1'
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded:
+        client_ip = forwarded.split(',')[0].strip()
+
+    endpoint_name = None
+    if endpoint_id:
+        ep = await ca_distribution.get_endpoint(endpoint_id)
+        if ep:
+            endpoint_name = ep.name
+    else:
+        # Auto-match endpoint by client IP if endpoint_id was not explicitly specified
+        ep = await ca_distribution.find_endpoint_by_host_or_name(client_ip)
+        if ep:
+            endpoint_id = ep.id
+            endpoint_name = ep.name
+
+    script = ca_fleet_trust.generate_cli_probe_script(
+        str(settings.external_url),
+        endpoint_name=endpoint_name,
+        endpoint_id=endpoint_id,
+    )
     return Response(content=script, media_type='text/plain; charset=utf-8')
 
 
@@ -2250,34 +2292,87 @@ async def ca_trust_api_cas():
 
 @api.post('/ca-trust/api/report')
 async def ca_trust_api_report(request: Request):
-    """Ingest verification audit telemetry from CLI probe or browser portal."""
-    try:
-        body = await request.json()
-    except (json.JSONDecodeError, ValueError):
-        body = {}
+    """Ingest verification audit telemetry from CLI probe or browser portal.
 
+    Tries posting FQDN to Hostname/IP Address column first, with fallback to IP.
+    For Device name, uses part up to first period of FQDN, with fallback to e-mail Group name.
+    Does not record IP unless used as fallback for FQDN.
+    """
     client_ip = request.client.host if request.client else '127.0.0.1'
     forwarded = request.headers.get('x-forwarded-for')
     if forwarded:
         client_ip = forwarded.split(',')[0].strip()
 
-    reported_ip = body.get('ip_address')
-    ip_to_use = client_ip if (not reported_ip or reported_ip in ('127.0.0.1', 'localhost', '::1')) else reported_ip
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as ex:
+        raw_body = await request.body()
+        logger.warning('Failed to parse audit report JSON from %s: %s (payload: %s)', client_ip, ex, raw_body[:300])
+        return JSONResponse({'status': 'error', 'message': f'Invalid JSON payload: {ex}'}, status_code=400)
+
+    reported_ip = (body.get('ip_address') or '').strip()
+    raw_ep = body.get('endpoint_id')
+    endpoint_id = raw_ep.strip() if (raw_ep and isinstance(raw_ep, str) and raw_ep.strip()) else None
+    endpoint_name = None
+    if endpoint_id:
+        ep = await ca_distribution.get_endpoint(endpoint_id)
+        if ep:
+            endpoint_name = ep.name
+
+    # Check if reporter supplied an FQDN (contains a dot and not a pure numeric IP address)
+    is_fqdn = False
+    if reported_ip and '.' in reported_ip:
+        try:
+            ipaddress.ip_address(reported_ip)
+            is_fqdn = False
+        except ValueError:
+            is_fqdn = True
+
+    if is_fqdn:
+        host_to_use = reported_ip
+        device_name = body.get('device_name') or reported_ip.split('.')[0]
+    else:
+        # Check if server-side reverse DNS can resolve the client IP to an FQDN
+        ip_to_check = reported_ip if (reported_ip and reported_ip not in ('127.0.0.1', 'localhost', '::1')) else client_ip
+        resolved_fqdn = await _resolve_fqdn(ip_to_check)
+        if resolved_fqdn:
+            host_to_use = resolved_fqdn
+            device_name = resolved_fqdn.split('.')[0]
+        else:
+            # Fallback to IP address
+            host_to_use = ip_to_check or '127.0.0.1'
+            device_name = body.get('device_name') or f'device-{secrets.token_hex(4)}'
+
+    # Auto-match endpoint if endpoint_id was not explicitly supplied
+    if not endpoint_id:
+        matched_ep = await ca_distribution.find_endpoint_by_host_or_name(host_to_use, reported_ip, client_ip, device_name)
+        if matched_ep:
+            endpoint_id = matched_ep.id
+            if not endpoint_name:
+                endpoint_name = matched_ep.name
+
+    # If device_name is still default/empty or we fell back to IP, use endpoint_name
+    if endpoint_name and (not is_fqdn or not device_name or device_name.startswith('device-')):
+        device_name = endpoint_name
 
     user_agent = request.headers.get('user-agent', '')
 
-    audit_id = await ca_fleet_trust.record_audit(
-        device_name=body.get('device_name', ''),
-        device_type=body.get('device_type', 'unknown'),
-        os_name=body.get('os', 'unknown'),
-        os_detail=body.get('os_detail', ''),
-        ip_address=ip_to_use,
-        user_agent=user_agent,
-        endpoint_id=body.get('endpoint_id'),
-        verification_method=body.get('verification_method', 'browser'),
-        results=body.get('results', []),
-    )
-    return JSONResponse({'status': 'ok', 'audit_id': audit_id})
+    try:
+        audit_id = await ca_fleet_trust.record_audit(
+            device_name=device_name,
+            device_type=body.get('device_type', 'unknown'),
+            os_name=body.get('os', 'unknown'),
+            os_detail=body.get('os_detail', ''),
+            ip_address=host_to_use,
+            user_agent=user_agent,
+            endpoint_id=endpoint_id,
+            verification_method=body.get('verification_method', 'browser'),
+            results=body.get('results', []),
+        )
+        return JSONResponse({'status': 'ok', 'audit_id': audit_id})
+    except Exception as ex:  # noqa: BLE001
+        logger.exception('Failed to ingest CA trust audit report: %s', ex)
+        return JSONResponse({'status': 'error', 'detail': str(ex)}, status_code=500)
 
 
 @api.get('/ca-trust/api/probe-active')
@@ -2368,6 +2463,7 @@ async def ca_fleet_trust_dashboard(  # pylint: disable=redefined-outer-name
     """Admin dashboard for CA fleet trust compliance and audit telemetry."""
     stats = await ca_fleet_trust.get_compliance_stats()
     cas = await ca_fleet_trust.get_expected_cas()
+    endpoints = await ca_distribution.get_endpoints()
 
     limit = 100
     offset = max(0, page - 1) * limit
@@ -2413,6 +2509,7 @@ async def ca_fleet_trust_dashboard(  # pylint: disable=redefined-outer-name
         request=request,
         stats=stats,
         cas=cas,
+        endpoints=endpoints,
         audits=audits,
         audits_json=audits_json,
         search=search,

@@ -333,7 +333,7 @@
      * Auto-initialize all designated tables on DOM load
      */
     document.addEventListener('DOMContentLoaded', () => {
-        const tables = document.querySelectorAll('table.cert-table, table.account-table, table.domain-table, table[data-table-id]');
+        const tables = document.querySelectorAll('table.cert-table, table.account-table, table.domain-table, table.fleet-table, table[data-table-id]');
         tables.forEach(table => {
             window.initTableFeatures(table);
         });

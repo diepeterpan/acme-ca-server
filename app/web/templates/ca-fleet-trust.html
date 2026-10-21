@@ -821,14 +821,14 @@
 <!-- Audited Devices Table -->
 <div class="table-card">
     <div class="table-responsive">
-        <table class="fleet-table">
+        <table class="fleet-table" data-table-id="ca-fleet-table">
             <thead>
                 <tr>
-                    <th>Device / Hostname</th>
-                    <th>IP Address</th>
+                    <th>Endpoint / Device name</th>
+                    <th>Hostname/IP Address</th>
                     <th>Last Audited</th>
                     <th>Method</th>
-                    <th>CA Trust Matrix</th>
+                    <th>CA Trust</th>
                     <th>Compliance</th>
                     <th style="text-align: right;">Actions</th>
                 </tr>
@@ -887,16 +887,15 @@
                                      onclick="showAuditDetails({{ loop.index0 }})" title="View Details">
                                 Details
                             </button>
-                            <form method="post" action="/ca-fleet-trust/audit/{{ a.id }}/delete" style="display: inline; margin: 0;"
-                                  onsubmit="return confirm('Remove audit telemetry record for {{ a.device_name }}?')">
-                                <button type="submit" class="btn-action btn-action-delete" title="Delete Record">
-                                    <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="3 6 5 6 21 6"></polyline>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    </svg>
-                                    <span>Delete</span>
-                                </button>
-                            </form>
+                            <button type="button" class="btn-action btn-action-delete"
+                                    onclick="openDeleteAuditModal('{{ a.id }}', '{{ a.device_name | escape }}')"
+                                    title="Delete Record">
+                                <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                                <span>Delete</span>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -926,21 +925,31 @@
                 Run these commands on any server or workstation terminal to audit its local trust store and report compliance telemetry back to this ACME CA Server:
             </p>
 
+            <label for="cliProbeEndpointSelect" style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Target Distribution Endpoint:</label>
+            <select id="cliProbeEndpointSelect" onchange="updateCliProbeSnippets()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-card); border-radius: 6px; font-size: 0.88rem; margin-bottom: 1.25rem; background: #fff;">
+                <option value="">-- Generic / Auto-detect by Client IP --</option>
+                {% if endpoints %}
+                {% for ep in endpoints %}
+                <option value="{{ ep.id }}">{{ ep.name }} ({{ ep.type|upper }}: {{ ep.host or (ep.email_addresses|join(', ')) }})</option>
+                {% endfor %}
+                {% endif %}
+            </select>
+
             <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Using cURL (Recommended):</label>
             <div class="code-block">
-                <button type="button" class="copy-btn" onclick="copyText('curl -sSL {{ external_url }}/ca-trust/probe.sh | sudo bash')">Copy</button>
-                <code>curl -sSL {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
+                <button type="button" class="copy-btn" onclick="copySnippet('cliCurlCode')">Copy</button>
+                <code id="cliCurlCode">curl -sSL {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
             </div>
 
             <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-top: 1rem; display: block;">Using Wget:</label>
             <div class="code-block">
-                <button type="button" class="copy-btn" onclick="copyText('wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash')">Copy</button>
-                <code>wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
+                <button type="button" class="copy-btn" onclick="copySnippet('cliWgetCode')">Copy</button>
+                <code id="cliWgetCode">wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
             </div>
 
             <div style="margin-top: 1.25rem; font-size: 0.82rem; color: var(--text-muted); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
                 <strong>Browser Link for Workstations & Mobile Devices:</strong><br>
-                <code style="word-break: break-all; color: var(--primary);">{{ external_url }}/ca-trust/verify</code>
+                <code id="browserVerifyCode" style="word-break: break-all; color: var(--primary);">{{ external_url }}/ca-trust/verify</code>
             </div>
         </div>
         <div style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1px solid var(--border-card); text-align: right;">
@@ -964,6 +973,32 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Delete Audit Record Confirmation Dialog (on veil backdrop) -->
+<dialog id="delete-audit-dialog" class="delete-endpoint-modal" style="margin: auto; border: none; border-radius: var(--radius-lg); padding: 0; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2), 0 10px 10px -5px rgba(220, 38, 38, 0.1); max-width: 520px; width: 90vw; border-top: 4px solid #dc2626;">
+    <div style="padding: 1.75rem 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); margin: 0;">Delete Audit Record</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.6;">
+            <p>Are you sure you want to permanently remove audit telemetry record for <strong id="delete-audit-device-name"></strong>?</p>
+            <p style="margin-top: 0.85rem; color: var(--text-muted); font-size: 0.88rem;">
+                This will remove all trust verification results for this device from fleet telemetry. This action cannot be undone.
+            </p>
+        </div>
+        <form method="POST" id="delete-audit-form" action="">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" onclick="closeDeleteAuditModal()" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Record</button>
+            </div>
+        </form>
+    </div>
+</dialog>
 
 <!-- Veil Overlay: Sweep All SSH Endpoints Live Progress -->
 <div class="sweep-veil-overlay" id="sweepVeilOverlay">
@@ -1047,9 +1082,61 @@
         openModal('cliProbeModal');
     });
 
+    const extBaseUrl = "{{ external_url }}";
+
+    function updateCliProbeSnippets() {
+        const sel = document.getElementById('cliProbeEndpointSelect');
+        const epId = sel ? sel.value : '';
+        const curlEl = document.getElementById('cliCurlCode');
+        const wgetEl = document.getElementById('cliWgetCode');
+        const browserEl = document.getElementById('browserVerifyCode');
+        const param = epId ? `?endpoint_id=${encodeURIComponent(epId)}` : '';
+
+        if (curlEl) curlEl.textContent = `curl -sSL ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
+        if (wgetEl) wgetEl.textContent = `wget -qO- ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
+        if (browserEl) browserEl.textContent = `${extBaseUrl}/ca-trust/verify${param}`;
+    }
+
+    function copySnippet(elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+            navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+                alert('Copied snippet to clipboard!');
+            });
+        }
+    }
+
     function copyText(txt) {
         navigator.clipboard.writeText(txt).then(() => {
             alert('Copied snippet to clipboard!');
+        });
+    }
+
+    function openDeleteAuditModal(auditId, deviceName) {
+        const form = document.getElementById('delete-audit-form');
+        const nameEl = document.getElementById('delete-audit-device-name');
+        const dialog = document.getElementById('delete-audit-dialog');
+        if (form) form.action = `/ca-fleet-trust/audit/${auditId}/delete`;
+        if (nameEl) nameEl.textContent = deviceName;
+        if (dialog && typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        }
+    }
+
+    function closeDeleteAuditModal() {
+        const dialog = document.getElementById('delete-audit-dialog');
+        if (dialog && typeof dialog.close === 'function') {
+            dialog.close();
+        }
+    }
+
+    // Close delete modal when clicking on its backdrop
+    const deleteAuditDlg = document.getElementById('delete-audit-dialog');
+    if (deleteAuditDlg) {
+        deleteAuditDlg.addEventListener('click', (e) => {
+            if (e.target === deleteAuditDlg) {
+                closeDeleteAuditModal();
+            }
         });
     }
 
@@ -1079,9 +1166,9 @@
 
         document.getElementById('detailModalBody').innerHTML = `
             <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.25rem;">
-                <tr><td style="padding: 4px 0; color: #64748b; width: 140px; font-weight: 600;">Device Name:</td><td style="font-weight: 700; color: #1e1b4b;">${item.device_name}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; width: 150px; font-weight: 600;">Device name:</td><td style="font-weight: 700; color: #1e1b4b;">${item.device_name}</td></tr>
                 <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Platform / OS:</td><td>${item.os_detail || item.os}</td></tr>
-                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">IP Address:</td><td style="font-family: monospace;">${item.ip_address}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Hostname/IP Address:</td><td style="font-family: monospace;">${item.ip_address}</td></tr>
                 <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Audit Timestamp:</td><td>${item.audited_at}</td></tr>
                 <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Method:</td><td><code>${item.verification_method}</code></td></tr>
                 ${item.user_agent ? `<tr><td style="padding: 4px 0; color: #64748b; font-weight: 600; vertical-align: top;">User Agent:</td><td style="font-size: 0.75rem; color: #64748b; word-break: break-all;">${item.user_agent}</td></tr>` : ''}

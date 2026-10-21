@@ -36,10 +36,11 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
     def test_public_probe_script_endpoint(self):
         from config import settings
 
-        res = self.client.get('/ca-trust/probe.sh')
-        self.assertEqual(res.status_code, 200)
-        self.assertIn('text/plain', res.headers.get('content-type', ''))
-        self.assertIn(f'SERVER_URL="{str(settings.external_url).rstrip("/")}"', res.text)
+        with mock.patch('ca.distribution.find_endpoint_by_host_or_name', new=mock.AsyncMock(return_value=None)):
+            res = self.client.get('/ca-trust/probe.sh')
+            self.assertEqual(res.status_code, 200)
+            self.assertIn('text/plain', res.headers.get('content-type', ''))
+            self.assertIn(f'SERVER_URL="{str(settings.external_url).rstrip("/")}"', res.text)
 
     def test_public_probe_active_endpoint(self):
         mock_stats = fleet_trust.ComplianceStats(
@@ -174,7 +175,10 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             'verification_method': 'cli_probe',
             'results': [{'ca_serial': '1A2B3C4D', 'is_trusted': True, 'details': 'Found in trust store'}],
         }
-        with mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_test1234567890123456')):
+        with (
+            mock.patch('ca.distribution.find_endpoint_by_host_or_name', new=mock.AsyncMock(return_value=None)),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_test1234567890123456')),
+        ):
             res = self.client.post('/ca-trust/api/report', json=payload)
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.json(), {'status': 'ok', 'audit_id': 'aud_test1234567890123456'})
@@ -233,6 +237,7 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             mock.patch('web.auth.get_user_by_username', new=mock.AsyncMock(return_value={'username': 'admin', 'user_type': 'local'})),
             mock.patch('ca.fleet_trust.get_compliance_stats', new=mock.AsyncMock(return_value=mock_stats)),
             mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=[])),
+            mock.patch('ca.distribution.get_endpoints', new=mock.AsyncMock(return_value=[])),
             mock.patch('ca.fleet_trust.list_audited_devices', new=mock.AsyncMock(return_value=([mock_audit], 1))),
         ):
             # Test /ca-fleet-trust
@@ -241,6 +246,15 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertIn('CA Fleet Trust', res.text)
             self.assertIn('srv-db-01', res.text)
             self.assertIn('Debian 12', res.text)
+            # Verify renamed column headers and resizable data-table-id
+            self.assertIn('data-table-id="ca-fleet-table"', res.text)
+            self.assertIn('<th>Endpoint / Device name</th>', res.text)
+            self.assertIn('<th>Hostname/IP Address</th>', res.text)
+            self.assertIn('<th>CA Trust</th>', res.text)
+            # Verify delete confirmation dialog on veil backdrop
+            self.assertIn('id="delete-audit-dialog"', res.text)
+            self.assertIn('openDeleteAuditModal', res.text)
+            self.assertIn('closeDeleteAuditModal', res.text)
 
             # Test alias /ca-compliance
             res_comp = self.client.get('/ca-compliance')
@@ -249,3 +263,149 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             # Test alias /ca-availability
             res_avail = self.client.get('/ca-availability')
             self.assertEqual(res_avail.status_code, 200)
+
+    def test_cli_probe_script_fqdn_and_endpoint_name(self):
+        script = fleet_trust.generate_cli_probe_script(
+            'https://ca.example.com',
+            endpoint_name='Core Engineering',
+            endpoint_id='ep_12345',
+        )
+        self.assertIn('ENDPOINT_NAME="Core Engineering"', script)
+        self.assertIn('ENDPOINT_ID="ep_12345"', script)
+        self.assertIn('RAW_FQDN', script)
+        self.assertIn('DEVICE_NAME="${RAW_FQDN%%.*}"', script)
+        self.assertIn('HOST_IDENTIFIER="$RAW_FQDN"', script)
+        self.assertIn('DEVICE_NAME="$ENDPOINT_NAME"', script)
+        self.assertIn('HOST_IDENTIFIER="$IP_ADDR"', script)
+        self.assertIn('"endpoint_id": $EP_JSON_VAL,', script)
+
+    def test_telemetry_reporting_fqdn_first(self):
+        # When an FQDN is reported (contains a dot and not an IP)
+        payload = {
+            'device_name': '',
+            'device_type': 'server',
+            'os': 'linux',
+            'os_detail': 'Ubuntu 24.04',
+            'ip_address': 'web-01.corp.example.com',
+            'verification_method': 'cli_probe',
+            'results': [],
+        }
+        with (
+            mock.patch('ca.distribution.find_endpoint_by_host_or_name', new=mock.AsyncMock(return_value=None)),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_fqdn_123')) as mock_record,
+        ):
+            res = self.client.post('/ca-trust/api/report', json=payload)
+            self.assertEqual(res.status_code, 200)
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            # Hostname/IP Address gets FQDN
+            self.assertEqual(kwargs['ip_address'], 'web-01.corp.example.com')
+            # Device name gets part up to first dot
+            self.assertEqual(kwargs['device_name'], 'web-01')
+
+    def test_telemetry_reporting_ip_fallback_to_endpoint_name(self):
+        # When an IP is reported and FQDN reverse lookup fails, fallback to endpoint name
+        payload = {
+            'device_name': '',
+            'device_type': 'server',
+            'os': 'linux',
+            'os_detail': 'Debian 12',
+            'ip_address': '192.168.10.50',
+            'endpoint_id': 'ep_email_group',
+            'verification_method': 'browser',
+            'results': [],
+        }
+        mock_ep = mock.MagicMock()
+        mock_ep.name = 'Finance Department'
+
+        with (
+            mock.patch('ca.distribution.get_endpoint', new=mock.AsyncMock(return_value=mock_ep)),
+            mock.patch('web.router._resolve_fqdn', new=mock.AsyncMock(return_value=None)),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_fallback_456')) as mock_record,
+        ):
+            res = self.client.post('/ca-trust/api/report', json=payload)
+            self.assertEqual(res.status_code, 200)
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            # Fallback to IP
+            self.assertEqual(kwargs['ip_address'], '192.168.10.50')
+            # Fallback to email Group name
+            self.assertEqual(kwargs['device_name'], 'Finance Department')
+
+    def test_telemetry_reporting_invalid_json_rejected(self):
+        # Invalid JSON payloads must be rejected with 400 Bad Request
+        res = self.client.post(
+            '/ca-trust/api/report',
+            content='{"invalid_json": true,',
+            headers={'Content-Type': 'application/json'},
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json().get('status'), 'error')
+
+    async def test_sweep_single_ssh_endpoint_prefers_endpoint_name(self):
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_web_123'
+        mock_ep.name = 'Production Cluster Node 1'
+        mock_ep.host = 'node01.prod.example.com'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        mock_conn = mock.MagicMock()
+        mock_conn.run = mock.AsyncMock(return_value=mock.MagicMock(stdout='Found'))
+        mock_ctx = mock.MagicMock()
+        mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
+
+        with (
+            mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=[{'serial_number': '1234', 'cn': 'Root', 'active': True}])),
+            mock.patch('ca.distribution.decrypt_secret', return_value='secret'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', return_value=mock_ctx),
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Ubuntu 24.04'))),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_test_node')) as mock_record,
+        ):
+            cas = [{'serial_number': '1234', 'cn': 'Root', 'active': True}]
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+            self.assertEqual(res['status'], 'success')
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            # Endpoint name must be preferred
+            self.assertEqual(kwargs['device_name'], 'Production Cluster Node 1')
+            self.assertEqual(kwargs['ip_address'], 'node01.prod.example.com')
+            self.assertEqual(kwargs['verification_method'], 'ssh_sweep')
+
+    async def test_sweep_single_ssh_endpoint_fallback_to_hostname_prefix_when_no_name(self):
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_web_456'
+        mock_ep.name = ''  # empty endpoint name
+        mock_ep.host = 'node02.prod.example.com'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        mock_conn = mock.MagicMock()
+        mock_conn.run = mock.AsyncMock(return_value=mock.MagicMock(stdout='Found'))
+        mock_ctx = mock.MagicMock()
+        mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
+
+        with (
+            mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=[{'serial_number': '1234', 'cn': 'Root', 'active': True}])),
+            mock.patch('ca.distribution.decrypt_secret', return_value='secret'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', return_value=mock_ctx),
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Debian 12'))),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_test_node2')) as mock_record,
+        ):
+            cas = [{'serial_number': '1234', 'cn': 'Root', 'active': True}]
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+            self.assertEqual(res['status'], 'success')
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            # Host prefix must be used when endpoint.name is empty
+            self.assertEqual(kwargs['device_name'], 'node02')
+            self.assertEqual(kwargs['ip_address'], 'node02.prod.example.com')
+            self.assertEqual(kwargs['verification_method'], 'ssh_sweep')
+
+

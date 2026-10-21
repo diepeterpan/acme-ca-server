@@ -176,6 +176,8 @@ async def record_audit(
     audit_id = f'aud_{secrets.token_urlsafe(20)}'
     now = datetime.now(timezone.utc)
 
+    clean_endpoint_id = endpoint_id.strip() if (endpoint_id and isinstance(endpoint_id, str) and endpoint_id.strip()) else None
+
     async with db.transaction() as sql:
         await sql.exec(
             """
@@ -194,7 +196,7 @@ async def record_audit(
             os_detail or '',
             clean_ip,
             user_agent or '',
-            endpoint_id,
+            clean_endpoint_id,
             verification_method,
             status,
             total_cas,
@@ -231,12 +233,12 @@ async def record_audit(
 async def get_compliance_stats() -> ComplianceStats:
     """Compute fleet compliance KPIs based on the latest audit for each unique device."""
     async with db.transaction(readonly=True) as sql:
-        # Use DISTINCT ON to inspect each device's most recent audit
+        # Use DISTINCT ON to inspect each (device_name, ip_address, verification_method)'s most recent audit
         rows = await sql.fetch("""
-            SELECT DISTINCT ON (device_name)
-                device_name, overall_status
+            SELECT DISTINCT ON (device_name, ip_address, verification_method)
+                device_name, ip_address, verification_method, overall_status
             FROM ca_trust_audits
-            ORDER BY device_name, audited_at DESC
+            ORDER BY device_name, ip_address, verification_method, audited_at DESC
         """)
 
         active_ca = await sql.record("""
@@ -317,12 +319,12 @@ async def list_audited_devices(
 
     query = f"""
         WITH latest_audits AS (
-            SELECT DISTINCT ON (device_name)
+            SELECT DISTINCT ON (device_name, ip_address, verification_method)
                 id, device_name, device_type, os, os_detail, ip_address,
                 user_agent, endpoint_id, verification_method, overall_status,
                 total_cas, trusted_cas, audited_at, created_at
             FROM ca_trust_audits
-            ORDER BY device_name, audited_at DESC
+            ORDER BY device_name, ip_address, verification_method, audited_at DESC
         )
         SELECT * FROM latest_audits
         {where_sql}
@@ -332,12 +334,12 @@ async def list_audited_devices(
 
     count_query = f"""
         WITH latest_audits AS (
-            SELECT DISTINCT ON (device_name)
+            SELECT DISTINCT ON (device_name, ip_address, verification_method)
                 id, device_name, device_type, os, os_detail, ip_address,
                 user_agent, endpoint_id, verification_method, overall_status,
                 total_cas, trusted_cas, audited_at, created_at
             FROM ca_trust_audits
-            ORDER BY device_name, audited_at DESC
+            ORDER BY device_name, ip_address, verification_method, audited_at DESC
         )
         SELECT count(*) FROM latest_audits
         {where_sql}
@@ -411,9 +413,15 @@ async def delete_audit(audit_id: str) -> bool:
         return 'DELETE 1' in str(res)
 
 
-def generate_cli_probe_script(external_url: str) -> str:
+def generate_cli_probe_script(
+    external_url: str,
+    endpoint_name: str | None = None,
+    endpoint_id: str | None = None,
+) -> str:
     """Generate dynamic, POSIX-compatible shell script for curl/wget execution."""
     clean_url = external_url.rstrip('/')
+    clean_ep_name = (endpoint_name or '').replace('"', '').strip()
+    clean_ep_id = (endpoint_id or '').replace('"', '').strip()
 
     return f"""#!/usr/bin/env sh
 # ==============================================================================
@@ -424,9 +432,15 @@ set -e
 
 SERVER_URL="{clean_url}"
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+ENDPOINT_NAME="{clean_ep_name}"
+ENDPOINT_ID="{clean_ep_id}"
 
-# 1. Detect Hostname
-HOSTNAME=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "unknown-host")
+# 1. Detect Hostname & FQDN
+RAW_FQDN=""
+if command -v hostname >/dev/null 2>&1; then
+    RAW_FQDN=$(hostname -f 2>/dev/null || hostname --fqdn 2>/dev/null || true)
+fi
+SHORT_HOST=$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo "unknown-host")
 
 # 2. Detect OS & Kernel
 OS_TYPE="linux"
@@ -465,13 +479,28 @@ if [ -z "$IP_ADDR" ]; then
     IP_ADDR="127.0.0.1"
 fi
 
+# Determine Hostname/IP Address and Device name according to FQDN resolution:
+# First try FQDN; if valid (contains at least one dot), post FQDN and do not record IP.
+# If FQDN falls back to IP, fallback Device name to Endpoint name (from CA Certificate Distribution).
+if [ -n "$RAW_FQDN" ] && echo "$RAW_FQDN" | grep -q '\\.'; then
+    HOST_IDENTIFIER="$RAW_FQDN"
+    DEVICE_NAME="${{RAW_FQDN%%.*}}"
+else
+    HOST_IDENTIFIER="$IP_ADDR"
+    if [ -n "$ENDPOINT_NAME" ]; then
+        DEVICE_NAME="$ENDPOINT_NAME"
+    else
+        DEVICE_NAME="$SHORT_HOST"
+    fi
+fi
+
 # Visual Header
 printf "\\033[1;35m================================================================================\\033[0m\\n"
 printf "\\033[1;37m  ACME CA SERVER - FLEET TRUST AUDIT PROBE v1.0\\033[0m\\n"
 printf "\\033[1;35m================================================================================\\033[0m\\n"
-printf "  \\033[1mHost System      :\\033[0m %s\\n" "$HOSTNAME"
+printf "  \\033[1mDevice Name      :\\033[0m %s\\n" "$DEVICE_NAME"
+printf "  \\033[1mHostname/IP      :\\033[0m %s\\n" "$HOST_IDENTIFIER"
 printf "  \\033[1mOperating System :\\033[0m %s\\n" "$OS_DETAIL"
-printf "  \\033[1mPrimary IP       :\\033[0m %s\\n" "$IP_ADDR"
 printf "  \\033[1mAudit Timestamp  :\\033[0m %s\\n" "$TIMESTAMP"
 printf "\\033[1;35m================================================================================\\033[0m\\n"
 
@@ -711,13 +740,19 @@ printf "\\n---------------------------------------------------------------------
 printf "[*] Transmitting audit telemetry to ACME CA Server... "
 
 REPORT_JSON="$TMP_DIR/report.json"
+if [ -n "$ENDPOINT_ID" ]; then
+    EP_JSON_VAL="\\\"$ENDPOINT_ID\\\""
+else
+    EP_JSON_VAL="null"
+fi
 cat <<EOF > "$REPORT_JSON"
 {{
-  "device_name": "$HOSTNAME",
+  "device_name": "$DEVICE_NAME",
   "device_type": "server",
   "os": "$OS_TYPE",
   "os_detail": "$OS_DETAIL",
-  "ip_address": "$IP_ADDR",
+  "ip_address": "$HOST_IDENTIFIER",
+  "endpoint_id": $EP_JSON_VAL,
   "verification_method": "cli_probe",
   "results": $RESULTS_PAYLOAD
 }}
@@ -924,8 +959,22 @@ fi
 
                 results.append({'ca_serial': serial, 'is_trusted': is_trusted, 'details': details})
 
+            dev_name = (endpoint.name or '').strip()
+            if not dev_name:
+                is_ip = False
+                try:
+                    ipaddress.ip_address(host)
+                    is_ip = True
+                except ValueError:
+                    is_ip = False
+
+                if not is_ip and '.' in host:
+                    dev_name = host.split('.')[0]
+                else:
+                    dev_name = host
+
             audit_id = await record_audit(
-                device_name=endpoint.name or host,
+                device_name=dev_name,
                 device_type='server',
                 os_name=detected_os,
                 os_detail=os_detail,
