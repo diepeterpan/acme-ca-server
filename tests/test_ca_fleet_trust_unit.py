@@ -13,6 +13,7 @@ os.environ.setdefault('external_url', 'http://localhost:8080')
 os.environ.setdefault('db_dsn', 'postgresql://localhost/dummy')
 os.environ.setdefault('ca_encryption_key', 'fIj-aQgcgfMUphrXikMlZ2bQkBdWtcuSJXjycQJFC70=')
 
+import asyncssh
 from ca import fleet_trust
 from fastapi.testclient import TestClient
 from main import app
@@ -410,13 +411,23 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
 
     def test_format_probe_error(self):
         import asyncio
-        # TimeoutError
+        # TimeoutError with default 20s
         err1 = fleet_trust.format_probe_error(TimeoutError(), 'debianlounge.galleon.co.za', 22)
-        self.assertEqual(err1, 'Connection timed out after 10s connecting to debianlounge.galleon.co.za:22')
+        self.assertEqual(err1, 'Connection timed out after 20s connecting to debianlounge.galleon.co.za:22')
+
+        # TimeoutError with custom timeout_sec=10
+        err1_custom = fleet_trust.format_probe_error(TimeoutError(), 'debianlounge.galleon.co.za', 22, timeout_sec=10)
+        self.assertEqual(err1_custom, 'Connection timed out after 10s connecting to debianlounge.galleon.co.za:22')
 
         # asyncio.TimeoutError
         err2 = fleet_trust.format_probe_error(asyncio.TimeoutError(), 'debianlounge.galleon.co.za', 22)
-        self.assertEqual(err2, 'Connection timed out after 10s connecting to debianlounge.galleon.co.za:22')
+        self.assertEqual(err2, 'Connection timed out after 20s connecting to debianlounge.galleon.co.za:22')
+
+        # Command timeout (asyncssh.ProcessError)
+        class DummyProcessTimeout(asyncssh.ProcessError, TimeoutError):
+            pass
+        err_cmd = fleet_trust.format_probe_error(DummyProcessTimeout(None, 'check_cmd', None, None, None, None, '', ''), 'debianlounge.galleon.co.za', 22)
+        self.assertEqual(err_cmd, 'Command execution timed out on debianlounge.galleon.co.za:22')
 
         # OSError
         err3 = fleet_trust.format_probe_error(ConnectionRefusedError(111, 'Connection refused'), 'host.example.com', 22)
@@ -459,7 +470,7 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs['verification_method'], 'ssh_sweep')
             self.assertEqual(kwargs['overall_status'], 'error')
             self.assertEqual(kwargs['results'], [])
-            self.assertIn('Connection timed out after 10s', kwargs['error_message'])
+            self.assertIn('Connection timed out after 20s', kwargs['error_message'])
 
     async def test_probe_endpoint_via_ssh_records_audit_on_missing_key(self):
         mock_ep = mock.MagicMock()
@@ -486,5 +497,85 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs['overall_status'], 'error')
             self.assertEqual(kwargs['results'], [])
             self.assertEqual(kwargs['error_message'], 'Missing SSH key')
+
+    async def test_probe_endpoint_via_ssh_linux_fast_path(self):
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_linux_fast'
+        mock_ep.name = 'Debian Server'
+        mock_ep.host = 'debianlounge.galleon.co.za'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        mock_conn = mock.MagicMock()
+        mock_conn.run = mock.AsyncMock(return_value=mock.MagicMock(stdout='Found in trust bundle /etc/ssl/certs/ca-certificates.crt'))
+        mock_ctx = mock.MagicMock()
+        mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
+
+        cas = [{
+            'serial_number': '1234ABCD',
+            'cn': 'My Root CA',
+            'pem_signature': 'MIIBxxxx',
+            'fingerprint_sha256_raw': 'AABBCCDDEEFF',
+            'active': True,
+        }]
+
+        with (
+            mock.patch('ca.distribution.decrypt_secret', return_value='secret'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', return_value=mock_ctx),
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Debian 13'))),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_linux_fast')) as mock_record,
+        ):
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+            self.assertEqual(res['status'], 'success')
+            self.assertEqual(len(res['results']), 1)
+            self.assertTrue(res['results'][0]['is_trusted'])
+            self.assertIn('Found in trust bundle', res['results'][0]['details'])
+
+            # Verify check_cmd contained SIG and fast-path bundle checks
+            mock_conn.run.assert_called_once()
+            called_cmd = mock_conn.run.call_args[0][0]
+            self.assertIn('SIG="MIIBxxxx"', called_cmd)
+            self.assertIn('grep -Fq "$SIG"', called_cmd)
+
+    async def test_probe_endpoint_via_ssh_command_timeout_isolated(self):
+        """Verify command timeout on individual cert check does not fail the whole probe with connection timeout."""
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_cmd_timeout'
+        mock_ep.name = 'Slow Server'
+        mock_ep.host = 'slow.example.com'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        mock_conn = mock.MagicMock()
+        mock_conn.run = mock.AsyncMock(side_effect=TimeoutError())
+        mock_ctx = mock.MagicMock()
+        mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
+
+        cas = [{
+            'serial_number': '1234ABCD',
+            'cn': 'My Root CA',
+            'pem_signature': 'MIIBxxxx',
+            'fingerprint_sha256_raw': 'AABBCCDDEEFF',
+            'active': True,
+        }]
+
+        with (
+            mock.patch('ca.distribution.decrypt_secret', return_value='secret'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', return_value=mock_ctx),
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Debian 13'))),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_cmd_timeout')) as mock_record,
+        ):
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+            # The probe completes cleanly instead of failing the connection
+            self.assertEqual(res['status'], 'success')
+            self.assertEqual(len(res['results']), 1)
+            self.assertFalse(res['results'][0]['is_trusted'])
+            self.assertIn('Check timed out', res['results'][0]['details'])
 
 

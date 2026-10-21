@@ -809,10 +809,12 @@ def resolve_endpoint_device_name(endpoint: Any, host: str) -> str:
     return host or 'unknown-endpoint'
 
 
-def format_probe_error(ex: Exception, host: str, port: int) -> str:
+def format_probe_error(ex: Exception, host: str, port: int, timeout_sec: int = 20) -> str:
     """Produce a clear, non-empty error message for probe failures."""
     if isinstance(ex, (TimeoutError, asyncio.TimeoutError)):
-        return f'Connection timed out after 10s connecting to {host}:{port}'
+        if isinstance(ex, asyncssh.ProcessError):
+            return f'Command execution timed out on {host}:{port}'
+        return f'Connection timed out after {timeout_sec}s connecting to {host}:{port}'
     if hasattr(ex, 'reason') and ex.reason:
         return f'{type(ex).__name__}: {ex.reason}'
     err_str = str(ex).strip()
@@ -887,7 +889,7 @@ async def probe_endpoint_trust_via_ssh(
             client_keys=client_keys,
             password=password,
             known_hosts=None,
-            connect_timeout=10,
+            connect_timeout=20,
         ) as conn:
             detected_os, os_detail = await dist.probe_ssh_os(conn)
 
@@ -914,47 +916,69 @@ async def probe_endpoint_trust_via_ssh(
                 serial_norm = serial.upper().replace(':', '').strip()
 
                 if detected_os == 'linux':
+                    pem_sig = ca.get('pem_signature', '')
                     check_cmd = f"""
 SN="{serial_norm}"
 FP="{fp_raw}"
+SIG="{pem_sig}"
 FOUND=""
 
-# 1. Inspect individual anchor certificates
-for f in /etc/ssl/certs/*.pem /etc/ssl/certs/*.crt /usr/local/share/ca-certificates/*.crt /etc/pki/ca-trust/source/anchors/*.crt; do
-    [ -f "$f" ] || continue
-    sn=$(openssl x509 -in "$f" -noout -serial 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
-    if [ -n "$sn" ] && [ "$sn" = "$SN" ]; then
-        FOUND="Verified by serial in $f"
-        break
-    fi
-    if [ -n "$FP" ]; then
-        fp=$(openssl x509 -in "$f" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
-        if [ -n "$fp" ] && [ "$fp" = "$FP" ]; then
-            FOUND="Verified by SHA-256 in $f"
+# 1. High-speed signature search in system bundles (instantaneous, 0-forks)
+if [ -n "$SIG" ]; then
+    for b in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/ca-bundle.pem; do
+        if [ -f "$b" ] && grep -Fq "$SIG" "$b" 2>/dev/null; then
+            FOUND="Found in trust bundle $b"
             break
         fi
+    done
+    if [ -z "$FOUND" ]; then
+        MATCH=$(grep -Frl "$SIG" /usr/local/share/ca-certificates /etc/pki/ca-trust/source/anchors 2>/dev/null | head -n 1)
+        if [ -n "$MATCH" ]; then
+            FOUND="Verified by signature in $MATCH"
+        fi
     fi
-done
+fi
 
-# 2. Inspect aggregate certificate bundles
-if [ -z "$FOUND" ]; then
-    for b in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
-        if [ -f "$b" ]; then
-            if openssl crl2pkcs7 -nocrl -certfile "$b" 2>/dev/null | openssl pkcs7 -print_certs -text 2>/dev/null | grep -iq "$SN"; then
-                FOUND="Found in trust bundle $b"
+# 2. Targeted serial / fingerprint inspection on custom candidate certificates (avoids 150+ default cert fork storms)
+if [ -z "$FOUND" ] && command -v openssl >/dev/null 2>&1; then
+    for f in /usr/local/share/ca-certificates/*.crt /etc/pki/ca-trust/source/anchors/*.crt /etc/ssl/certs/*{serial_norm[:8]}*.crt /etc/ssl/certs/*{serial_norm[:8]}*.pem; do
+        [ -f "$f" ] || continue
+        sn=$(openssl x509 -in "$f" -noout -serial 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
+        if [ -n "$sn" ] && [ "$sn" = "$SN" ]; then
+            FOUND="Verified by serial in $f"
+            break
+        fi
+        if [ -n "$FP" ]; then
+            fp=$(openssl x509 -in "$f" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2 | tr -d " :" | tr "[:lower:]" "[:upper:]")
+            if [ -n "$fp" ] && [ "$fp" = "$FP" ]; then
+                FOUND="Verified by SHA-256 in $f"
                 break
             fi
         fi
     done
 fi
 
+# 3. Serial search in bundle text if signature was absent or custom serial match
+if [ -z "$FOUND" ] && [ -n "$SN" ]; then
+    for b in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
+        if [ -f "$b" ] && grep -Fq "$SN" "$b" 2>/dev/null; then
+            FOUND="Found in trust bundle $b"
+            break
+        fi
+    done
+fi
+
 echo "$FOUND"
 """
-                    res = await conn.run(check_cmd, check=False, timeout=12)
-                    out = str(res.stdout or '').strip()
-                    if out:
-                        is_trusted = True
-                        details = out[:100]
+                    try:
+                        res = await conn.run(check_cmd, check=False, timeout=12)
+                        out = str(res.stdout or '').strip()
+                        if out:
+                            is_trusted = True
+                            details = out[:100]
+                    except (TimeoutError, asyncio.TimeoutError):
+                        details = 'Check timed out after 12s'
+                        logger.warning('Certificate check timed out for %s on %s', cn, host)
 
                 elif detected_os == 'openwrt':
                     pem_sig = ca.get('pem_signature', '')
@@ -991,11 +1015,15 @@ fi
 
 echo "$FOUND"
 """
-                    res = await conn.run(check_cmd, check=False, timeout=15)
-                    out = str(res.stdout or '').strip()
-                    if out:
-                        is_trusted = True
-                        details = out[:100]
+                    try:
+                        res = await conn.run(check_cmd, check=False, timeout=15)
+                        out = str(res.stdout or '').strip()
+                        if out:
+                            is_trusted = True
+                            details = out[:100]
+                    except (TimeoutError, asyncio.TimeoutError):
+                        details = 'Check timed out after 15s'
+                        logger.warning('Certificate check timed out for %s on %s', cn, host)
 
                 elif detected_os == 'windows':
                     ps_cmd = (
@@ -1003,11 +1031,15 @@ echo "$FOUND"
                         f"$cert = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ ($_.SerialNumber -eq '{serial_norm}') -or ($_.Thumbprint -eq '{fp_raw}') }}; "
                         f"if ($cert) {{ Write-Output ('Verified in Cert:\\LocalMachine\\Root (Thumbprint: ' + $cert.Thumbprint + ')') }}\""
                     )
-                    res = await conn.run(ps_cmd, check=False, timeout=10)
-                    out = str(res.stdout or '').strip()
-                    if out:
-                        is_trusted = True
-                        details = out[:100]
+                    try:
+                        res = await conn.run(ps_cmd, check=False, timeout=10)
+                        out = str(res.stdout or '').strip()
+                        if out:
+                            is_trusted = True
+                            details = out[:100]
+                    except (TimeoutError, asyncio.TimeoutError):
+                        details = 'Check timed out after 10s'
+                        logger.warning('Certificate check timed out for %s on %s', cn, host)
 
                 elif detected_os == 'macos':
                     check_cmd = f"""
@@ -1017,11 +1049,15 @@ elif security find-certificate -a -c '{cn}' /Library/Keychains/System.keychain >
     echo "Found in macOS System.keychain"
 fi
 """
-                    res = await conn.run(check_cmd, check=False, timeout=8)
-                    out = str(res.stdout or '').strip()
-                    if out:
-                        is_trusted = True
-                        details = out[:100]
+                    try:
+                        res = await conn.run(check_cmd, check=False, timeout=8)
+                        out = str(res.stdout or '').strip()
+                        if out:
+                            is_trusted = True
+                            details = out[:100]
+                    except (TimeoutError, asyncio.TimeoutError):
+                        details = 'Check timed out after 8s'
+                        logger.warning('Certificate check timed out for %s on %s', cn, host)
 
                 results.append({'ca_serial': serial, 'is_trusted': is_trusted, 'details': details})
 
@@ -1041,7 +1077,7 @@ fi
             return {'status': 'success', 'audit_id': audit_id, 'results': results, 'os': detected_os, 'os_detail': os_detail}
 
     except Exception as ex:  # noqa: BLE001
-        err_msg = format_probe_error(ex, host, port)
+        err_msg = format_probe_error(ex, host, port, timeout_sec=20)
         logger.warning('SSH fleet sweep failed for %s@%s:%s: %s', username, host, port, err_msg)
         dev_name = resolve_endpoint_device_name(endpoint, host)
         failed_audit_id: str | None = None
