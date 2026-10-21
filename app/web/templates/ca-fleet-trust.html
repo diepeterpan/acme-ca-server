@@ -234,6 +234,7 @@
     .filter-pill.pill-compliant.active { background: #10b981; }
     .filter-pill.pill-partial.active { background: #f59e0b; }
     .filter-pill.pill-untrusted.active { background: #ef4444; }
+    .filter-pill.pill-error.active { background: #b91c1c; }
 
     /* OS Badge & Device Cell in Table */
     .device-cell {
@@ -290,6 +291,12 @@
         background: #fef2f2;
         color: #dc2626;
         border: 1px solid #fecaca;
+    }
+
+    .status-tag.tag-error {
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #f87171;
     }
 
     /* Trust Matrix Dot Indicator */
@@ -801,6 +808,7 @@
                 <a href="javascript:void(0)" onclick="setStatusFilter('compliant')" class="filter-pill pill-compliant {% if selected_status == 'compliant' %}active{% endif %}">Compliant</a>
                 <a href="javascript:void(0)" onclick="setStatusFilter('partial')" class="filter-pill pill-partial {% if selected_status == 'partial' %}active{% endif %}">Partial</a>
                 <a href="javascript:void(0)" onclick="setStatusFilter('untrusted')" class="filter-pill pill-untrusted {% if selected_status == 'untrusted' %}active{% endif %}">Untrusted</a>
+                <a href="javascript:void(0)" onclick="setStatusFilter('error')" class="filter-pill pill-error {% if selected_status == 'error' %}active{% endif %}">Error</a>
             </div>
 
             <!-- OS Filters -->
@@ -877,6 +885,8 @@
                         <span class="status-tag tag-compliant">✓ Compliant</span>
                         {% elif a.overall_status == 'partial' %}
                         <span class="status-tag tag-partial">! Partial</span>
+                        {% elif a.overall_status == 'error' %}
+                        <span class="status-tag tag-error">⚠ Error</span>
                         {% else %}
                         <span class="status-tag tag-untrusted">✗ Untrusted</span>
                         {% endif %}
@@ -1140,38 +1150,59 @@
         });
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m]));
+    }
+
     function showAuditDetails(idx) {
         const item = auditData[idx];
         if (!item) return;
 
         document.getElementById('detailModalTitle').innerText = `${item.device_name} — Audit Details`;
 
+        let errorBannerHtml = '';
+        if (item.error_message) {
+            errorBannerHtml = `
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 700; color: #991b1b; font-size: 0.88rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.45rem;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #dc2626;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        Probe / Connection Failure
+                    </div>
+                    <div style="color: #7f1d1d; font-family: monospace; font-size: 0.82rem; word-break: break-all; white-space: pre-wrap; line-height: 1.4;">${escapeHtml(item.error_message)}</div>
+                </div>
+            `;
+        }
+
         let resultsHtml = '';
         if (item.results && item.results.length > 0) {
             resultsHtml = item.results.map(r => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; background: ${r.is_trusted ? '#ecfdf5' : '#fef2f2'}; border: 1px solid ${r.is_trusted ? '#a7f3d0' : '#fecaca'}; border-radius: 6px; margin-bottom: 0.5rem;">
                     <div>
-                        <div style="font-weight: 700; font-size: 0.9rem; color: #1e1b4b;">${r.ca_cn}</div>
-                        <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">Serial: ${r.ca_serial}</div>
-                        <div style="font-size: 0.8rem; color: ${r.is_trusted ? '#065f46' : '#991b1b'}; margin-top: 2px;">${r.details || (r.is_trusted ? 'Verified in trust store' : 'Not trusted')}</div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: #1e1b4b;">${escapeHtml(r.ca_cn)}</div>
+                        <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">Serial: ${escapeHtml(r.ca_serial)}</div>
+                        <div style="font-size: 0.8rem; color: ${r.is_trusted ? '#065f46' : '#991b1b'}; margin-top: 2px;">${escapeHtml(r.details) || (r.is_trusted ? 'Verified in trust store' : 'Not trusted')}</div>
                     </div>
                     <span style="font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 9999px; background: ${r.is_trusted ? '#10b981' : '#ef4444'}; color: #fff;">
                         ${r.is_trusted ? 'TRUSTED' : 'UNTRUSTED'}
                     </span>
                 </div>
             `).join('');
+        } else if (item.error_message) {
+            resultsHtml = '<div style="color: #64748b; font-size: 0.85rem; font-style: italic;">No certificate results attached (Probe failed before certificates could be inspected).</div>';
         } else {
             resultsHtml = '<div style="color: #64748b; font-size: 0.85rem;">No certificate results attached.</div>';
         }
 
         document.getElementById('detailModalBody').innerHTML = `
+            ${errorBannerHtml}
             <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 1.25rem;">
-                <tr><td style="padding: 4px 0; color: #64748b; width: 150px; font-weight: 600;">Device name:</td><td style="font-weight: 700; color: #1e1b4b;">${item.device_name}</td></tr>
-                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Platform / OS:</td><td>${item.os_detail || item.os}</td></tr>
-                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Hostname/IP Address:</td><td style="font-family: monospace;">${item.ip_address}</td></tr>
-                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Audit Timestamp:</td><td>${item.audited_at}</td></tr>
-                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Method:</td><td><code>${item.verification_method}</code></td></tr>
-                ${item.user_agent ? `<tr><td style="padding: 4px 0; color: #64748b; font-weight: 600; vertical-align: top;">User Agent:</td><td style="font-size: 0.75rem; color: #64748b; word-break: break-all;">${item.user_agent}</td></tr>` : ''}
+                <tr><td style="padding: 4px 0; color: #64748b; width: 150px; font-weight: 600;">Device name:</td><td style="font-weight: 700; color: #1e1b4b;">${escapeHtml(item.device_name)}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Platform / OS:</td><td>${escapeHtml(item.os_detail || item.os)}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Hostname/IP Address:</td><td style="font-family: monospace;">${escapeHtml(item.ip_address)}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Audit Timestamp:</td><td>${escapeHtml(item.audited_at)}</td></tr>
+                <tr><td style="padding: 4px 0; color: #64748b; font-weight: 600;">Method:</td><td><code>${escapeHtml(item.verification_method)}</code></td></tr>
+                ${item.user_agent ? `<tr><td style="padding: 4px 0; color: #64748b; font-weight: 600; vertical-align: top;">User Agent:</td><td style="font-size: 0.75rem; color: #64748b; word-break: break-all;">${escapeHtml(item.user_agent)}</td></tr>` : ''}
             </table>
 
             <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0 0 0.6rem 0; color: #1e1b4b;">CA Certificates Tested</h4>

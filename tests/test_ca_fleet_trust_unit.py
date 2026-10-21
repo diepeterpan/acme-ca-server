@@ -408,4 +408,83 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs['ip_address'], 'node02.prod.example.com')
             self.assertEqual(kwargs['verification_method'], 'ssh_sweep')
 
+    def test_format_probe_error(self):
+        import asyncio
+        # TimeoutError
+        err1 = fleet_trust.format_probe_error(TimeoutError(), 'debianlounge.galleon.co.za', 22)
+        self.assertEqual(err1, 'Connection timed out after 10s connecting to debianlounge.galleon.co.za:22')
+
+        # asyncio.TimeoutError
+        err2 = fleet_trust.format_probe_error(asyncio.TimeoutError(), 'debianlounge.galleon.co.za', 22)
+        self.assertEqual(err2, 'Connection timed out after 10s connecting to debianlounge.galleon.co.za:22')
+
+        # OSError
+        err3 = fleet_trust.format_probe_error(ConnectionRefusedError(111, 'Connection refused'), 'host.example.com', 22)
+        self.assertIn('Connection refused', err3)
+
+        # DisconnectError or custom reason
+        class DummyDisconnect(Exception):
+            reason = 'Host key mismatch'
+        err4 = fleet_trust.format_probe_error(DummyDisconnect(), 'host.example.com', 22)
+        self.assertEqual(err4, 'DummyDisconnect: Host key mismatch')
+
+    async def test_probe_endpoint_via_ssh_records_audit_on_timeout(self):
+        import asyncio
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_fail_1'
+        mock_ep.name = ''
+        mock_ep.host = 'debianlounge.galleon.co.za'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        with (
+            mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=[{'serial_number': '1234', 'cn': 'Root', 'active': True}])),
+            mock.patch('ca.distribution.decrypt_secret', return_value='password123'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', side_effect=asyncio.TimeoutError()),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_failed_123')) as mock_record,
+        ):
+            cas = [{'serial_number': '1234', 'cn': 'Root', 'active': True}]
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+
+            self.assertEqual(res['status'], 'error')
+            self.assertIn('Connection timed out', res['message'])
+            self.assertEqual(res['audit_id'], 'aud_failed_123')
+
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            self.assertEqual(kwargs['device_name'], 'debianlounge')
+            self.assertEqual(kwargs['ip_address'], 'debianlounge.galleon.co.za')
+            self.assertEqual(kwargs['verification_method'], 'ssh_sweep')
+            self.assertEqual(kwargs['overall_status'], 'error')
+            self.assertEqual(kwargs['results'], [])
+            self.assertIn('Connection timed out after 10s', kwargs['error_message'])
+
+    async def test_probe_endpoint_via_ssh_records_audit_on_missing_key(self):
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_fail_key'
+        mock_ep.name = 'Keyed Server'
+        mock_ep.host = 'keyserver.example.com'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'key'
+        mock_ep.auth_secret_enc = b''
+
+        with (
+            mock.patch('ca.distribution.decrypt_secret', return_value=''),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_key_fail')) as mock_record,
+        ):
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=[])
+            self.assertEqual(res['status'], 'error')
+            self.assertEqual(res['message'], 'Missing SSH key')
+            self.assertEqual(res['audit_id'], 'aud_key_fail')
+
+            mock_record.assert_called_once()
+            _, kwargs = mock_record.call_args
+            self.assertEqual(kwargs['device_name'], 'Keyed Server')
+            self.assertEqual(kwargs['overall_status'], 'error')
+            self.assertEqual(kwargs['results'], [])
+            self.assertEqual(kwargs['error_message'], 'Missing SSH key')
+
 

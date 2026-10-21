@@ -66,6 +66,7 @@ class CaTrustAudit:
     audited_at: datetime
     created_at: datetime
     results: list[CaTrustResult] = field(default_factory=list)
+    error_message: str | None = None
 
 
 @dataclass
@@ -144,6 +145,8 @@ async def record_audit(
     endpoint_id: str | None = None,
     verification_method: str = 'browser',
     results: list[dict[str, Any]] | None = None,
+    error_message: str | None = None,
+    overall_status: ComplianceStatus | None = None,
 ) -> str:
     """Record an audit telemetry entry and its per-CA verification results."""
     clean_device = device_name.strip() if device_name else f'device-{secrets.token_hex(4)}'
@@ -160,12 +163,13 @@ async def record_audit(
     trusted_count = len(trusted_serials)
 
     # Determine overall compliance:
-    # If all active CAs are trusted and trusted_count == total_cas -> compliant
-    # If active CA is trusted but some old CAs are missing -> partial
-    # If active CA is missing -> untrusted
-    if active_serials and active_serials.issubset(trusted_serials):
+    if overall_status:
+        status: ComplianceStatus = overall_status
+    elif error_message:
+        status = 'error'
+    elif active_serials and active_serials.issubset(trusted_serials):
         if 0 < total_cas <= trusted_count:
-            status: ComplianceStatus = 'compliant'
+            status = 'compliant'
         else:
             status = 'partial'
     elif trusted_count > 0:
@@ -184,9 +188,9 @@ async def record_audit(
             INSERT INTO ca_trust_audits (
                 id, device_name, device_type, os, os_detail, ip_address,
                 user_agent, endpoint_id, verification_method, overall_status,
-                total_cas, trusted_cas, audited_at, created_at
+                total_cas, trusted_cas, error_message, audited_at, created_at
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
             )
             """,
             audit_id,
@@ -201,6 +205,7 @@ async def record_audit(
             status,
             total_cas,
             trusted_count,
+            error_message,
             now,
             now,
         )
@@ -322,7 +327,7 @@ async def list_audited_devices(
             SELECT DISTINCT ON (device_name, ip_address, verification_method)
                 id, device_name, device_type, os, os_detail, ip_address,
                 user_agent, endpoint_id, verification_method, overall_status,
-                total_cas, trusted_cas, audited_at, created_at
+                total_cas, trusted_cas, error_message, audited_at, created_at
             FROM ca_trust_audits
             ORDER BY device_name, ip_address, verification_method, audited_at DESC
         )
@@ -337,7 +342,7 @@ async def list_audited_devices(
             SELECT DISTINCT ON (device_name, ip_address, verification_method)
                 id, device_name, device_type, os, os_detail, ip_address,
                 user_agent, endpoint_id, verification_method, overall_status,
-                total_cas, trusted_cas, audited_at, created_at
+                total_cas, trusted_cas, error_message, audited_at, created_at
             FROM ca_trust_audits
             ORDER BY device_name, ip_address, verification_method, audited_at DESC
         )
@@ -400,6 +405,7 @@ async def list_audited_devices(
                     audited_at=r['audited_at'],
                     created_at=r['created_at'],
                     results=results_list,
+                    error_message=r['error_message'],
                 )
             )
 
@@ -786,6 +792,38 @@ printf "\\033[1;35m=============================================================
 """
 
 
+def resolve_endpoint_device_name(endpoint: Any, host: str) -> str:
+    """Determine friendly device label from endpoint or hostname prefix."""
+    dev_name = (endpoint.name or '').strip()
+    if dev_name:
+        return dev_name
+    is_ip = False
+    try:
+        ipaddress.ip_address(host)
+        is_ip = True
+    except ValueError:
+        is_ip = False
+
+    if not is_ip and '.' in host:
+        return host.split('.')[0]
+    return host or 'unknown-endpoint'
+
+
+def format_probe_error(ex: Exception, host: str, port: int) -> str:
+    """Produce a clear, non-empty error message for probe failures."""
+    if isinstance(ex, (TimeoutError, asyncio.TimeoutError)):
+        return f'Connection timed out after 10s connecting to {host}:{port}'
+    if hasattr(ex, 'reason') and ex.reason:
+        return f'{type(ex).__name__}: {ex.reason}'
+    err_str = str(ex).strip()
+    if err_str:
+        cls_name = type(ex).__name__
+        if err_str.startswith(cls_name) or cls_name in ('Exception', 'Error'):
+            return err_str
+        return f'{cls_name}: {err_str}'
+    return f'{type(ex).__name__} (no details provided)'
+
+
 async def probe_endpoint_trust_via_ssh(
     endpoint: Any,
     expected_cas: list[dict[str, Any]],
@@ -798,20 +836,48 @@ async def probe_endpoint_trust_via_ssh(
     client_keys = None
     password = None
 
-    if endpoint.auth_type == 'key':
-        if not secret:
-            return {'status': 'error', 'message': 'Missing SSH key'}
-        try:
-            client_keys = [asyncssh.import_private_key(secret.strip())]
-        except Exception as ex:  # noqa: BLE001
-            return {'status': 'error', 'message': f'Invalid SSH Key: {ex}'}
-    else:
-        password = secret.strip() if secret else ''
-
     host = (endpoint.host or '').strip()
     port = endpoint.port or 22
     username = (endpoint.username or '').strip()
     device_label = endpoint.name or host or 'SSH Endpoint'
+
+    if endpoint.auth_type == 'key':
+        if not secret:
+            err_msg = 'Missing SSH key'
+            dev_name = resolve_endpoint_device_name(endpoint, host)
+            audit_id = await record_audit(
+                device_name=dev_name,
+                device_type='server',
+                os_name='unknown',
+                os_detail=None,
+                ip_address=host,
+                endpoint_id=endpoint.id,
+                verification_method='ssh_sweep',
+                results=[],
+                error_message=err_msg,
+                overall_status='error',
+            )
+            return {'status': 'error', 'message': err_msg, 'audit_id': audit_id}
+        try:
+            client_keys = [asyncssh.import_private_key(secret.strip())]
+        except Exception as ex:  # noqa: BLE001
+            err_msg = f'Invalid SSH Key: {ex}'
+            dev_name = resolve_endpoint_device_name(endpoint, host)
+            audit_id = await record_audit(
+                device_name=dev_name,
+                device_type='server',
+                os_name='unknown',
+                os_detail=None,
+                ip_address=host,
+                endpoint_id=endpoint.id,
+                verification_method='ssh_sweep',
+                results=[],
+                error_message=err_msg,
+                overall_status='error',
+            )
+            return {'status': 'error', 'message': err_msg, 'audit_id': audit_id}
+    else:
+        password = secret.strip() if secret else ''
 
     try:
         async with asyncssh.connect(
@@ -959,19 +1025,7 @@ fi
 
                 results.append({'ca_serial': serial, 'is_trusted': is_trusted, 'details': details})
 
-            dev_name = (endpoint.name or '').strip()
-            if not dev_name:
-                is_ip = False
-                try:
-                    ipaddress.ip_address(host)
-                    is_ip = True
-                except ValueError:
-                    is_ip = False
-
-                if not is_ip and '.' in host:
-                    dev_name = host.split('.')[0]
-                else:
-                    dev_name = host
+            dev_name = resolve_endpoint_device_name(endpoint, host)
 
             audit_id = await record_audit(
                 device_name=dev_name,
@@ -987,8 +1041,26 @@ fi
             return {'status': 'success', 'audit_id': audit_id, 'results': results, 'os': detected_os, 'os_detail': os_detail}
 
     except Exception as ex:  # noqa: BLE001
-        logger.warning('SSH fleet sweep failed for %s@%s:%s: %s', username, host, port, ex)
-        return {'status': 'error', 'message': str(ex)}
+        err_msg = format_probe_error(ex, host, port)
+        logger.warning('SSH fleet sweep failed for %s@%s:%s: %s', username, host, port, err_msg)
+        dev_name = resolve_endpoint_device_name(endpoint, host)
+        failed_audit_id: str | None = None
+        try:
+            failed_audit_id = await record_audit(
+                device_name=dev_name,
+                device_type='server',
+                os_name='unknown',
+                os_detail=None,
+                ip_address=host,
+                endpoint_id=endpoint.id,
+                verification_method='ssh_sweep',
+                results=[],
+                error_message=err_msg,
+                overall_status='error',
+            )
+        except Exception as rec_ex:  # noqa: BLE001
+            logger.error('Failed to record failed audit for %s: %s', host, rec_ex)
+        return {'status': 'error', 'message': err_msg, 'audit_id': failed_audit_id}
 
 
 async def sweep_all_ssh_endpoints_stream():
@@ -1079,7 +1151,7 @@ async def sweep_all_ssh_endpoints_stream():
             }
         else:
             failed += 1
-            err_msg = res.get('message', 'Probe failed')
+            err_msg = res.get('message') or 'Probe failed'
             yield {
                 'stage': 'endpoint_error',
                 'index': idx,

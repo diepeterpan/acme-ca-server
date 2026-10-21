@@ -2488,6 +2488,7 @@ async def ca_fleet_trust_dashboard(  # pylint: disable=redefined-outer-name
                 'user_agent': a.user_agent,
                 'verification_method': a.verification_method,
                 'overall_status': a.overall_status,
+                'error_message': a.error_message,
                 'audited_at': format_datetime(a.audited_at),
                 'results': [
                     {
