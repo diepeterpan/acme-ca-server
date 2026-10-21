@@ -12,11 +12,15 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 * 🔐 **Built-in CA** to sign/revoke certificates (can be replaced with an external CA), CA rollover is supported
 * 📡 **OpenWrt Router Integration** &mdash; One-command automated configuration (`run_openwrt_config.sh`) for OpenWrt routers: configures `acme.sh` with dynamic `dnsmasq` hooks for zero-touch RFC 8555 `dns-01` wildcard issuance, cleans stale static TXT entries, sets up daily renewal checks, and preserves scripts across sysupgrades.
 * 🚀 **Automated CA Distribution** &mdash; Fleet delivery and installation of Root CA certificates via SSH/SCP and Email distribution groups. Features intelligent remote OS auto-detection (Ubuntu/Debian, RHEL/CentOS, Alpine, Arch, OpenWrt, macOS, Windows Server/Desktop), platform-tailored installation guides (`README.txt`), encrypted credential storage at rest (`CA_ENCRYPTION_KEY`), multi-endpoint batch distribution, and audit logging.
+* 🛡️ **CA Fleet Trust & Compliance Audit (BETA)** &mdash; Enterprise-wide trust propagation tracking and compliance dashboard (`/ca-fleet-trust`). Performs automated SSH sweeps across distribution endpoints, validates installed root certificates in system stores (Linux, OpenWrt, Windows, macOS), correlates endpoints via reverse DNS, and monitors overall fleet compliance with real-time SSE progress streaming.
+* 🎯 **Dedicated CA TLS Trust Probes & Verification Portal** &mdash; Standalone TLS probe servers running on dedicated ports (e.g. 9443, 9444) for every active and standby CA. Powers a client-facing self-service verification portal (`/ca-trust/verify`) that tests browser/device root CA trust in real-time, provides platform-specific remediation guides (iOS, Android, macOS, Windows), and automatically posts telemetry back to the fleet audit dashboard.
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (accounts, domains, certificates, root CA status) and ACME Entrypoint hero card with 1-click clipboard copy.
   * 🏛️ **Root CA & X.509 Strict Compliance**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, PEM viewer, and interactive RFC 5280 strict compliance diagnostics.
   * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with live connectivity and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
+  * 🛡️ **CA Fleet Trust & Audit Dashboard**: Comprehensive fleet compliance tracking (`/ca-fleet-trust`) with KPI summary metrics, automated SSH sweeps, reverse DNS auto-matching, multi-parameter filtering, and live SSE streaming progress.
+  * 📱 **Client Root CA Trust Verification Portal**: Interactive self-service verification interface (`/ca-trust/verify`) with real-time TLS handshake probing across dedicated CA ports, platform auto-detection, and tailored installation guides.
   * 📜 **Certificates & Deep Capability Inspector**: Searchable audit logs with status tabs (Valid, Revoked, Expired), direct downloads, and an interactive **Certificate Details Modal** detailing cryptographic properties, health audits, and application capabilities (TLS Server, mTLS Client, Code Signing, S/MIME, Digital Signatures).
   * 🌐 **Domains Registry**: Domain status monitoring, cross-view certificate navigation, and safe deletion of stale domains.
   * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
@@ -182,6 +186,9 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | CA_CERT_LIFETIME        | 60 days (`60d`)       | how often certs must be replaced by the ACME client  |
 | CA_CERT_CDP_ENABLED    | `True` | Add CDP (Certificate Revocation List Distribution Point) URL to certificates, so clients SHOULD check certificates for revocation. When `False`, the CDP is omitted from certificates, preventing clients from checking revocation status and making revocation ineffective. |
 | CA_CRL_LIFETIME        | 7 days (`7d`)       | how often the certificate revocation list will be rebuilt (despite rebuild on every certificate revocation)  |
+| CA_TRUST_PROBE_ENABLED | `True` | whether to run dedicated TLS probe server listeners for each CA to verify client and fleet trust |
+| CA_TRUST_PROBE_BASE_PORT | `9443` | base port for CA trust probe listeners (each active and standby CA increments from this base port) |
+| CA_TRUST_PROBE_HOST    | `0.0.0.0` | bind address for CA trust TLS probe listeners |
 | MAIL_ENABLED        | `False`       | if sending mails is enabled              |
 | MAIL_HOST        | `None`       | SMTP host  |
 | MAIL_PORT        | `None`       | SMTP port (default depends on encryption method)  |
@@ -588,7 +595,7 @@ An interactive script to safely create, update, and push git release tags to tri
 
 ### 7. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
 
-A Playwright-driven automation utility that captures high-resolution screenshots of all 14 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, Root CA distribution deployment modal, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, the account orders & error modal, mail settings, users & access control, and the CA distribution hub).
+A Playwright-driven automation utility that captures high-resolution screenshots of all 17 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, Root CA distribution deployment modal, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, the account orders & error modal, mail settings, users & access control, CA distribution hub, CA fleet trust & compliance tracking, CLI probe modal, and the client trust verification portal).
 
 **Key capabilities:**
 * Automatically generates signed session cookies to capture both guest and authenticated administrative screens.

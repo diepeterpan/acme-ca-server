@@ -26,6 +26,9 @@ To re-generate or update these captures at any time, run:
    - [11. User Management & Access Control](#11-user-management--access-control)
    - [12. CA Certificate Distribution Hub](#12-ca-certificate-distribution-hub)
    - [12b. Root CA Certificate Deployment & Distribution Modal](#12b-root-ca-certificate-deployment--distribution-modal)
+   - [13. CA Fleet Trust & Compliance Audit](#13-ca-fleet-trust--compliance-audit)
+   - [13b. CA Fleet Trust CLI Probe Commands Modal](#13b-ca-fleet-trust-cli-probe-commands-modal)
+   - [14. Client Root CA Trust Verification Portal](#14-client-root-ca-trust-verification-portal)
 
 ---
 
@@ -207,5 +210,47 @@ Direct distribution workflow triggered by clicking **Distribute** from the activ
 - **One-Click Batch Execution**: Dispatches certificate packages across all selected infrastructure targets simultaneously with real-time delivery status feedback.
 
 ![Root CA Certificate Deployment Modal](screenshots/12b_ca_distribution_modal.png)
+
+---
+
+### 13. CA Fleet Trust & Compliance Audit
+Centralized fleet compliance and trust propagation tracking dashboard (`/ca-fleet-trust`) providing real-time visibility into root certificate installation across heterogeneous network infrastructure:
+- **KPI Summary Metrics**: Real-time counter cards detailing **Audited Endpoints**, **Compliant (Full Trust)**, **Partially Compliant**, **Untrusted / Missing**, and the computed overall **Fleet Trust Compliance Rate**.
+- **Automated Fleet SSH Sweeps**: One-click execution (`Run Fleet Audit Sweep`) that connects to all configured CA distribution endpoints via SSH, inspects remote certificate directories (such as `/usr/local/share/ca-certificates`, `/etc/ssl/certs/`, and Windows Certificate Stores), and verifies certificate validity and bundle presence.
+- **Real-Time SSE Sweep Progress**: Live Server-Sent Events streaming modal (`/ca-fleet-trust/sweep/stream`) that animates target-by-target inspection progress without requiring manual page reloads.
+- **Reverse DNS & Endpoint Auto-Matching**: Automatically correlates incoming client telemetry and IP addresses to known CA distribution endpoints, displaying matching target badges directly in the audit log.
+- **Multi-Parameter Audit Filter**: Search and filter by target Certificate Authority (Active vs. Standby), compliance status (`All`, `Compliant`, `Partial`, `Untrusted`), operating system (`Linux`, `OpenWrt`, `Windows`, `macOS`, `iOS`, `Android`), or free-form text search.
+- **Device Audit Log Table**: Comprehensive audit history displaying Device Name, Matched Endpoint, IP Address, OS & User-Agent, Active CA Trust status badge, Standby CA Trust status badge, Overall Status, and Last Sweep timestamp with hover tooltips.
+
+![CA Fleet Trust & Compliance Audit](screenshots/13_ca_fleet_trust.png)
+
+---
+
+### 13b. CA Fleet Trust CLI Probe Commands Modal
+Triggered by clicking **CLI Probes** (`#openCliProbeModal`) in the CA Fleet Trust header:
+- **Automated Headless Shell One-Liners**: Provides zero-dependency, one-liner probe scripts (`curl -sSL .../ca-trust/probe.sh | sh`) for automated terminal execution across Linux, OpenWrt, and macOS endpoints.
+- **Dedicated TLS Port Listeners**: Lists active and standby CA probe listener ports (e.g., ports 9443 and 9444) for validating certificate chains without touching web application ports.
+- **Instant Clipboard Actions**: One-click copy buttons for POSIX shell, OpenWrt `uclient-fetch`, and PowerShell snippets for seamless inclusion in configuration management scripts (Ansible, Cloud-Init, CI/CD).
+- **Audit Detail Inspection Modal**: Direct row action to inspect raw TLS handshake diagnostics, verified certificate fingerprints, and remote SSH sweep responses per device.
+
+![CA Fleet Trust CLI Probe Commands Modal](screenshots/13b_ca_fleet_trust_cli_modal.png)
+
+---
+
+### 14. Client Root CA Trust Verification Portal
+A dedicated, responsive self-service verification interface (`/ca-trust/verify`) designed for end-users, mobile devices, and workstations:
+- **Automatic Client OS & Platform Detection**: Automatically identifies client user-agents (Apple iOS, Android, Apple macOS, Microsoft Windows, Linux) and displays platform-specific device branding.
+- **Dedicated TLS Probe Handshake**: Executes real-time HTTPS handshakes against dedicated per-CA probe listener ports to test whether the device or browser natively trusts the internal Root CA.
+- **Live Visual Compliance Indicators**: High-contrast status badges (Emerald Green for **Trusted**, Amber for **Partial**, Red for **Untrusted**) rendered per active and standby CA certificate.
+- **Platform-Tailored Remediation Guidance**: Context-sensitive installation and trust-enablement steps:
+  - **Apple iOS**: Step-by-step guidance for installing the configuration profile and enabling the crucial toggle under *Settings &rarr; General &rarr; About &rarr; Certificate Trust Settings*.
+  - **Android**: Instructions for installing CA certificates via *Settings &rarr; Security &rarr; Encryption &amp; credentials*.
+  - **macOS**: Detailed steps for importing and setting *Always Trust* in *Keychain Access*.
+  - **Windows & Linux**: Native certificate store installation commands.
+- **Direct CA Download**: Prominent 1-click download button for the active Root CA Certificate (`.crt`).
+- **Telemetry Auto-Reporting**: Automatically logs successful and failed verification checks back to the server, feeding real-time device trust metrics directly into the administrative CA Fleet Trust dashboard.
+
+![Client Root CA Trust Verification Portal](screenshots/14_ca_trust_verify.png)
+
 
 

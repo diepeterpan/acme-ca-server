@@ -16,6 +16,9 @@ Captures high-resolution screenshots of all web UI screens:
   11. User Management & Access Control
   12. CA Certificate Distribution Hub
   12b. Root CA Certificate Distribution & Deployment Modal
+  13. CA Fleet Trust & Compliance Audit
+  13b. CA Fleet Trust - CLI Probe & Manual Diagnostics Modal
+  14. Client Root CA Trust Verification Portal
 
 Usage:
   python3 scripts/capture_ui_screens.py
@@ -24,10 +27,12 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Resolve repository paths
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -95,11 +100,22 @@ async def obfuscate_page(page):
             let res = str;
             
             // 1. Obfuscate domain names
-            res = res.replace(/andregaming\.galleon\.co\.za/gi, 'app.example.com');
+            res = res.replace(/andregaming\.galleon\.co\.za/gi, 'workstation01.example.com');
+            res = res.replace(/Macmini\.galleon\.co\.za/gi, 'macmini01.example.com');
+            res = res.replace(/debianserver\.galleon\.co\.za/gi, 'srv-deb01.example.com');
+            res = res.replace(/galleonprintsrv\.galleon\.co\.za/gi, 'printer01.example.com');
+            res = res.replace(/galleonwds\.galleon\.co\.za/gi, 'wds01.example.com');
+            res = res.replace(/AndreiPhone16e\.galleon\.co\.za/gi, 'iphone01.example.com');
             res = res.replace(/[a-z0-9_.-]+\.galleon\.co\.za/gi, 'service.example.com');
             res = res.replace(/galleon\.co\.za/gi, 'example.com');
             res = res.replace(/galleon\s*beach/gi, 'Internal ACME Root CA');
             res = res.replace(/galleon/gi, 'Example Security Corp');
+            res = res.replace(/\bandregaming\b/gi, 'workstation-dev-01');
+            res = res.replace(/\bagreylin\b/gi, 'mac-mini-office');
+            res = res.replace(/\bdebianserver\b/gi, 'srv-debian-prod');
+            res = res.replace(/\bgalleonprintsrv\b/gi, 'corp-print-server');
+            res = res.replace(/\bgalleonwds\b/gi, 'win-wds-deploy');
+            res = res.replace(/\bAndreiPhone16e\b/gi, 'executive-iphone-16');
 
             // 2. Obfuscate Location & Subject Distinguished Name (DN) fields
             res = res.replace(/Cape Town/gi, 'San Francisco');
@@ -173,7 +189,7 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
 
     default_params = {
         'app_title': 'ACME CA Server',
-        'app_version': 'v0.9.8',
+        'app_version': 'v1.0.6',
         'is_authenticated': False,
         'current_user': None,
         'active_tab': '',
@@ -264,15 +280,18 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             viewport={'width': 1440, 'height': 920},
             device_scale_factor=1.5
         )
-        # Set session cookie for authenticated views
-        await context_auth.add_cookies([{
-            'name': 'acme_session',
-            'value': token,
-            'domain': 'localhost',
-            'path': '/',
-            'httpOnly': True,
-            'sameSite': 'Lax'
-        }])
+        # Set session cookie for authenticated views across target hostname, localhost, and 127.0.0.1
+        cookie_host = urlparse(base_url).hostname or 'localhost'
+        target_domains = {cookie_host, 'localhost', '127.0.0.1'}
+        for domain_name in target_domains:
+            await context_auth.add_cookies([{
+                'name': 'acme_session',
+                'value': token,
+                'domain': domain_name,
+                'path': '/',
+                'httpOnly': True,
+                'sameSite': 'Lax'
+            }])
         page_auth = await context_auth.new_page()
 
         # 04: Home Dashboard
@@ -666,6 +685,213 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             print("    Root CA Certificate Distribution Modal captured successfully!")
         except Exception as e:
             print(f"    Warning: Could not capture CA distribution modal: {e}")
+
+        # 13: CA Fleet Trust & Compliance Audit
+        print("--> Capturing 13_ca_fleet_trust.png...")
+        try:
+            captured = False
+            try:
+                resp = await page_auth.goto(f"{base_url}/ca-fleet-trust", wait_until='networkidle', timeout=4000)
+                if resp and resp.status == 200:
+                    captured = True
+            except Exception:
+                captured = False
+
+            if not captured:
+                fleet_template = env.get_template('ca-fleet-trust.html')
+                fleet_params = dict(default_params)
+                fleet_params.update({
+                    'is_authenticated': True,
+                    'current_user': admin_user,
+                    'request': MockRequest('/ca-fleet-trust', admin_user),
+                    'active_tab': 'fleet',
+                    'stats': {
+                        'total_audits': 12,
+                        'compliant': 10,
+                        'partial': 2,
+                        'untrusted': 0,
+                        'compliance_rate': 83.3,
+                    },
+                    'cas': [
+                        {'serial_number': '7A1EC5392C74', 'cn': 'Internal ACME Root CA', 'active': True},
+                        {'serial_number': '8B2FD64A3D85', 'cn': 'Standby ACME Root CA', 'active': False},
+                    ],
+                    'endpoints': [],
+                    'audits': [
+                        {
+                            'id': 'aud-01',
+                            'device_name': 'workstation-dev-01',
+                            'ip_address': '192.168.1.101',
+                            'user_agent': 'Mozilla/5.0 (X11; Linux x86_64)',
+                            'os': 'linux',
+                            'os_detail': 'Ubuntu 24.04 LTS',
+                            'verification_method': 'tls_probe',
+                            'overall_status': 'compliant',
+                            'total_cas': 2,
+                            'trusted_cas': 2,
+                            'audited_at': datetime(2026, 10, 21, 14, 20, tzinfo=timezone.utc),
+                            'results': [
+                                {'ca_serial': '7A1EC5392C74', 'ca_cn': 'Internal ACME Root CA', 'is_trusted': True, 'details': 'TLS probe handshake successful (Port 9443)'},
+                                {'ca_serial': '8B2FD64A3D85', 'ca_cn': 'Standby ACME Root CA', 'is_trusted': True, 'details': 'TLS probe handshake successful (Port 9444)'},
+                            ],
+                        },
+                        {
+                            'id': 'aud-02',
+                            'device_name': 'core-openwrt-router',
+                            'ip_address': '192.168.1.1',
+                            'user_agent': 'uclient-fetch/OpenWrt',
+                            'os': 'openwrt',
+                            'os_detail': 'OpenWrt 23.05.2',
+                            'verification_method': 'ssh_sweep',
+                            'overall_status': 'compliant',
+                            'total_cas': 2,
+                            'trusted_cas': 2,
+                            'audited_at': datetime(2026, 10, 21, 14, 15, tzinfo=timezone.utc),
+                            'results': [
+                                {'ca_serial': '7A1EC5392C74', 'ca_cn': 'Internal ACME Root CA', 'is_trusted': True, 'details': 'Certificate verified in /etc/ssl/certs/'},
+                                {'ca_serial': '8B2FD64A3D85', 'ca_cn': 'Standby ACME Root CA', 'is_trusted': True, 'details': 'Certificate verified in /etc/ssl/certs/'},
+                            ],
+                        },
+                        {
+                            'id': 'aud-03',
+                            'device_name': 'win-wds-deploy',
+                            'ip_address': '192.168.1.25',
+                            'user_agent': 'PowerShell/7.4.1',
+                            'os': 'windows',
+                            'os_detail': 'Windows Server 2022',
+                            'verification_method': 'ssh_sweep',
+                            'overall_status': 'partial',
+                            'total_cas': 2,
+                            'trusted_cas': 1,
+                            'audited_at': datetime(2026, 10, 21, 13, 50, tzinfo=timezone.utc),
+                            'results': [
+                                {'ca_serial': '7A1EC5392C74', 'ca_cn': 'Internal ACME Root CA', 'is_trusted': True, 'details': 'Installed in Root store'},
+                                {'ca_serial': '8B2FD64A3D85', 'ca_cn': 'Standby ACME Root CA', 'is_trusted': False, 'details': 'Not found in Root store'},
+                            ],
+                        },
+                        {
+                            'id': 'aud-04',
+                            'device_name': 'mac-mini-office',
+                            'ip_address': '192.168.1.42',
+                            'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+                            'os': 'macos',
+                            'os_detail': 'Apple macOS 14.5 (Sonoma)',
+                            'verification_method': 'browser',
+                            'overall_status': 'compliant',
+                            'total_cas': 2,
+                            'trusted_cas': 2,
+                            'audited_at': datetime(2026, 10, 21, 13, 30, tzinfo=timezone.utc),
+                            'results': [
+                                {'ca_serial': '7A1EC5392C74', 'ca_cn': 'Internal ACME Root CA', 'is_trusted': True, 'details': 'Browser probe verified'},
+                                {'ca_serial': '8B2FD64A3D85', 'ca_cn': 'Standby ACME Root CA', 'is_trusted': True, 'details': 'Browser probe verified'},
+                            ],
+                        },
+                    ],
+                    'audits_json': '[]',
+                    'search': '',
+                    'selected_ca': '',
+                    'selected_status': 'all',
+                    'selected_os': 'all',
+                    'status_msg': '',
+                    'error': '',
+                    'external_url': 'http://localhost:8080',
+                })
+                fleet_html = await fleet_template.render_async(**fleet_params)
+                await page_auth.set_content(fleet_html, wait_until='networkidle')
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "13_ca_fleet_trust.png"), full_page=False)
+            print("    CA Fleet Trust & Compliance Audit captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture CA fleet trust: {e}")
+
+        # 13b: CA Fleet Trust - CLI Probe & Manual Diagnostics Modal
+        print("--> Capturing 13b_ca_fleet_trust_cli_modal.png...")
+        try:
+            cli_btn = page_auth.locator("#openCliProbeModal")
+            if await cli_btn.count() > 0:
+                await cli_btn.click()
+                await page_auth.wait_for_selector("#cliProbeModal", state='visible', timeout=3000)
+                await asyncio.sleep(0.4)
+                if obfuscate:
+                    await obfuscate_page(page_auth)
+                await page_auth.screenshot(path=str(output_dir / "13b_ca_fleet_trust_cli_modal.png"), full_page=False)
+                print("    CA Fleet Trust CLI Probe Modal captured successfully!")
+                close_btn = page_auth.locator("#cliProbeModal .modal-close-btn, #cliProbeModal button:has-text('Close')").first
+                if await close_btn.count() > 0:
+                    await close_btn.click()
+                    await asyncio.sleep(0.3)
+            else:
+                print("    Notice: #openCliProbeModal button not found on fleet trust page.")
+        except Exception as e:
+            print(f"    Warning: Could not capture CLI probe modal: {e}")
+
+        # 14: Client Root CA Trust Verification Portal
+        print("--> Capturing 14_ca_trust_verify.png...")
+        try:
+            context_verify = await browser.new_context(
+                viewport={'width': 1440, 'height': 920},
+                device_scale_factor=1.5
+            )
+            page_verify = await context_verify.new_page()
+            captured = False
+            try:
+                resp = await page_verify.goto(f"{base_url}/ca-trust/verify", wait_until='networkidle', timeout=4000)
+                if resp and resp.status == 200:
+                    captured = True
+                    await asyncio.sleep(0.6)
+            except Exception:
+                captured = False
+
+            if not captured:
+                verify_template = env.get_template('ca-trust-verify.html')
+                verify_params = dict(default_params)
+                verify_params.update({
+                    'request': MockRequest('/ca-trust/verify'),
+                    'cas': [
+                        {
+                            'serial_number': '7A1EC5392C74',
+                            'cn': 'Internal ACME Root CA',
+                            'active': True,
+                            'fingerprint_sha256': 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855',
+                        },
+                        {
+                            'serial_number': '8B2FD64A3D85',
+                            'cn': 'Standby ACME Root CA',
+                            'active': False,
+                            'fingerprint_sha256': 'F4C1D553A9FD2D250BCCF5D9AA7FC03538BF52F575AC045DB506AA2C8963C966',
+                        },
+                    ],
+                    'cas_json': json.dumps([
+                        {
+                            'serial_number': '7A1EC5392C74',
+                            'cn': 'Internal ACME Root CA',
+                            'active': True,
+                            'fingerprint_sha256': 'E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855',
+                        },
+                    ]),
+                    'probe_endpoints': [
+                        {'ca_serial': '7A1EC5392C74', 'port': 9443, 'host': 'localhost'},
+                    ],
+                    'probe_endpoints_json': json.dumps([
+                        {'ca_serial': '7A1EC5392C74', 'port': 9443, 'host': 'localhost'},
+                    ]),
+                    'probe_base_port': 9443,
+                    'endpoint_id': '',
+                    'client_ip': '192.168.1.101',
+                    'prefill_device_name': 'workstation-dev-01',
+                })
+                verify_html = await verify_template.render_async(**verify_params)
+                await page_verify.set_content(verify_html, wait_until='networkidle')
+
+            if obfuscate:
+                await obfuscate_page(page_verify)
+            await page_verify.screenshot(path=str(output_dir / "14_ca_trust_verify.png"), full_page=False)
+            print("    Client Root CA Trust Verification Portal captured successfully!")
+            await context_verify.close()
+        except Exception as e:
+            print(f"    Warning: Could not capture CA trust verification portal: {e}")
 
         await context_auth.close()
         await browser.close()
