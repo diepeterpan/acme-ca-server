@@ -11,6 +11,7 @@ import db.integrity
 import db.migrations
 import web
 from acme.exceptions import ACMEException
+from ca import fleet_trust as ca_fleet_trust
 from config import settings
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exception_handlers import http_exception_handler
@@ -33,6 +34,11 @@ async def _run_startup_integrity_audit(app_instance: FastAPI) -> None:
             await ca.init()
             if ca.is_initialized:
                 await acme.start_cronjobs()
+                if settings.ca.trust_probe_enabled:
+                    try:
+                        await ca_fleet_trust.probe_manager.start()
+                    except Exception as probe_exc:  # noqa: BLE001
+                        logger.warning('Failed to start CA trust probe servers: %s', probe_exc)
 
 
 @asynccontextmanager
@@ -44,6 +50,11 @@ async def lifespan(app_instance: FastAPI):
     await ca.init()
     if ca.is_initialized:
         await acme.start_cronjobs()
+        if settings.ca.trust_probe_enabled:
+            try:
+                await ca_fleet_trust.probe_manager.start()
+            except Exception as probe_exc:  # noqa: BLE001
+                logger.warning('Failed to start CA trust probe servers: %s', probe_exc)
 
     if settings.db_integrity.enabled:
         app_instance.state.maintenance_mode = True
@@ -52,6 +63,13 @@ async def lifespan(app_instance: FastAPI):
         app_instance.state.maintenance_mode = False
 
     yield
+
+    if settings.ca.enabled and settings.ca.trust_probe_enabled:
+        try:
+            await ca_fleet_trust.probe_manager.stop()
+        except Exception as probe_exc:  # noqa: BLE001
+            logger.warning('Failed to stop CA trust probe servers: %s', probe_exc)
+
     await db.disconnect()
 
 
@@ -68,7 +86,11 @@ app.add_middleware(
     content_security_policy={
         '/acme/': "base-uri 'self'; default-src 'none';",
         '/endpoints': "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'none'; img-src 'self' data:;",
-        '/': "base-uri 'self'; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'none'; img-src 'self' data:;",
+        '/': (
+            "base-uri 'self'; default-src 'self'; connect-src 'self' https: http:; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+            "frame-src 'none'; img-src 'self' data:;"
+        ),
     },
 )
 if settings.web.enabled:

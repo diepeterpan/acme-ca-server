@@ -13,7 +13,7 @@ os.environ.setdefault('external_url', 'http://localhost:8080')
 os.environ.setdefault('db_dsn', 'postgresql://localhost/dummy')
 os.environ.setdefault('ca_encryption_key', 'fIj-aQgcgfMUphrXikMlZ2bQkBdWtcuSJXjycQJFC70=')
 
-import ca.fleet_trust as fleet_trust
+from ca import fleet_trust
 from fastapi.testclient import TestClient
 from main import app
 
@@ -60,6 +60,90 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data.get('status'), 'ok')
             self.assertEqual(data.get('active_ca'), 'Test Root CA')
             self.assertEqual(data.get('serial'), 'DEADBEEF')
+
+    def test_public_probe_endpoints_route(self):
+        mock_endpoints = [
+            {
+                'ca_serial': 'DEADBEEF11',
+                'cn': 'Active Root CA',
+                'active': True,
+                'port': 9443,
+                'is_running': True,
+                'probe_url': 'https://localhost:9443/probe',
+            },
+            {
+                'ca_serial': 'STANDBY22',
+                'cn': 'Standby Root CA',
+                'active': False,
+                'port': 9444,
+                'is_running': True,
+                'probe_url': 'https://localhost:9444/probe',
+            },
+        ]
+        with mock.patch.object(fleet_trust.probe_manager, 'get_probe_endpoints', new=mock.AsyncMock(return_value=mock_endpoints)):
+            res = self.client.get('/ca-trust/api/probe-endpoints')
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(data.get('status'), 'ok')
+            self.assertTrue(data.get('enabled'))
+            self.assertEqual(len(data.get('endpoints', [])), 2)
+            self.assertEqual(data['endpoints'][0]['port'], 9443)
+            self.assertEqual(data['endpoints'][1]['port'], 9444)
+
+    def test_probe_leaf_cert_generation(self):
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        ca_cert = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'Test Probe Root')]))
+            .issuer_name(x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'Test Probe Root')]))
+            .public_key(ca_key.public_key())
+            .serial_number(123456789)
+            .not_valid_before(datetime.now(timezone.utc))
+            .not_valid_after(datetime.now(timezone.utc) + fleet_trust.timedelta(days=365))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(ca_key, hashes.SHA256())
+        )
+
+        leaf_cert, leaf_key = fleet_trust.generate_probe_leaf_cert_sync(
+            ca_cert=ca_cert,
+            ca_key=ca_key,
+            hostnames=['ca.corp.internal', '10.0.0.1'],
+        )
+
+        self.assertIsNotNone(leaf_cert)
+        self.assertIsNotNone(leaf_key)
+        self.assertEqual(leaf_cert.issuer, ca_cert.subject)
+
+        # Verify Server Auth EKU
+        eku = leaf_cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.EXTENDED_KEY_USAGE).value
+        self.assertIn(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH, eku)
+
+        # Verify SANs include provided hostnames and loopback
+        san = leaf_cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME).value
+        dns_names = [name.value for name in san if isinstance(name, x509.DNSName)]
+        ip_addresses = [str(name.value) for name in san if isinstance(name, x509.IPAddress)]
+
+        self.assertIn('ca.corp.internal', dns_names)
+        self.assertIn('localhost', dns_names)
+        self.assertIn('10.0.0.1', ip_addresses)
+        self.assertIn('127.0.0.1', ip_addresses)
+
+    async def test_probe_manager_get_probe_endpoints(self):
+        mock_cas = [
+            {'serial_number': '1111', 'cn': 'CA One', 'active': True},
+            {'serial_number': '2222', 'cn': 'CA Two', 'active': False},
+        ]
+        with mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=mock_cas)):
+            endpoints = await fleet_trust.probe_manager.get_probe_endpoints(external_hostname='ca.example.com')
+            self.assertEqual(len(endpoints), 2)
+            self.assertEqual(endpoints[0]['port'], 9443)
+            self.assertEqual(endpoints[0]['probe_url'], 'https://ca.example.com:9443/probe')
+            self.assertEqual(endpoints[1]['port'], 9444)
+            self.assertEqual(endpoints[1]['probe_url'], 'https://ca.example.com:9444/probe')
 
     def test_public_verify_portal_rendering(self):
         mock_cas = [

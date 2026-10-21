@@ -2290,6 +2290,26 @@ async def ca_trust_probe_active():
     )
 
 
+@api.get('/ca-trust/api/probe-endpoints')
+async def ca_trust_probe_endpoints(request: Request):
+    """Return active and standby CAs mapped to their dedicated TLS probe listeners."""
+    host_header = request.headers.get('host', '')
+    req_host = host_header.split(':')[0].strip() if host_header else ''
+    external_host = req_host or (str(settings.external_url.host) if settings.external_url else 'localhost')
+
+    endpoints = await ca_fleet_trust.probe_manager.get_probe_endpoints(external_hostname=external_host)
+    return JSONResponse(
+        {
+            'status': 'ok',
+            'enabled': bool(settings.ca.enabled and settings.ca.trust_probe_enabled),
+            'base_port': settings.ca.trust_probe_base_port,
+            'is_running': ca_fleet_trust.probe_manager.is_running,
+            'endpoints': endpoints,
+        },
+        headers={'Access-Control-Allow-Origin': '*'},
+    )
+
+
 @api.get('/ca-trust/verify', response_class=HTMLResponse)
 async def ca_trust_verify_portal(
     request: Request,
@@ -2312,11 +2332,19 @@ async def ca_trust_verify_portal(
             prefill_name = ep.name
 
     template = template_engine.get_template('ca-trust-verify.html')
+    host_header = request.headers.get('host', '')
+    req_host = host_header.split(':')[0].strip() if host_header else ''
+    external_host = req_host or (str(settings.external_url.host) if settings.external_url else 'localhost')
+    probe_endpoints = await ca_fleet_trust.probe_manager.get_probe_endpoints(external_hostname=external_host)
+
     content = await template.render_async(
         **default_params,
         request=request,
         cas=cas,
         cas_json=json.dumps(cas),
+        probe_endpoints=probe_endpoints,
+        probe_endpoints_json=json.dumps(probe_endpoints),
+        probe_base_port=settings.ca.trust_probe_base_port,
         endpoint_id=endpoint_id or '',
         client_ip=client_ip,
         prefill_device_name=prefill_name,

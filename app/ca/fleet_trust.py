@@ -1,14 +1,22 @@
 # pylint: disable=too-many-lines,duplicate-code
 import asyncio
+import ipaddress
+import json
+import os
 import secrets
+import ssl
+import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 import asyncssh
 import db
+from config import settings
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from logger import logger
 
 ComplianceStatus = Literal['compliant', 'partial', 'untrusted', 'error']
@@ -1068,3 +1076,307 @@ async def sweep_all_ssh_endpoints() -> dict[str, Any]:
             failed += 1
 
     return {'total': total, 'success': success, 'failed': failed, 'message': f'Completed sweep of {total} SSH endpoint(s): {success} succeeded, {failed} failed.'}
+
+
+def generate_probe_leaf_cert_sync(
+    *,
+    ca_cert: x509.Certificate,
+    ca_key: Any,
+    hostnames: list[str],
+) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
+    """Generate an in-memory leaf certificate signed by ca_key for TLS probe listeners."""
+    leaf_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    sans: list[x509.GeneralName] = []
+    seen: set[str] = set()
+
+    for h in hostnames:
+        h_clean = h.strip().lower()
+        if not h_clean or h_clean in seen:
+            continue
+        seen.add(h_clean)
+        try:
+            ip = ipaddress.ip_address(h_clean)
+            sans.append(x509.IPAddress(ip))
+        except ValueError:
+            sans.append(x509.DNSName(h_clean))
+
+    for loopback in ('localhost', '127.0.0.1', '::1'):
+        if loopback not in seen:
+            seen.add(loopback)
+            try:
+                sans.append(x509.IPAddress(ipaddress.ip_address(loopback)))
+            except ValueError:
+                sans.append(x509.DNSName(loopback))
+
+    now = datetime.now(timezone.utc)
+    nvb = now - timedelta(minutes=5)
+    nva = min(now + timedelta(days=30), ca_cert.not_valid_after_utc)
+
+    primary_cn = hostnames[0] if hostnames else 'acme-probe'
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, primary_cn)]))
+        .issuer_name(ca_cert.subject)
+        .public_key(leaf_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(nvb)
+        .not_valid_after(nva)
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(x509.KeyUsage(True, False, True, False, False, False, False, False, False), critical=True)
+        .add_extension(
+            x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.SERVER_AUTH]),
+            critical=False,
+        )
+    )
+
+    if sans:
+        builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)
+
+    leaf_cert = builder.sign(private_key=ca_key, algorithm=hashes.SHA256())
+    return leaf_cert, leaf_key
+
+
+def create_probe_ssl_context_sync(
+    *,
+    leaf_cert: x509.Certificate,
+    leaf_key: rsa.RSAPrivateKey,
+    ca_cert: x509.Certificate,
+) -> ssl.SSLContext:
+    """Create an SSLContext loaded with the leaf cert, chain, and private key."""
+    cert_chain_pem = leaf_cert.public_bytes(serialization.Encoding.PEM) + ca_cert.public_bytes(serialization.Encoding.PEM)
+    key_pem = leaf_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    )
+
+    with tempfile.NamedTemporaryFile('wb', delete=False) as cf, tempfile.NamedTemporaryFile('wb', delete=False) as kf:
+        cf.write(cert_chain_pem)
+        cf.flush()
+        kf.write(key_pem)
+        kf.flush()
+        cpath, kpath = cf.name, kf.name
+
+    try:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cpath, kpath)
+        return ctx
+    finally:
+        try:
+            os.unlink(cpath)
+        except OSError:
+            pass
+        try:
+            os.unlink(kpath)
+        except OSError:
+            pass
+
+
+async def _handle_probe_client(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    ca_info: dict[str, Any],
+) -> None:
+    """Handle incoming HTTPS requests on a dedicated CA probe listener."""
+    try:
+        line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+        if not line:
+            return
+
+        # Drain remaining header lines
+        while True:
+            header_line = await asyncio.wait_for(reader.readline(), timeout=2.0)
+            if not header_line or header_line in (b'\r\n', b'\n', b''):
+                break
+
+        body = json.dumps(
+            {
+                'status': 'ok',
+                'trusted': True,
+                'ca_serial': ca_info.get('serial_number', ''),
+                'cn': ca_info.get('cn', ''),
+                'active': bool(ca_info.get('active', False)),
+            }
+        ).encode('utf-8')
+
+        resp = (
+            b'HTTP/1.1 200 OK\r\n'
+            b'Content-Type: application/json; charset=utf-8\r\n'
+            b'Content-Length: ' + str(len(body)).encode('ascii') + b'\r\n'
+            b'Access-Control-Allow-Origin: *\r\n'
+            b'Access-Control-Allow-Methods: GET, OPTIONS\r\n'
+            b'Access-Control-Allow-Headers: *\r\n'
+            b'Access-Control-Max-Age: 86400\r\n'
+            b'Connection: close\r\n'
+            b'\r\n' + body
+        )
+        writer.write(resp)
+    except Exception as ex:  # noqa: BLE001
+        logger.debug('Probe client exception: %s', ex)
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:  # noqa: BLE001, S110
+            pass
+
+
+class CaProbeServerManager:
+    """Manages dedicated per-CA TLS probe listeners on custom port range."""
+
+    def __init__(self) -> None:
+        self.servers: dict[str, asyncio.Server] = {}
+        self.ports: dict[str, int] = {}
+        self._lock = asyncio.Lock()
+        self._is_running = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._is_running
+
+    async def start(self) -> None:
+        async with self._lock:
+            if self._is_running:
+                return
+
+            if not settings.ca.enabled or not settings.ca.trust_probe_enabled:
+                return
+
+            if not settings.ca.encryption_key:
+                logger.warning('Cannot start CA trust probe servers: ca_encryption_key is not set')
+                return
+
+            async with db.transaction(readonly=True) as sql:
+                rows = await sql.fetch("""
+                    SELECT serial_number, cert_pem, key_pem_enc, active
+                    FROM cas
+                    WHERE revoked_at IS NULL
+                    ORDER BY active DESC, serial_number ASC
+                """)
+
+            if not rows:
+                logger.info('No CAs found in database to host probe servers for')
+                return
+
+            fernet = Fernet(settings.ca.encryption_key.get_secret_value())
+
+            hostnames: list[str] = []
+            if settings.external_url and settings.external_url.host:
+                hostnames.append(str(settings.external_url.host))
+
+            base_port = settings.ca.trust_probe_base_port
+            bind_host = settings.ca.trust_probe_host
+
+            for idx, r in enumerate(rows):
+                serial = r['serial_number']
+                cert_pem = r['cert_pem']
+                key_pem_enc = r['key_pem_enc']
+                active = bool(r['active'])
+
+                try:
+                    ca_cert = x509.load_pem_x509_certificate(cert_pem.encode('utf-8'))
+                    cn_attrs = ca_cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)
+                    cn = str(cn_attrs[0].value) if cn_attrs and cn_attrs[0].value else f'CA-{serial[:8]}'
+
+                    key_pem = fernet.decrypt(key_pem_enc)
+                    ca_key = serialization.load_pem_private_key(key_pem, None)
+
+                    leaf_cert, leaf_key = await asyncio.to_thread(
+                        generate_probe_leaf_cert_sync,
+                        ca_cert=ca_cert,
+                        ca_key=ca_key,
+                        hostnames=hostnames,
+                    )
+                    ssl_ctx = await asyncio.to_thread(
+                        create_probe_ssl_context_sync,
+                        leaf_cert=leaf_cert,
+                        leaf_key=leaf_key,
+                        ca_cert=ca_cert,
+                    )
+
+                    target_port = base_port + idx
+                    server = None
+                    for attempt_port in range(target_port, target_port + 20):
+                        try:
+                            info = {'serial_number': serial, 'cn': cn, 'active': active}
+
+                            def _make_handler(ca_info_dict: dict[str, Any]):
+                                async def _client_cb(client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
+                                    await _handle_probe_client(client_reader, client_writer, ca_info_dict)
+
+                                return _client_cb
+
+                            server = await asyncio.start_server(
+                                _make_handler(info),
+                                host=bind_host,
+                                port=attempt_port,
+                                ssl=ssl_ctx,
+                            )
+                            target_port = attempt_port
+                            break
+                        except OSError as os_err:
+                            logger.debug('Probe port %s unavailable: %s', attempt_port, os_err)
+                            continue
+
+                    if server is None:
+                        logger.error('Failed to bind CA probe server for CA %s on ports %s-%s', serial, target_port, target_port + 20)
+                        continue
+
+                    self.servers[serial] = server
+                    self.ports[serial] = target_port
+                    logger.info(
+                        'Started CA trust TLS probe listener for CA %s (%s) on https://%s:%s',
+                        serial,
+                        cn,
+                        bind_host,
+                        target_port,
+                    )
+
+                except Exception as ex:  # noqa: BLE001
+                    logger.error('Failed to initialize probe server for CA %s: %s', serial, ex)
+
+            self._is_running = True
+
+    async def stop(self) -> None:
+        async with self._lock:
+            for serial, srv in list(self.servers.items()):
+                try:
+                    srv.close()
+                    await srv.wait_closed()
+                except Exception as ex:  # noqa: BLE001
+                    logger.debug('Error closing probe server for CA %s: %s', serial, ex)
+            self.servers.clear()
+            self.ports.clear()
+            self._is_running = False
+
+    async def restart(self) -> None:
+        await self.stop()
+        await self.start()
+
+    async def get_probe_endpoints(self, external_hostname: str | None = None) -> list[dict[str, Any]]:
+        """Return probe endpoints for active and standby CAs."""
+        cas = await get_expected_cas()
+        endpoints = []
+        base_port = settings.ca.trust_probe_base_port
+        fallback_host = str(settings.external_url.host) if (settings.external_url and settings.external_url.host) else 'localhost'
+        effective_host = (external_hostname or fallback_host).strip()
+
+        for idx, ca in enumerate(cas):
+            serial = ca['serial_number']
+            port = self.ports.get(serial, base_port + idx)
+            is_running = serial in self.servers
+            endpoints.append(
+                {
+                    'ca_serial': serial,
+                    'cn': ca.get('cn', ''),
+                    'active': bool(ca.get('active', False)),
+                    'port': port,
+                    'is_running': is_running,
+                    'probe_url': f'https://{effective_host}:{port}/probe',
+                }
+            )
+        return endpoints
+
+
+probe_manager = CaProbeServerManager()

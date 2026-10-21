@@ -504,7 +504,10 @@
                                 <span style="font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: #f5f3ff; border: 1px solid #ede9fe; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">ACTIVE</span>
                                 {% endif %}
                             </div>
-                            <div class="ca-sub">Serial: {{ ca.serial_number[:12] }}... | Fingerprint: {{ ca.fingerprint_sha256[:20] }}...</div>
+                            <div class="ca-sub">
+                                Serial: {{ ca.serial_number[:12] }}... | Fingerprint: {{ ca.fingerprint_sha256[:20] }}...
+                                <span id="probe_badge_{{ ca.serial_number }}" style="font-weight: 600; color: #7c3aed; margin-left: 4px;"></span>
+                            </div>
                         </div>
                     </div>
                     <div>
@@ -567,6 +570,7 @@
 <script>
 (function() {
     const rawCas = {{ cas_json | safe }};
+    const initialProbeEndpoints = {{ probe_endpoints_json | safe if probe_endpoints_json is defined else '[]' }};
     const endpointId = "{{ endpoint_id or '' }}";
     const clientIp = "{{ client_ip }}";
 
@@ -675,39 +679,79 @@
         const feedbackText = document.getElementById('feedbackText');
 
         feedbackBox.className = 'info-box info';
-        feedbackText.innerText = 'Testing TLS trust connection against Certificate Authority...';
+        feedbackText.innerText = 'Testing TLS trust connection against Certificate Authorities on dedicated probe ports...';
+
+        // 1. Fetch updated probe endpoints configuration
+        let probeEndpoints = initialProbeEndpoints || [];
+        try {
+            const epRes = await fetch('/ca-trust/api/probe-endpoints', {
+                method: 'GET',
+                cache: 'no-store'
+            });
+            if (epRes.ok) {
+                const epData = await epRes.json();
+                if (epData && epData.endpoints && epData.endpoints.length > 0) {
+                    probeEndpoints = epData.endpoints;
+                }
+            }
+        } catch (e) {
+            console.debug('Failed to refresh probe endpoints, using preloaded config:', e);
+        }
+
+        const probeMap = {};
+        for (const ep of probeEndpoints) {
+            probeMap[ep.ca_serial] = ep;
+        }
 
         const results = [];
         let anyUntrusted = false;
+        let successfulHandshakes = 0;
+        let attemptedProbes = 0;
 
         for (const ca of rawCas) {
             const serial = ca.serial_number;
             const iconEl = document.getElementById(`icon_${serial}`);
             const pillEl = document.getElementById(`pill_${serial}`);
             const cardEl = document.getElementById(`card_${serial}`);
+            const badgeEl = document.getElementById(`probe_badge_${serial}`);
 
             let isTrusted = false;
             let details = '';
 
-            try {
-                // If running over HTTPS, probe /ca-trust/api/probe-active
-                // If the probe succeeds over HTTPS, the active CA is proven trusted!
-                const res = await fetch('/ca-trust/api/probe-active', {
-                    method: 'GET',
-                    cache: 'no-store',
-                    credentials: 'omit'
-                });
+            const ep = probeMap[serial];
+            const port = ep ? ep.port : null;
+            if (badgeEl && port) {
+                badgeEl.innerText = `[Port ${port}]`;
+            }
 
-                if (res.ok) {
-                    isTrusted = true;
-                    details = 'Verified via browser TLS handshake';
-                } else {
+            if (port) {
+                attemptedProbes++;
+                // Target URL uses current browser hostname to respect reverse proxy / local hostnames
+                const probeUrl = `https://${window.location.hostname}:${port}/probe`;
+
+                try {
+                    const res = await fetch(probeUrl, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        credentials: 'omit',
+                        mode: 'cors'
+                    });
+
+                    if (res.ok) {
+                        isTrusted = true;
+                        successfulHandshakes++;
+                        details = `Verified via TLS handshake on port ${port}`;
+                    } else {
+                        isTrusted = false;
+                        details = `Probe on port ${port} returned HTTP ${res.status}`;
+                    }
+                } catch (err) {
                     isTrusted = false;
-                    details = `Probe returned status ${res.status}`;
+                    details = `TLS handshake rejected on port ${port} (Untrusted CA or port unreachable)`;
                 }
-            } catch (err) {
+            } else {
                 isTrusted = false;
-                details = `TLS handshake rejected: ${err.message || 'Untrusted issuer'}`;
+                details = 'No dedicated probe port available for this CA';
             }
 
             if (isTrusted) {
@@ -735,11 +779,15 @@
         // Update overall feedback box
         if (!anyUntrusted) {
             feedbackBox.className = 'info-box success';
-            feedbackText.innerHTML = '<strong>Success!</strong> This device trusts your Certificate Authority. All internal encrypted connections are secure.';
+            feedbackText.innerHTML = '<strong>Success!</strong> This device trusts all required Certificate Authorities. All internal encrypted connections are secure.';
             updateRemediation(true);
         } else {
             feedbackBox.className = 'info-box warning';
-            feedbackText.innerHTML = '<strong>Action Required:</strong> The Root CA certificate is not yet trusted by this device. Follow the installation steps below.';
+            if (successfulHandshakes === 0 && attemptedProbes > 0) {
+                feedbackText.innerHTML = '<strong>Action Required:</strong> One or more Root CAs are not trusted. <em>Note: If your network restricts custom TCP ports (9443–9450), verify firewall rules or run the CLI probe script.</em>';
+            } else {
+                feedbackText.innerHTML = '<strong>Action Required:</strong> The Root CA certificate is not yet trusted by this device. Follow the installation steps below.';
+            }
             updateRemediation(false);
         }
 

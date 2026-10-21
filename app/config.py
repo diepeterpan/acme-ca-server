@@ -36,6 +36,9 @@ class CaSettings(BaseSettings):
     cert_cdp_enabled: bool = True
     encryption_key: SecretStr | None = None  # encryption of private keys in database
     import_dir: Path = '/import'  # type: ignore[assignment]
+    trust_probe_enabled: bool = True
+    trust_probe_base_port: int = 9443
+    trust_probe_host: str = '0.0.0.0'  # noqa: S104
 
     model_config = SettingsConfigDict(env_prefix='ca_', secrets_dir='/run/secrets')
 
@@ -51,6 +54,8 @@ class CaSettings(BaseSettings):
                 raise ValueError('Cert lifetime for internal CA must be at least one day, not: ' + str(self.cert_lifetime))
             if self.crl_lifetime.days < 1:
                 raise ValueError('CRL lifetime for internal CA must be at least one day, not: ' + str(self.crl_lifetime))
+            if self.trust_probe_enabled and (self.trust_probe_base_port < 1024 or self.trust_probe_base_port > 65530):
+                raise ValueError('Trust probe base port must be between 1024 and 65530, not: ' + str(self.trust_probe_base_port))
         return self
 
 
