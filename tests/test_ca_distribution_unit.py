@@ -91,11 +91,17 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         win_readme = dist.generate_readme('TestCA_2026', 'windows', 'Test Root CA', 'DEADBEEF')
         self.assertIn('certutil -addstore', win_readme)
         self.assertIn('Import-Certificate', win_readme)
+        self.assertIn('probe.ps1', win_readme)
+        self.assertIn('certutil -verifystore', win_readme)
+        self.assertIn('Get-ChildItem Cert:\\LocalMachine\\Root', win_readme)
+        self.assertNotIn('sudo bash', win_readme)
+        self.assertNotIn('probe.sh', win_readme)
 
         # macOS
         mac_readme = dist.generate_readme('TestCA_2026', 'macos', 'Test Root CA', 'DEADBEEF')
         self.assertIn('security add-trusted-cert', mac_readme)
         self.assertIn('System.keychain', mac_readme)
+        self.assertIn('probe.sh', mac_readme)
 
     async def test_email_endpoint_validation(self):
         ok, msg = await dist.test_email_endpoint([])

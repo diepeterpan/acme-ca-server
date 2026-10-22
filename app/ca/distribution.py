@@ -159,6 +159,26 @@ Option 2: Using Wget
 ================================================================================
 """
 
+    windows_verify_section = f"""[AUTOMATED TRUST VERIFICATION & FLEET AUDITING]
+After completing the installation above, verify that this system trusts
+the newly installed CA certificate by running the automated audit probe:
+
+Option 1: Using PowerShell (Automated Fleet Audit)
+   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+
+Option 2: Using Command Prompt / cmd.exe (Automated Fleet Audit)
+   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+
+Option 3: Local CLI Verification (Built-in Tools - No Remote Probe)
+   certutil -verifystore Root "{serial}"
+   -or-
+   powershell -Command "Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ $_.SerialNumber -eq '{serial}' }}"
+
+Option 4: Interactive Web Browser Verification
+   {ext_url}/ca-trust/verify{probe_param}
+================================================================================
+"""
+
     if os_target == 'linux':
         return f"""{header}
 [DEBIAN / UBUNTU / LINUX MINT]
@@ -218,7 +238,7 @@ Option C: Graphical Interface (Certmgr)
    5. Select 'Place all certificates in the following store: Trusted Root Certification Authorities'.
    6. Click Finish.
 ================================================================================
-{verify_section}"""
+{windows_verify_section}"""
 
     if os_target == 'macos':
         return f"""{header}

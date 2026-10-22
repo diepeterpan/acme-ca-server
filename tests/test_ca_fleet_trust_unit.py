@@ -34,6 +34,18 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('-fingerprint -sha256', script)
         self.assertIn('OVERALL FLEET STATUS', script)
 
+    def test_powershell_probe_script_generation(self):
+        script = fleet_trust.generate_powershell_probe_script('https://ca.example.com', endpoint_name='WinServer01', endpoint_id='ep-win-1')
+        self.assertIn('$ServerUrl = "https://ca.example.com"', script)
+        self.assertIn('$EndpointName = "WinServer01"', script)
+        self.assertIn('$EndpointId = "ep-win-1"', script)
+        self.assertIn('/ca-trust/api/cas', script)
+        self.assertIn('/ca-trust/api/report', script)
+        self.assertIn('Cert:\\LocalMachine\\Root', script)
+        self.assertIn('Cert:\\CurrentUser\\Root', script)
+        self.assertIn('Invoke-RestMethod', script)
+        self.assertIn('OVERALL FLEET STATUS', script)
+
     def test_public_probe_script_endpoint(self):
         from config import settings
 
@@ -42,6 +54,16 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(res.status_code, 200)
             self.assertIn('text/plain', res.headers.get('content-type', ''))
             self.assertIn(f'SERVER_URL="{str(settings.external_url).rstrip("/")}"', res.text)
+
+    def test_public_probe_powershell_endpoint(self):
+        from config import settings
+
+        with mock.patch('ca.distribution.find_endpoint_by_host_or_name', new=mock.AsyncMock(return_value=None)):
+            res = self.client.get('/ca-trust/probe.ps1')
+            self.assertEqual(res.status_code, 200)
+            self.assertIn('text/plain', res.headers.get('content-type', ''))
+            self.assertIn(f'$ServerUrl = "{str(settings.external_url).rstrip("/")}"', res.text)
+            self.assertIn('Cert:\\LocalMachine\\Root', res.text)
 
     def test_public_probe_active_endpoint(self):
         mock_stats = fleet_trust.ComplianceStats(

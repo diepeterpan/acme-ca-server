@@ -2283,6 +2283,34 @@ async def ca_trust_probe_script(request: Request, endpoint_id: str | None = None
     return Response(content=script, media_type='text/plain; charset=utf-8')
 
 
+@api.get('/ca-trust/probe.ps1')
+async def ca_trust_probe_powershell_script(request: Request, endpoint_id: str | None = None):
+    """Return dynamic, zero-dependency Windows PowerShell probe script for fleet trust verification."""
+    client_ip = request.client.host if request.client else '127.0.0.1'
+    forwarded = request.headers.get('x-forwarded-for')
+    if forwarded:
+        client_ip = forwarded.split(',')[0].strip()
+
+    endpoint_name = None
+    if endpoint_id:
+        ep = await ca_distribution.get_endpoint(endpoint_id)
+        if ep:
+            endpoint_name = ep.name
+    else:
+        # Auto-match endpoint by client IP if endpoint_id was not explicitly specified
+        ep = await ca_distribution.find_endpoint_by_host_or_name(client_ip)
+        if ep:
+            endpoint_id = ep.id
+            endpoint_name = ep.name
+
+    script = ca_fleet_trust.generate_powershell_probe_script(
+        str(settings.external_url),
+        endpoint_name=endpoint_name,
+        endpoint_id=endpoint_id,
+    )
+    return Response(content=script, media_type='text/plain; charset=utf-8')
+
+
 @api.get('/ca-trust/api/cas')
 async def ca_trust_api_cas():
     """Return list of active and known CA certificates for client verification."""

@@ -792,6 +792,233 @@ printf "\\033[1;35m=============================================================
 """
 
 
+def generate_powershell_probe_script(
+    external_url: str,
+    endpoint_name: str | None = None,
+    endpoint_id: str | None = None,
+) -> str:
+    """Generate dynamic Windows PowerShell probe script for client trust store verification and telemetry reporting."""
+    clean_url = external_url.rstrip('/')
+    clean_ep_name = (endpoint_name or '').replace('"', '').replace("'", '').strip()
+    clean_ep_id = (endpoint_id or '').replace('"', '').replace("'", '').strip()
+
+    return f"""# ==============================================================================
+#  ACME CA SERVER - FLEET TRUST AUDIT PROBE SCRIPT (WINDOWS POWERSHELL)
+#  Automatic System CA Trust Store Verification & Fleet Telemetry Ingestion
+# ==============================================================================
+$ErrorActionPreference = 'Stop'
+
+# Configure TLS 1.2+ support for older Windows PowerShell 5.1 / .NET runtimes
+try {{
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+}} catch {{
+    try {{
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    }} catch {{}}
+}}
+
+$ServerUrl = "{clean_url}"
+$EndpointName = "{clean_ep_name}"
+$EndpointId = "{clean_ep_id}"
+$Timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'")
+
+# 1. Detect Hostname & FQDN
+$ShortHost = $env:COMPUTERNAME
+$RawFqdn = ""
+try {{
+    $RawFqdn = [System.Net.Dns]::GetHostByName($env:COMPUTERNAME).HostName
+}} catch {{
+    $RawFqdn = $env:COMPUTERNAME
+}}
+
+# 2. Detect Windows Version & Product Type
+$OsType = "windows"
+$OsDetail = "Microsoft Windows"
+$DeviceType = "workstation"
+
+try {{
+    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+    if (-not $osInfo) {{
+        $osInfo = Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue
+    }}
+    if ($osInfo) {{
+        $caption = $osInfo.Caption
+        $version = $osInfo.Version
+        $OsDetail = "$caption (Build $version)"
+        if ($osInfo.ProductType -eq 2 -or $osInfo.ProductType -eq 3) {{
+            $DeviceType = "server"
+        }}
+    }}
+}} catch {{
+    $OsDetail = [System.Environment]::OSVersion.VersionString
+}}
+
+# 3. Detect Primary IP
+$IpAddr = "127.0.0.1"
+try {{
+    $ips = [System.Net.Dns]::GetHostAddresses($env:COMPUTERNAME) |
+           Where-Object {{ $_.AddressFamily -eq 'InterNetwork' -and -not [System.Net.IPAddress]::IsLoopback($_) }}
+    if ($ips) {{
+        $IpAddr = $ips[0].IPAddressToString
+    }}
+}} catch {{}}
+
+# Determine Host Identifier and Device Name
+if ($RawFqdn -and $RawFqdn.Contains(".")) {{
+    $HostIdentifier = $RawFqdn
+    $DeviceName = $RawFqdn.Split(".")[0]
+}} else {{
+    $HostIdentifier = $IpAddr
+    if ($EndpointName) {{
+        $DeviceName = $EndpointName
+    }} else {{
+        $DeviceName = $ShortHost
+    }}
+}}
+
+# Visual Header
+Write-Host "================================================================================" -ForegroundColor Magenta
+Write-Host "  ACME CA SERVER - FLEET TRUST AUDIT PROBE v1.0 (WINDOWS POWERSHELL)" -ForegroundColor White
+Write-Host "================================================================================" -ForegroundColor Magenta
+Write-Host "  Device Name      : $DeviceName"
+Write-Host "  Hostname/IP      : $HostIdentifier"
+Write-Host "  Operating System : $OsDetail"
+Write-Host "  Device Type      : $DeviceType"
+Write-Host "  Audit Timestamp  : $Timestamp"
+Write-Host "================================================================================" -ForegroundColor Magenta
+
+Write-Host "[*] Contacting ACME CA Server at $ServerUrl..."
+
+# Fetch list of CAs from server
+$CasApiUrl = "$ServerUrl/ca-trust/api/cas"
+try {{
+    $Cas = Invoke-RestMethod -Uri $CasApiUrl -Method Get -UseBasicParsing
+}} catch {{
+    Write-Host "[-] Error: Failed to retrieve CA certificates from ACME server: $_" -ForegroundColor Red
+    exit 1
+}}
+
+# Retrieve all certificates from Local Machine Root and Current User Root stores
+$LocalMachineCerts = @()
+$CurrentUserCerts = @()
+try {{
+    if (Test-Path "Cert:\\LocalMachine\\Root") {{
+        $LocalMachineCerts = @(Get-ChildItem -Path "Cert:\\LocalMachine\\Root" -Recurse -ErrorAction SilentlyContinue)
+    }}
+}} catch {{}}
+try {{
+    if (Test-Path "Cert:\\CurrentUser\\Root") {{
+        $CurrentUserCerts = @(Get-ChildItem -Path "Cert:\\CurrentUser\\Root" -Recurse -ErrorAction SilentlyContinue)
+    }}
+}} catch {{}}
+
+$TotalCas = 0
+$TrustedCas = 0
+$Results = [System.Collections.ArrayList]::new()
+
+foreach ($ca in $Cas) {{
+    $TotalCas++
+    $caSerial = [string]$ca.serial_number
+    $caCn = [string]$ca.cn
+    $caFpRaw = ([string]$ca.fingerprint_sha256_raw).ToUpper().Trim()
+
+    $isTrusted = $false
+    $details = "Certificate not found in Windows Root Certificate Store"
+
+    $normSerial = $caSerial.Replace(" ", "").Replace(":", "").ToUpper()
+
+    # Check LocalMachine Root
+    foreach ($cert in $LocalMachineCerts) {{
+        $certThumb = ($cert.Thumbprint -replace " ", "").ToUpper()
+        $certSerial = ($cert.SerialNumber -replace " ", "").ToUpper()
+
+        if ($caFpRaw -and ($certThumb -eq $caFpRaw)) {{
+            $isTrusted = $true
+            $details = "Verified by SHA-256 in Cert:\\LocalMachine\\Root"
+            break
+        }}
+        if ($normSerial -and ($certSerial -eq $normSerial)) {{
+            $isTrusted = $true
+            $details = "Verified by serial in Cert:\\LocalMachine\\Root"
+            break
+        }}
+    }}
+
+    # Fallback check in CurrentUser Root
+    if (-not $isTrusted) {{
+        foreach ($cert in $CurrentUserCerts) {{
+            $certThumb = ($cert.Thumbprint -replace " ", "").ToUpper()
+            $certSerial = ($cert.SerialNumber -replace " ", "").ToUpper()
+
+            if ($caFpRaw -and ($certThumb -eq $caFpRaw)) {{
+                $isTrusted = $true
+                $details = "Verified by SHA-256 in Cert:\\CurrentUser\\Root"
+                break
+            }}
+            if ($normSerial -and ($certSerial -eq $normSerial)) {{
+                $isTrusted = $true
+                $details = "Verified by serial in Cert:\\CurrentUser\\Root"
+                break
+            }}
+        }}
+    }}
+
+    Write-Host ""
+    Write-Host "[+] Checking CA: $caCn (Serial: $caSerial)"
+    if ($isTrusted) {{
+        $TrustedCas++
+        Write-Host "    Status: [ COMPLIANT - TRUSTED ] ($details)" -ForegroundColor Green
+    }} else {{
+        Write-Host "    Status: [ ERROR - NOT TRUSTED / MISSING ]" -ForegroundColor Red
+        Write-Host "    Action: Please install and trust certificate in Cert:\\LocalMachine\\Root." -ForegroundColor Yellow
+    }}
+
+    [void]$Results.Add(@{{
+        ca_serial = $caSerial
+        is_trusted = $isTrusted
+        details = $details
+    }})
+}}
+
+# Transmit Telemetry
+Write-Host ""
+Write-Host "--------------------------------------------------------------------------------"
+Write-Host "[*] Transmitting audit telemetry to ACME CA Server... " -NoNewline
+
+$epVal = if ($EndpointId) {{ $EndpointId }} else {{ $null }}
+$ReportPayload = @{{
+    device_name = $DeviceName
+    device_type = $DeviceType
+    os = $OsType
+    os_detail = $OsDetail
+    ip_address = $HostIdentifier
+    endpoint_id = $epVal
+    verification_method = "cli_probe"
+    results = $Results
+}}
+
+$ReportJson = $ReportPayload | ConvertTo-Json -Depth 5 -Compress
+$ReportApiUrl = "$ServerUrl/ca-trust/api/report"
+
+try {{
+    $res = Invoke-RestMethod -Uri $ReportApiUrl -Method Post -Body $ReportJson -ContentType "application/json" -UseBasicParsing
+    Write-Host "OK (Recorded in database)" -ForegroundColor Green
+}} catch {{
+    Write-Host "Warning: Telemetry failed to store: $_" -ForegroundColor Yellow
+}}
+
+Write-Host "================================================================================" -ForegroundColor Magenta
+if ($TrustedCas -eq $TotalCas -and $TotalCas -gt 0) {{
+    Write-Host "[✓] OVERALL FLEET STATUS: COMPLIANT ($TrustedCas/$TotalCas CAs trusted)" -ForegroundColor Green
+}} elseif ($TrustedCas -gt 0) {{
+    Write-Host "[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE ($TrustedCas/$TotalCas CAs trusted - Action Required)" -ForegroundColor Yellow
+}} else {{
+    Write-Host "[✗] OVERALL FLEET STATUS: NON-COMPLIANT / UNTRUSTED (0/$TotalCas CAs trusted)" -ForegroundColor Red
+}}
+Write-Host "================================================================================" -ForegroundColor Magenta
+"""
+
+
 def resolve_endpoint_device_name(endpoint: Any, host: str) -> str:
     """Determine friendly device label from endpoint or hostname prefix."""
     dev_name = (endpoint.name or '').strip()

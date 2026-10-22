@@ -1084,10 +1084,17 @@
                             </td>
                             <td style="text-align: right;">
                                 <div class="actions-cell" style="justify-content: flex-end;">
-                                    <button type="button" class="btn-act" onclick="copyText('curl -sSL {{ external_url }}/ca-trust/probe.sh?endpoint_id={{ ep.id }} | sudo bash', this)" title="Copy CLI probe command for this endpoint">
+                                    {% if ep.detected_os == 'windows' %}
+                                    <button type="button" class="btn-act" data-probe-cmd="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Invoke-Expression (Invoke-RestMethod -Uri '{{ external_url }}/ca-trust/probe.ps1?endpoint_id={{ ep.id }}')&quot;" onclick="copyText(this.getAttribute('data-probe-cmd'), this)" title="Copy Windows PowerShell probe command for this endpoint">
                                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
                                         Probe
                                     </button>
+                                    {% else %}
+                                    <button type="button" class="btn-act" data-probe-cmd="curl -sSL {{ external_url }}/ca-trust/probe.sh?endpoint_id={{ ep.id }} | sudo bash" onclick="copyText(this.getAttribute('data-probe-cmd'), this)" title="Copy CLI probe command for this endpoint">
+                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                                        Probe
+                                    </button>
+                                    {% endif %}
                                     <button type="button" class="btn-act" onclick="testEndpoint('{{ ep.id }}', this)" title="Test connection and identify OS">
                                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                                         Test
