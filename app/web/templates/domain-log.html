@@ -45,8 +45,8 @@
         background: var(--bg-card);
         border: 1px solid var(--border-card);
         border-radius: var(--radius-lg);
-        padding: 0.85rem 1.25rem;
-        margin-bottom: 1rem;
+        padding: 0.60rem 1rem;
+        margin-bottom: 0.65rem;
         box-shadow: var(--shadow-sm);
         display: flex;
         align-items: center;
@@ -123,60 +123,8 @@
         box-shadow: var(--shadow-sm);
     }
 
-    /* Table Design */
-    .table-container {
-        background: var(--bg-card);
-        border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md);
-        overflow-x: auto;
-    }
 
-    table.domain-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-        font-size: var(--font-size-table, 12px);
-    }
 
-    table.domain-table th {
-        background-color: #faf5ff;
-        color: var(--text-heading);
-        font-weight: 600;
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        white-space: nowrap;
-        font-size: var(--font-size-table-header, 12px);
-    }
-
-    table.domain-table th:first-child,
-    table.domain-table td:first-child {
-        padding-left: 0.75rem;
-    }
-
-    table.domain-table th:last-child,
-    table.domain-table td:last-child {
-        padding-right: 0.75rem;
-    }
-
-    table.domain-table td {
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-        font-size: var(--font-size-table, 12px);
-    }
-
-    table.domain-table tbody tr {
-        transition: background-color 0.15s ease;
-    }
-
-    table.domain-table tbody tr:hover {
-        background-color: #fbf9ff;
-    }
-
-    table.domain-table tbody tr:last-child td {
-        border-bottom: none;
-    }
 
     /* Badges */
     .badge {
@@ -431,10 +379,13 @@
         <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search domain name..." autocomplete="off">
     </form>
 
-    <div class="filter-tabs">
-        <a href="/domains?domainstatus=all&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'all' else '' }}">All</a>
-        <a href="/domains?domainstatus=valid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'valid' else '' }}">Valid</a>
-        <a href="/domains?domainstatus=invalid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'invalid' else '' }}">Invalid</a>
+    <div class="filter-actions-group">
+        <div class="filter-tabs">
+            <a href="/domains?domainstatus=all&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'all' else '' }}">All</a>
+            <a href="/domains?domainstatus=valid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'valid' else '' }}">Valid</a>
+            <a href="/domains?domainstatus=invalid&domainfilter={{domainfilter}}" class="filter-tab {{ 'active' if domainstatus == 'invalid' else '' }}">Invalid</a>
+        </div>
+        <div class="table-toolbar-mount"></div>
     </div>
 </div>
 

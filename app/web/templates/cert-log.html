@@ -34,8 +34,8 @@
         background: var(--bg-card);
         border: 1px solid var(--border-card);
         border-radius: var(--radius-lg);
-        padding: 0.85rem 1.25rem;
-        margin-bottom: 1rem;
+        padding: 0.60rem 1rem;
+        margin-bottom: 0.65rem;
         box-shadow: var(--shadow-sm);
         display: flex;
         align-items: center;
@@ -112,57 +112,13 @@
         box-shadow: var(--shadow-sm);
     }
 
-    /* Table Design */
-    .table-container {
-        background: var(--bg-card);
-        border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md);
-        overflow-x: auto;
-    }
-
-    table.cert-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-        font-size: var(--font-size-table, 12px);
-    }
-
-    table.cert-table th {
-        background-color: #faf5ff;
-        color: var(--text-heading);
-        font-weight: 600;
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        white-space: nowrap;
-        font-size: var(--font-size-table-header, 12px);
-    }
-
-    table.cert-table th:first-child,
-    table.cert-table td:first-child {
-        padding-left: 0.75rem;
-    }
-
-    table.cert-table th:last-child,
-    table.cert-table td:last-child {
-        padding-right: 0.75rem;
-    }
-
-    table.cert-table td {
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-        font-size: var(--font-size-table, 12px);
-    }
-
+    /* Table Cell Specific Overrides */
     .cell-issue-date {
         white-space: nowrap !important;
-        min-width: 130px;
     }
 
     .cell-expiry-date {
         white-space: nowrap !important;
-        min-width: 215px;
     }
 
     .expiry-date-cell {
@@ -176,18 +132,6 @@
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
         font-size: 12px;
-    }
-
-    table.cert-table tbody tr {
-        transition: background-color 0.15s ease;
-    }
-
-    table.cert-table tbody tr:hover {
-        background-color: #fbf9ff;
-    }
-
-    table.cert-table tbody tr:last-child td {
-        border-bottom: none;
     }
 
     /* Badges */
@@ -1131,12 +1075,15 @@
     <input type="hidden" name="account_id" value="{{account_id}}">
     {% endif %}
 
-    <div class="filter-tabs">
-        <a href="?domainfilter={{domainfilter}}&certstatus=all{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=valid{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'valid' %}active{% endif %}">Valid</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=expiring{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expiring' %}active{% endif %}">Expiring</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=revoked{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'revoked' %}active{% endif %}">Revoked</a>
-        <a href="?domainfilter={{domainfilter}}&certstatus=expired{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expired' %}active{% endif %}">Expired</a>
+    <div class="filter-actions-group">
+        <div class="filter-tabs">
+            <a href="?domainfilter={{domainfilter}}&certstatus=all{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'all' %}active{% endif %}">All</a>
+            <a href="?domainfilter={{domainfilter}}&certstatus=valid{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'valid' %}active{% endif %}">Valid</a>
+            <a href="?domainfilter={{domainfilter}}&certstatus=expiring{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expiring' %}active{% endif %}">Expiring</a>
+            <a href="?domainfilter={{domainfilter}}&certstatus=revoked{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'revoked' %}active{% endif %}">Revoked</a>
+            <a href="?domainfilter={{domainfilter}}&certstatus=expired{% if account_id %}&account_id={{account_id}}{% endif %}" class="filter-tab {% if certstatus == 'expired' %}active{% endif %}">Expired</a>
+        </div>
+        <div class="table-toolbar-mount"></div>
     </div>
 </form>
 

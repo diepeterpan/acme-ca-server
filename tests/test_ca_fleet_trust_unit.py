@@ -297,9 +297,9 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertIn('Debian 12', res.text)
             # Verify renamed column headers and resizable data-table-id
             self.assertIn('data-table-id="ca-fleet-table"', res.text)
-            self.assertIn('<th>Endpoint / Device name</th>', res.text)
-            self.assertIn('<th>Hostname/IP Address</th>', res.text)
-            self.assertIn('<th>CA Trust</th>', res.text)
+            self.assertIn('Endpoint / Device name</th>', res.text)
+            self.assertIn('Hostname/IP Address</th>', res.text)
+            self.assertIn('CA Trust</th>', res.text)
             # Verify delete confirmation dialog on veil backdrop
             self.assertIn('id="delete-audit-dialog"', res.text)
             self.assertIn('openDeleteAuditModal', res.text)

@@ -51,6 +51,13 @@
             --radius-pill: 9999px;
             --font-size-table: 12px;
             --font-size-table-header: 12px;
+            --table-cell-padding-y: 0.28rem;
+            --table-cell-padding-x: 0.40rem;
+            --table-cell-padding-edge: 0.50rem;
+            --table-header-bg: #faf5ff;
+            --table-header-hover: #f3e8ff;
+            --table-row-hover: #fbf9ff;
+            --table-border-color: #f1f5f9;
         }
 
         * {
@@ -253,6 +260,34 @@
             max-width: 1560px;
             margin: 1.25rem auto;
             padding: 0 0.75rem 2rem 0.75rem;
+        }
+
+        /* Prevent redundant outer page scrollbar ONLY on dedicated single-grid screens */
+        html:has(body.grid-viewport-lock),
+        body.grid-viewport-lock {
+            overflow-y: hidden;
+            height: 100%;
+        }
+
+        body.grid-viewport-lock .container {
+            margin: 0.75rem auto 0 auto;
+            padding: 0 0.75rem 0.5rem 0.75rem;
+        }
+
+        body.grid-viewport-lock .table-container {
+            max-height: calc(100vh - 175px);
+        }
+
+        body.grid-viewport-lock .users-card .table-container {
+            max-height: calc(100vh - 205px);
+        }
+
+        body.grid-viewport-lock .dist-card {
+            margin-bottom: 0;
+        }
+
+        body.grid-viewport-lock .dist-card .table-container {
+            max-height: calc(100vh - 195px);
         }
 
         /* Flash message banner */
@@ -491,10 +526,179 @@
             margin: 0.3rem 0;
         }
 
+        /* Standard Data Table Architecture */
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            overflow: auto;
+            max-height: calc(100vh - 175px);
+            position: relative;
+        }
+
+        /* Embedded Table Containers in Cards (e.g. CA Distribution, Users) */
+        .dist-card .table-container,
+        .users-card .table-container {
+            border: none;
+            box-shadow: none;
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            max-height: calc(100vh - 205px);
+        }
+
+        table.data-table,
+        table.cert-table,
+        table.account-table,
+        table.domain-table,
+        table.users-table,
+        table.fleet-table,
+        table.dist-table,
+        table.ca-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: var(--font-size-table, 12px);
+        }
+
+        table.table-layout-fixed,
+        table.cert-table.table-layout-fixed,
+        table.account-table.table-layout-fixed,
+        table.domain-table.table-layout-fixed,
+        table.users-table.table-layout-fixed,
+        table.fleet-table.table-layout-fixed,
+        table.dist-table.table-layout-fixed,
+        table.ca-table.table-layout-fixed {
+            table-layout: fixed !important;
+        }
+
+        table.data-table th,
+        table.cert-table th,
+        table.account-table th,
+        table.domain-table th,
+        table.users-table th,
+        table.fleet-table th,
+        table.dist-table th,
+        table.ca-table th {
+            background-color: var(--table-header-bg, #faf5ff);
+            color: var(--text-heading);
+            font-weight: 600;
+            padding: var(--table-cell-padding-y, 0.28rem) var(--table-cell-padding-x, 0.40rem);
+            border-bottom: 1px solid var(--table-border-color, #f1f5f9);
+            white-space: nowrap;
+            font-size: var(--font-size-table-header, 12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-clip: padding-box;
+            box-shadow: inset 0 -1px 0 var(--table-border-color, #e2e8f0);
+        }
+
+        table.data-table th:first-child,
+        table.data-table td:first-child,
+        table.cert-table th:first-child,
+        table.cert-table td:first-child,
+        table.account-table th:first-child,
+        table.account-table td:first-child,
+        table.domain-table th:first-child,
+        table.domain-table td:first-child,
+        table.users-table th:first-child,
+        table.users-table td:first-child,
+        table.fleet-table th:first-child,
+        table.fleet-table td:first-child,
+        table.dist-table th:first-child,
+        table.dist-table td:first-child,
+        table.ca-table th:first-child,
+        table.ca-table td:first-child {
+            padding-left: var(--table-cell-padding-edge, 0.50rem);
+        }
+
+        table.data-table th:last-child,
+        table.data-table td:last-child,
+        table.cert-table th:last-child,
+        table.cert-table td:last-child,
+        table.account-table th:last-child,
+        table.account-table td:last-child,
+        table.domain-table th:last-child,
+        table.domain-table td:last-child,
+        table.users-table th:last-child,
+        table.users-table td:last-child,
+        table.fleet-table th:last-child,
+        table.fleet-table td:last-child,
+        table.dist-table th:last-child,
+        table.dist-table td:last-child,
+        table.ca-table th:last-child,
+        table.ca-table td:last-child {
+            padding-right: var(--table-cell-padding-edge, 0.50rem);
+        }
+
+        table.data-table td,
+        table.cert-table td,
+        table.account-table td,
+        table.domain-table td,
+        table.users-table td,
+        table.fleet-table td,
+        table.dist-table td,
+        table.ca-table td {
+            padding: var(--table-cell-padding-y, 0.28rem) var(--table-cell-padding-x, 0.40rem);
+            border-bottom: 1px solid var(--table-border-color, #f1f5f9);
+            vertical-align: middle;
+            font-size: var(--font-size-table, 12px);
+        }
+
+        /* Fixed Layout Cell Truncation for Sub-Content Resizing */
+        table.table-layout-fixed td,
+        .cell-truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        table.table-layout-fixed td > span,
+        table.table-layout-fixed td > code,
+        table.table-layout-fixed td > a {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        table.data-table tbody tr,
+        table.cert-table tbody tr,
+        table.account-table tbody tr,
+        table.domain-table tbody tr,
+        table.users-table tbody tr,
+        table.fleet-table tbody tr,
+        table.dist-table tbody tr,
+        table.ca-table tbody tr {
+            transition: background-color 0.15s ease;
+        }
+
+        table.data-table tbody tr:hover,
+        table.cert-table tbody tr:hover,
+        table.account-table tbody tr:hover,
+        table.domain-table tbody tr:hover,
+        table.users-table tbody tr:hover,
+        table.fleet-table tbody tr:hover,
+        table.dist-table tbody tr:hover,
+        table.ca-table tbody tr:hover {
+            background-color: var(--table-row-hover, #fbf9ff);
+        }
+
+        table.data-table tbody tr:last-child td,
+        table.cert-table tbody tr:last-child td,
+        table.account-table tbody tr:last-child td,
+        table.domain-table tbody tr:last-child td,
+        table.users-table tbody tr:last-child td,
+        table.fleet-table tbody tr:last-child td,
+        table.dist-table tbody tr:last-child td,
+        table.ca-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
         /* Sortable & Resizable Table Enhancements */
         th.sortable-th,
         th.th-no-sort {
-            position: relative;
             user-select: none;
         }
 
@@ -504,16 +708,19 @@
         }
 
         th.sortable-th:hover {
-            background-color: #f3e8ff !important;
+            background-color: var(--table-header-hover, #f3e8ff) !important;
             color: var(--primary) !important;
         }
 
         .th-content-wrapper {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 0.4rem;
-            width: calc(100% - 10px);
-            max-width: 100%;
+            justify-content: space-between;
+            gap: 0.35rem;
+            width: 100%;
+            box-sizing: border-box;
+            padding-right: 4px; /* Eliminates the wasted space before resizer */
+            min-width: 0;
         }
 
         .th-title {
@@ -521,15 +728,17 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            min-width: 0;
         }
 
         .sort-icon-badge {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             flex-shrink: 0;
+            margin-left: auto; /* Right-aligned cleanly near divider */
             color: #94a3b8;
             transition: color 0.15s ease, transform 0.15s ease;
         }
@@ -539,8 +748,8 @@
         }
 
         .sort-icon-svg {
-            width: 14px;
-            height: 14px;
+            width: 13px;
+            height: 13px;
             fill: currentColor;
         }
 
@@ -554,12 +763,12 @@
             position: absolute;
             top: 0;
             right: 0;
-            width: 9px;
+            width: 7px;
             height: 100%;
             cursor: col-resize;
             user-select: none;
             touch-action: none;
-            z-index: 10;
+            z-index: 12;
         }
 
         .col-resizer::after {
@@ -567,7 +776,7 @@
             position: absolute;
             top: 15%;
             bottom: 15%;
-            right: 2px;
+            right: 0;
             width: 2px;
             background-color: transparent;
             border-radius: 1px;
@@ -581,7 +790,7 @@
         .col-resizer:hover::after,
         .col-resizer.active::after {
             background-color: var(--primary) !important;
-            width: 3px;
+            width: 2.5px;
         }
 
         body.table-col-resizing {
@@ -593,11 +802,152 @@
             cursor: col-resize !important;
             user-select: none !important;
         }
+
+        /* Universal Table Tooltip for Truncated Cells */
+        .table-cell-tooltip {
+            position: fixed;
+            z-index: 9999;
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 0.35rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+            pointer-events: auto;
+            max-width: 480px;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .table-cell-tooltip.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .table-cell-tooltip .tooltip-copy-btn {
+            background: rgba(255, 255, 255, 0.18);
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.70rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            transition: background 0.15s ease;
+        }
+
+        .table-cell-tooltip .tooltip-copy-btn:hover {
+            background: var(--primary);
+        }
+
+        /* Filter & Table Actions Group */
+        .filter-actions-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-left: auto;
+            flex-wrap: wrap;
+        }
+
+        /* Table Toolbar Actions (Column Visibility & Reset) */
+        .table-toolbar-mount,
+        .table-toolbar-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .btn-table-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.52rem;
+            background: #ffffff;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .btn-table-control:hover {
+            color: var(--primary);
+            border-color: var(--primary-border);
+            background: var(--primary-light);
+        }
+
+        .btn-table-control svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
+
+        .table-cols-dropdown-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .table-cols-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            background: #ffffff;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            padding: 0.5rem;
+            min-width: 180px;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .table-cols-dropdown.active {
+            display: flex;
+        }
+
+        .table-col-toggle-item {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.78rem;
+            color: var(--text-body);
+            cursor: pointer;
+            padding: 0.2rem 0.3rem;
+            border-radius: 4px;
+            transition: background-color 0.15s ease;
+        }
+
+        .table-col-toggle-item:hover {
+            background-color: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .table-col-toggle-item input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .col-hidden {
+            display: none !important;
+        }
     </style>
     {% endblock %}
 </head>
 
-<body>
+<body class="{% block body_class %}{% if request is defined and (request.url.path == '/certificates' or request.url.path == '/accounts' or request.url.path == '/domains' or request.url.path == '/users' or request.url.path.startswith('/ca-distribution')) %}grid-viewport-lock{% endif %}{% endblock %}">
     {% block navbar %}
     <header class="navbar">
         <div class="navbar-container">
@@ -687,7 +1037,6 @@
                                     <polyline points="9 12 11 14 15 10"></polyline>
                                 </svg>
                                 <span>CA Fleet Trust</span>
-                                <span class="badge-beta">Beta</span>
                             </a>
                             <div class="dropdown-divider"></div>
                             <a href="/endpoints" class="dropdown-item" target="_blank" rel="noopener noreferrer">

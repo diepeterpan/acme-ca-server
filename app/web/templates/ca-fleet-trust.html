@@ -40,6 +40,16 @@
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 1rem;
         margin-bottom: 1.75rem;
+        transition: max-height 0.3s ease, opacity 0.25s ease, margin-bottom 0.3s ease;
+        max-height: 400px;
+        overflow: hidden;
+    }
+
+    .kpi-grid.is-collapsed {
+        max-height: 0 !important;
+        opacity: 0;
+        margin-bottom: 0 !important;
+        pointer-events: none;
     }
 
     .kpi-card {
@@ -401,58 +411,12 @@
 
     .table-responsive {
         width: 100%;
-        overflow-x: auto;
+        overflow: auto;
+        max-height: 600px;
+        position: relative;
     }
 
-    table.fleet-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-        font-size: 12px;
-    }
 
-    table.fleet-table th {
-        background-color: #faf5ff;
-        color: var(--text-heading);
-        font-weight: 600;
-        padding: 0.50rem 0.65rem;
-        border-bottom: 1px solid #f1f5f9;
-        white-space: nowrap;
-        font-size: 12px;
-    }
-
-    table.fleet-table th:first-child,
-    table.fleet-table td:first-child {
-        padding-left: 0.85rem;
-    }
-
-    table.fleet-table th:last-child,
-    table.fleet-table td:last-child {
-        padding-right: 0.85rem;
-    }
-
-    table.fleet-table td {
-        padding: 0.45rem 0.65rem;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-        font-size: 12px;
-    }
-
-    table.fleet-table tbody tr {
-        transition: background-color 0.15s ease;
-    }
-
-    table.fleet-table tbody tr:hover {
-        background-color: #fbf9ff;
-    }
-
-    table.fleet-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-
-    table.fleet-table strong {
-        font-size: 12px;
-    }
 
     /* Grid Action Buttons matching system table action style */
     .actions-cell {
@@ -706,6 +670,12 @@
         <p>Real-time trust verification, OS compliance auditing, and root certificate fleet readiness</p>
     </div>
     <div class="fleet-header-actions">
+        <button type="button" class="btn btn-secondary" id="toggleKpiBtn" onclick="toggleFleetKpi()" title="Toggle KPI statistics overview">
+            <svg id="toggleKpiIcon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 5px;">
+                <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+            <span id="toggleKpiText">Hide Overview</span>
+        </button>
         <button type="button" class="btn btn-secondary" id="openCliProbeModal">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
                 <polyline points="4 17 10 11 4 5"></polyline>
@@ -833,17 +803,20 @@
 
 <!-- Audited Devices Table -->
 <div class="table-card">
+    <div style="display: flex; justify-content: flex-end; padding: 0.5rem 0.75rem 0 0;">
+        <div class="table-toolbar-mount"></div>
+    </div>
     <div class="table-responsive">
         <table class="fleet-table" data-table-id="ca-fleet-table">
             <thead>
                 <tr>
-                    <th>Endpoint / Device name</th>
-                    <th>Hostname/IP Address</th>
-                    <th>Last Audited</th>
-                    <th>Method</th>
-                    <th>CA Trust</th>
-                    <th>Compliance</th>
-                    <th style="text-align: right;">Actions</th>
+                    <th data-col-key="endpoint">Endpoint / Device name</th>
+                    <th data-col-key="host">Hostname/IP Address</th>
+                    <th data-col-key="audited">Last Audited</th>
+                    <th data-col-key="method">Method</th>
+                    <th data-col-key="trust">CA Trust</th>
+                    <th data-col-key="compliance">Compliance</th>
+                    <th data-no-sort data-col-key="actions" style="text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -1346,5 +1319,31 @@
             txt.innerText = 'Sweep All SSH Endpoints';
         }
     }
+
+    function toggleFleetKpi() {
+        const grid = document.querySelector('.kpi-grid');
+        const text = document.getElementById('toggleKpiText');
+        const icon = document.getElementById('toggleKpiIcon');
+        if (!grid) return;
+        const isCollapsed = grid.classList.toggle('is-collapsed');
+        if (text) text.textContent = isCollapsed ? 'Show Overview' : 'Hide Overview';
+        if (icon) {
+            icon.innerHTML = isCollapsed 
+                ? '<polyline points="6 9 12 15 18 9"></polyline>'
+                : '<polyline points="18 15 12 9 6 15"></polyline>';
+        }
+        try {
+            localStorage.setItem('acme_fleet_kpi_collapsed', isCollapsed ? 'true' : 'false');
+        } catch (e) {}
+    }
+
+    // Restore saved KPI collapsed state on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            if (localStorage.getItem('acme_fleet_kpi_collapsed') === 'true') {
+                toggleFleetKpi();
+            }
+        } catch (e) {}
+    });
 </script>
 {% endblock %}

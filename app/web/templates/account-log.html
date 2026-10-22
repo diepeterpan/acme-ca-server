@@ -63,8 +63,8 @@
         background: var(--bg-card);
         border: 1px solid var(--border-card);
         border-radius: var(--radius-lg);
-        padding: 0.85rem 1.25rem;
-        margin-bottom: 1rem;
+        padding: 0.60rem 1rem;
+        margin-bottom: 0.65rem;
         box-shadow: var(--shadow-sm);
         display: flex;
         align-items: center;
@@ -142,63 +142,9 @@
     }
 
     /* Table Design */
-    .table-container {
-        background: var(--bg-card);
-        border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md);
-        overflow-x: auto;
-    }
-
-    table.account-table {
-        width: 100%;
-        border-collapse: collapse;
-        text-align: left;
-        font-size: var(--font-size-table, 12px);
-    }
-
-    table.account-table th {
-        background-color: #faf5ff;
-        color: var(--text-heading);
-        font-weight: 600;
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        white-space: nowrap;
-        font-size: var(--font-size-table-header, 12px);
-    }
-
-    table.account-table th:first-child,
-    table.account-table td:first-child {
-        padding-left: 0.75rem;
-    }
-
-    table.account-table th:last-child,
-    table.account-table td:last-child {
-        padding-right: 0.75rem;
-    }
-
-    table.account-table td {
-        padding: 0.40rem 0.55rem;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-        font-size: var(--font-size-table, 12px);
-    }
-
-    table.account-table tbody tr {
-        transition: background-color 0.15s ease;
-    }
-
-    table.account-table tbody tr:hover {
-        background-color: #fbf9ff;
-    }
-
-    table.account-table tbody tr:last-child td {
-        border-bottom: none;
-    }
-
+    /* Table Cell Specific Overrides */
     .cell-registered {
         white-space: nowrap !important;
-        min-width: 130px;
     }
 
     /* Account Details Cell */
@@ -512,7 +458,7 @@
         background-color: #faf5ff;
         color: var(--text-heading);
         font-weight: 600;
-        padding: 0.38rem 0.55rem;
+        padding: var(--table-cell-padding-y, 0.28rem) var(--table-cell-padding-x, 0.40rem);
         border-bottom: 1px solid #f1f5f9;
         white-space: nowrap;
         font-size: var(--font-size-table-header, 12px);
@@ -520,7 +466,7 @@
     }
 
     table.order-table td {
-        padding: 0.38rem 0.55rem;
+        padding: var(--table-cell-padding-y, 0.28rem) var(--table-cell-padding-x, 0.40rem);
         border-bottom: 1px solid #f1f5f9;
         vertical-align: top;
         text-align: left;
@@ -749,10 +695,13 @@
         <input type="text" name="accountfilter" class="search-input" value="{{accountfilter}}" placeholder="Search by email or Account ID..." autocomplete="off">
     </form>
 
-    <div class="filter-tabs">
-        <a href="/accounts?accountstatus=all&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'all' else '' }}">All</a>
-        <a href="/accounts?accountstatus=valid&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'valid' else '' }}">Valid</a>
-        <a href="/accounts?accountstatus=deactivated&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'deactivated' else '' }}">Deactivated</a>
+    <div class="filter-actions-group">
+        <div class="filter-tabs">
+            <a href="/accounts?accountstatus=all&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'all' else '' }}">All</a>
+            <a href="/accounts?accountstatus=valid&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'valid' else '' }}">Valid</a>
+            <a href="/accounts?accountstatus=deactivated&accountfilter={{accountfilter}}" class="filter-tab {{ 'active' if accountstatus == 'deactivated' else '' }}">Deactivated</a>
+        </div>
+        <div class="table-toolbar-mount"></div>
     </div>
 </div>
 

@@ -616,11 +616,7 @@
         margin: 0;
     }
 
-    .table-container {
-        overflow-x: auto;
-        border: 1px solid var(--border-card);
-        border-radius: var(--radius-md);
-    }
+
 
     .ca-table {
         width: 100%;
@@ -1253,26 +1249,29 @@
                 All managed Root Certificate Authorities. Standby CAs can be pre-distributed to client endpoints prior to activating issuance.
             </p>
         </div>
-        <button type="button" class="btn-primary" onclick="openRenewModal()">
-            <svg viewBox="0 0 24 24">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
-            Add / Rollover Root CA
-        </button>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn-primary" onclick="openRenewModal()">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Add / Rollover Root CA
+            </button>
+            <div class="table-toolbar-mount"></div>
+        </div>
     </div>
 
     <div class="table-container">
-        <table class="ca-table">
+        <table class="ca-table" data-table-id="ca_roots">
             <thead>
                 <tr>
-                    <th style="width: 120px;">Status</th>
-                    <th>CA Common Name &amp; Subject</th>
-                    <th>Serial Number</th>
-                    <th>Key &amp; Digest</th>
-                    <th style="min-width: 130px;">X.509 Strict</th>
-                    <th style="min-width: 170px;">Validity Period</th>
-                    <th style="text-align: center;">Active Certs</th>
-                    <th style="min-width: 200px;">Actions</th>
+                    <th data-col-key="status" style="width: 110px;">Status</th>
+                    <th data-col-key="common_name">CA Common Name &amp; Subject</th>
+                    <th data-col-key="serial">Serial Number</th>
+                    <th data-col-key="key_digest">Key &amp; Digest</th>
+                    <th data-col-key="strict">X.509 Strict</th>
+                    <th data-col-key="validity">Validity Period</th>
+                    <th data-col-key="active_certs" style="text-align: center;">Active Certs</th>
+                    <th data-no-sort data-col-key="actions" style="text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>

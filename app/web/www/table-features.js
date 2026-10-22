@@ -1,7 +1,8 @@
 /**
- * table-features.js - Handles client-side sorting and column resizing
+ * table-features.js - Handles client-side sorting, sub-content column resizing,
+ * truncation tooltips, column visibility toggling, and layout reset
  * with localStorage persistence and full keyboard accessibility.
- * Content-Security-Policy compliant (no inline eval).
+ * Content-Security-Policy compliant (no inline eval or unsafe-inline scripts).
  */
 
 (function () {
@@ -53,6 +54,124 @@
     }
 
     /**
+     * Singleton Hover Tooltip for Truncated Content
+     */
+    let sharedTooltip = null;
+    let tooltipTimeout = null;
+
+    function getOrCreateTooltip() {
+        if (!sharedTooltip) {
+            sharedTooltip = document.createElement('div');
+            sharedTooltip.className = 'table-cell-tooltip';
+            sharedTooltip.setAttribute('role', 'tooltip');
+            sharedTooltip.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(sharedTooltip);
+
+            // Keep tooltip open while hovering over the tooltip itself
+            sharedTooltip.addEventListener('mouseenter', () => {
+                if (tooltipTimeout) clearTimeout(tooltipTimeout);
+            });
+            sharedTooltip.addEventListener('mouseleave', () => {
+                hideTooltip();
+            });
+        }
+        return sharedTooltip;
+    }
+
+    function showTooltip(targetEl, fullText) {
+        if (!fullText || fullText.trim().length === 0) return;
+        const tooltip = getOrCreateTooltip();
+        if (tooltipTimeout) clearTimeout(tooltipTimeout);
+
+        tooltip.innerHTML = '';
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = fullText;
+        tooltip.appendChild(textSpan);
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'tooltip-copy-btn';
+        copyBtn.title = 'Copy full value';
+        copyBtn.innerHTML = '<svg style="width:11px;height:11px;fill:currentColor;" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg><span>Copy</span>';
+
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fullText).then(() => {
+                    const span = copyBtn.querySelector('span');
+                    if (span) span.textContent = 'Copied!';
+                    setTimeout(() => {
+                        if (span) span.textContent = 'Copy';
+                    }, 1500);
+                }).catch(() => {});
+            }
+        });
+        tooltip.appendChild(copyBtn);
+
+        const rect = targetEl.getBoundingClientRect();
+        tooltip.style.left = '0px';
+        tooltip.style.top = '0px';
+        tooltip.classList.add('is-visible');
+
+        const tipRect = tooltip.getBoundingClientRect();
+        let top = rect.top - tipRect.height - 6;
+        if (top < 10) {
+            top = rect.bottom + 6;
+        }
+        let left = rect.left;
+        if (left + tipRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - tipRect.width - 10;
+        }
+        if (left < 10) left = 10;
+
+        tooltip.style.top = Math.max(10, top) + 'px';
+        tooltip.style.left = left + 'px';
+    }
+
+    function hideTooltip() {
+        if (!sharedTooltip) return;
+        if (tooltipTimeout) clearTimeout(tooltipTimeout);
+        tooltipTimeout = setTimeout(() => {
+            if (sharedTooltip) {
+                sharedTooltip.classList.remove('is-visible');
+            }
+        }, 150);
+    }
+
+    /**
+     * Attach hover truncation detector to table body cells
+     */
+    function attachCellTruncationWatcher(table) {
+        if (!table) return;
+
+        table.addEventListener('mouseenter', (e) => {
+            const cell = e.target.closest('td');
+            if (!cell || !table.classList.contains('table-layout-fixed')) return;
+
+            // Check if cell or immediate child has truncated text
+            const inspectEl = cell.firstElementChild || cell;
+            const isTruncated = inspectEl.scrollWidth > (inspectEl.clientWidth + 1);
+
+            if (isTruncated) {
+                const fullText = cell.getAttribute('data-full-text') || cell.textContent.trim();
+                showTooltip(inspectEl, fullText);
+            }
+        }, true);
+
+        table.addEventListener('mouseleave', (e) => {
+            const cell = e.target.closest('td');
+            if (cell) {
+                hideTooltip();
+            }
+        }, true);
+
+        window.addEventListener('scroll', () => {
+            hideTooltip();
+        }, { passive: true });
+    }
+
+    /**
      * Initialize Column Resizing on a <table>
      */
     function initResizableTable(table, storageKey) {
@@ -81,10 +200,15 @@
             }
         }
 
+        const hasSavedWidths = Object.keys(savedWidths).length > 0;
+        if (hasSavedWidths) {
+            table.classList.add('table-layout-fixed');
+        }
+
         // Apply saved widths
         headers.forEach((th, idx) => {
             const widthKey = th.dataset.colKey || `col_${idx}`;
-            if (savedWidths[widthKey] && savedWidths[widthKey] > 40) {
+            if (savedWidths[widthKey] && savedWidths[widthKey] >= 30) {
                 th.style.width = savedWidths[widthKey] + 'px';
                 th.style.minWidth = savedWidths[widthKey] + 'px';
             }
@@ -104,7 +228,8 @@
 
             const onPointerMove = (e) => {
                 const deltaX = e.pageX - startX;
-                currentWidth = Math.max(60, startWidth + deltaX);
+                // Allow sub-content resizing down to 30px
+                currentWidth = Math.max(30, startWidth + deltaX);
                 th.style.width = currentWidth + 'px';
                 th.style.minWidth = currentWidth + 'px';
             };
@@ -141,6 +266,8 @@
                 startWidth = th.offsetWidth;
                 currentWidth = startWidth;
 
+                // Ensure fixed layout is active during resize to enable shrinking past cell content
+                table.classList.add('table-layout-fixed');
                 resizer.classList.add('active');
                 document.body.classList.add('table-col-resizing');
 
@@ -163,6 +290,10 @@
                             const k = th.dataset.colKey || `col_${idx}`;
                             delete parsed[k];
                             localStorage.setItem('acme_table_widths_' + storageKey, JSON.stringify(parsed));
+
+                            if (Object.keys(parsed).length === 0) {
+                                table.classList.remove('table-layout-fixed');
+                            }
                         }
                     } catch (err) {
                         console.warn('Could not reset saved table width:', err);
@@ -170,6 +301,8 @@
                 }
             });
         });
+
+        attachCellTruncationWatcher(table);
     }
 
     /**
@@ -320,6 +453,181 @@
     }
 
     /**
+     * Column Visibility & Reset Toolbar Controls
+     */
+    function initTableControls(table, storageKey) {
+        if (!table || table.dataset.controlsInit === 'true') return;
+        table.dataset.controlsInit = 'true';
+
+        const thead = table.querySelector('thead');
+        if (!thead) return;
+        const headerRow = thead.querySelector('tr');
+        if (!headerRow) return;
+        const headers = Array.from(headerRow.querySelectorAll('th'));
+        if (headers.length <= 1) return;
+
+        // Find or create mount point in search / filter header
+        let container = table.closest('.table-container, .table-card, .dist-card, .users-card, .table-responsive, [style*="overflow"]');
+        if (!container) container = table.parentElement;
+
+        // Check for designated toolbar container in card, table container, or parent
+        let toolbarMount = null;
+        if (container) {
+            toolbarMount = container.querySelector('.table-toolbar-mount') ||
+                           (container.parentNode ? container.parentNode.querySelector('.table-toolbar-mount') : null);
+        }
+        if (!toolbarMount) {
+            // Find existing search-container, filter-container, or card-table-header
+            const searchBar = (container && container.parentNode) ? container.parentNode.querySelector('.search-bar, .table-search-box, .filter-tabs, .card-table-header, .users-table-header') : null;
+            if (searchBar) {
+                toolbarMount = document.createElement('div');
+                toolbarMount.className = 'table-toolbar-mount';
+                searchBar.appendChild(toolbarMount);
+            }
+        }
+
+        if (!toolbarMount) return;
+
+        // Read hidden columns from localStorage
+        let hiddenCols = [];
+        if (storageKey) {
+            try {
+                const item = localStorage.getItem('acme_table_hidden_' + storageKey);
+                if (item) {
+                    hiddenCols = JSON.parse(item) || [];
+                }
+            } catch (err) {
+                console.warn('Could not read hidden columns:', err);
+            }
+        }
+
+        // Apply initial hidden columns
+        const applyVisibility = (colIdx, isHidden) => {
+            const th = headers[colIdx];
+            if (th) {
+                if (isHidden) th.classList.add('col-hidden');
+                else th.classList.remove('col-hidden');
+            }
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(r => {
+                const td = r.cells[colIdx];
+                if (td) {
+                    if (isHidden) td.classList.add('col-hidden');
+                    else td.classList.remove('col-hidden');
+                }
+            });
+        };
+
+        headers.forEach((h, idx) => {
+            const key = h.dataset.colKey || `col_${idx}`;
+            if (hiddenCols.includes(key)) {
+                applyVisibility(idx, true);
+            }
+        });
+
+        // 1. "Columns ⚙️" Dropdown
+        const dropdownContainer = document.createElement('div');
+        dropdownContainer.className = 'table-cols-dropdown-container';
+
+        const dropdownBtn = document.createElement('button');
+        dropdownBtn.type = 'button';
+        dropdownBtn.className = 'btn-table-control';
+        dropdownBtn.title = 'Customize column visibility';
+        dropdownBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 16h18v2H3v-2zm0-8h18v2H3v-2z"/></svg><span>Columns</span>';
+
+        const dropdownMenu = document.createElement('div');
+        dropdownMenu.className = 'table-cols-dropdown';
+
+        headers.forEach((h, idx) => {
+            // Skip action columns or select-all checkbox columns
+            const text = (h.querySelector('.th-title') ? h.querySelector('.th-title').textContent : h.textContent).trim();
+            if (!text || text.toLowerCase() === 'actions' || text === '') return;
+
+            const key = h.dataset.colKey || `col_${idx}`;
+            const isHidden = hiddenCols.includes(key);
+
+            const label = document.createElement('label');
+            label.className = 'table-col-toggle-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = !isHidden;
+
+            checkbox.addEventListener('change', () => {
+                const nowHidden = !checkbox.checked;
+                applyVisibility(idx, nowHidden);
+
+                if (nowHidden) {
+                    if (!hiddenCols.includes(key)) hiddenCols.push(key);
+                } else {
+                    hiddenCols = hiddenCols.filter(k => k !== key);
+                }
+
+                if (storageKey) {
+                    try {
+                        localStorage.setItem('acme_table_hidden_' + storageKey, JSON.stringify(hiddenCols));
+                    } catch (e) {
+                        console.warn('Could not save hidden columns:', e);
+                    }
+                }
+            });
+
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(text));
+            dropdownMenu.appendChild(label);
+        });
+
+        dropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.classList.toggle('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!dropdownContainer.contains(e.target)) {
+                dropdownMenu.classList.remove('active');
+            }
+        });
+
+        dropdownContainer.appendChild(dropdownBtn);
+        dropdownContainer.appendChild(dropdownMenu);
+        toolbarMount.appendChild(dropdownContainer);
+
+        // 2. "Reset Columns" Button
+        const resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'btn-table-control';
+        resetBtn.title = 'Reset all column widths and visibility to default';
+        resetBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg><span>Reset</span>';
+
+        resetBtn.addEventListener('click', () => {
+            // Clear width styles
+            headers.forEach((h, idx) => {
+                h.style.width = '';
+                h.style.minWidth = '';
+                applyVisibility(idx, false);
+            });
+            table.classList.remove('table-layout-fixed');
+
+            // Reset checkboxes
+            const checkboxes = dropdownMenu.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => { cb.checked = true; });
+            hiddenCols = [];
+
+            // Clear localStorage
+            if (storageKey) {
+                try {
+                    localStorage.removeItem('acme_table_widths_' + storageKey);
+                    localStorage.removeItem('acme_table_hidden_' + storageKey);
+                } catch (e) {
+                    console.warn('Could not reset table state in localStorage:', e);
+                }
+            }
+        });
+
+        toolbarMount.appendChild(resetBtn);
+    }
+
+    /**
      * Public entrypoint to attach features to a table
      */
     window.initTableFeatures = function (table, customKey) {
@@ -327,13 +635,16 @@
         const storageKey = customKey || table.dataset.tableId || table.className.split(' ')[0] || 'default';
         initResizableTable(table, storageKey);
         initSortableTable(table);
+        initTableControls(table, storageKey);
     };
 
     /**
      * Auto-initialize all designated tables on DOM load
      */
     document.addEventListener('DOMContentLoaded', () => {
-        const tables = document.querySelectorAll('table.cert-table, table.account-table, table.domain-table, table.fleet-table, table[data-table-id]');
+        const tables = document.querySelectorAll(
+            'table.data-table, table.cert-table, table.account-table, table.domain-table, table.users-table, table.fleet-table, table.dist-table, table.ca-table, table[data-table-id]'
+        );
         tables.forEach(table => {
             window.initTableFeatures(table);
         });
