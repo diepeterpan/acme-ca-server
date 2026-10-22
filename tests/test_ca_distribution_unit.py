@@ -86,6 +86,11 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         openwrt_readme = dist.generate_readme('TestCA_2026', 'openwrt', 'Test Root CA', 'DEADBEEF')
         self.assertIn('/etc/ssl/certs/', openwrt_readme)
         self.assertIn('opkg install ca-certificates', openwrt_readme)
+        self.assertIn('| ash', openwrt_readme)
+        self.assertIn('uclient-fetch -q -O -', openwrt_readme)
+        self.assertNotIn('sudo', openwrt_readme)
+        self.assertNotIn('bash', openwrt_readme)
+        self.assertIn('| sudo bash', linux_readme)
 
         # Windows
         win_readme = dist.generate_readme('TestCA_2026', 'windows', 'Test Root CA', 'DEADBEEF')
@@ -106,6 +111,7 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('security add-trusted-cert', mac_readme)
         self.assertIn('System.keychain', mac_readme)
         self.assertIn('probe.sh', mac_readme)
+        self.assertIn('| sudo bash', mac_readme)
 
     async def test_email_endpoint_validation(self):
         ok, msg = await dist.test_email_endpoint([])

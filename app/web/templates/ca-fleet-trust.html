@@ -957,6 +957,12 @@
                 <code id="cliWgetCode">wget -qO- {{ external_url }}/ca-trust/probe.sh | sudo bash</code>
             </div>
 
+            <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-top: 1rem; display: block;">Using OpenWrt (uclient-fetch / ash):</label>
+            <div class="code-block">
+                <button type="button" class="copy-btn" onclick="copySnippet('cliOpenwrtCode')">Copy</button>
+                <code id="cliOpenwrtCode">uclient-fetch -q -O - {{ external_url }}/ca-trust/probe.sh | ash</code>
+            </div>
+
             <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-top: 1rem; display: block;">Using Windows (PowerShell):</label>
             <div class="code-block">
                 <button type="button" class="copy-btn" onclick="copySnippet('cliPsCode')">Copy</button>
@@ -1105,12 +1111,14 @@
         const epId = sel ? sel.value : '';
         const curlEl = document.getElementById('cliCurlCode');
         const wgetEl = document.getElementById('cliWgetCode');
+        const openwrtEl = document.getElementById('cliOpenwrtCode');
         const psEl = document.getElementById('cliPsCode');
         const browserEl = document.getElementById('browserVerifyCode');
         const param = epId ? `?endpoint_id=${encodeURIComponent(epId)}` : '';
 
         if (curlEl) curlEl.textContent = `curl -sSL ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
         if (wgetEl) wgetEl.textContent = `wget -qO- ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
+        if (openwrtEl) openwrtEl.textContent = `uclient-fetch -q -O - ${extBaseUrl}/ca-trust/probe.sh${param} | ash`;
         if (psEl) psEl.textContent = `powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; $w = New-Object Net.WebClient; $w.Encoding = [Text.Encoding]::UTF8; Invoke-Expression ($w.DownloadString('${extBaseUrl}/ca-trust/probe.ps1${param}'))"`;
         if (browserEl) browserEl.textContent = `${extBaseUrl}/ca-trust/verify${param}`;
     }
