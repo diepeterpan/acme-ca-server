@@ -684,13 +684,14 @@ if ! echo "${ROUTER_SSL_TEST}" | grep -q "newOrder"; then
             if [[ "${DO_UPLOAD}" == "true" ]]; then
                 if confirm_action "Upload CA certificate (${CA_CERT_PATH}) to OpenWrt trust store (${REMOTE_CA_TARGET})" \
 "cat '${CA_CERT_PATH}' | ssh ... 'cat > ${REMOTE_CA_TARGET}'
-c_rehash /etc/ssl/certs/ || true
+cat '${REMOTE_CA_TARGET}' >> /etc/ssl/certs/ca-certificates.crt
+openssl rehash /etc/ssl/certs/ || true
 grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf"; then
                     CA_PEM_CONTENT="$(cat "${CA_CERT_PATH}")"
                     ssh_upload_string "${CA_PEM_CONTENT}" "${REMOTE_CA_TARGET}"
-                    ssh_exec "chmod 644 ${REMOTE_CA_TARGET} && c_rehash /etc/ssl/certs 2>/dev/null || true" "mutating"
+                    ssh_exec "chmod 644 ${REMOTE_CA_TARGET} && ([ -f /etc/ssl/certs/ca-certificates.crt ] && grep -qF \"\$(head -n 2 ${REMOTE_CA_TARGET} | tail -n 1)\" /etc/ssl/certs/ca-certificates.crt 2>/dev/null || cat ${REMOTE_CA_TARGET} >> /etc/ssl/certs/ca-certificates.crt) && (openssl rehash /etc/ssl/certs 2>/dev/null || true)" "mutating"
                     ssh_exec "grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf" "mutating"
-                    log_success "Uploaded CA certificate, rehashed trust store, and registered in /etc/sysupgrade.conf."
+                    log_success "Uploaded CA certificate, updated trust store, and registered in /etc/sysupgrade.conf."
                 fi
             else
                 # Ensure sysupgrade registration even if upload was skipped

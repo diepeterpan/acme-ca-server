@@ -236,8 +236,9 @@ Option 4: Interactive Web Browser Verification
    opkg update && opkg install ca-certificates ca-bundle
 2. Copy the certificate into the SSL certificates directory:
    cp {base_name}.crt /etc/ssl/certs/{base_name}.crt
-3. Re-hash the certificate directory or append to ca-certificates bundle:
-   c_rehash /etc/ssl/certs/ 2>/dev/null || cat {base_name}.crt >> /etc/ssl/certs/ca-certificates.crt
+3. Append to system bundle and rehash OpenSSL directory:
+   cat {base_name}.crt >> /etc/ssl/certs/ca-certificates.crt
+   openssl rehash /etc/ssl/certs/ 2>/dev/null || true
 ================================================================================
 {openwrt_verify_section}"""
 
@@ -1243,6 +1244,10 @@ RHEL/Fedora: sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo u
         )
 
     if 'openwrt' in target_oses:
+        owrt_cmd = (
+            f'opkg update && opkg install ca-certificates ca-bundle && cp {base_name}.crt /etc/ssl/certs/ && '
+            f'cat {base_name}.crt >> /etc/ssl/certs/ca-certificates.crt && (openssl rehash /etc/ssl/certs/ 2>/dev/null || true)'
+        )
         html_sections.append(
             f"""
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
@@ -1250,14 +1255,14 @@ RHEL/Fedora: sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo u
                     {svg_openwrt} OpenWrt
                 </h4>
                 <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: block; font-size: 12px;">
-                    opkg update && opkg install ca-certificates && cp {base_name}.crt /etc/ssl/certs/ && c_rehash /etc/ssl/certs/
+                    {owrt_cmd}
                 </code>
             </div>
             """
         )
         text_sections.append(
             f"""[OpenWrt]
-opkg update && opkg install ca-certificates && cp {base_name}.crt /etc/ssl/certs/ && c_rehash /etc/ssl/certs/
+{owrt_cmd}
 """
         )
 
