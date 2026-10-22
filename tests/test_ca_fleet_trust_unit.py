@@ -117,6 +117,29 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data['endpoints'][0]['port'], 9443)
             self.assertEqual(data['endpoints'][1]['port'], 9444)
 
+    def test_public_cas_endpoint_returns_probe_ports(self):
+        mock_cas = [
+            {
+                'serial_number': 'CA01',
+                'cn': 'Active CA',
+                'active': True,
+            },
+            {
+                'serial_number': 'CA02',
+                'cn': 'Standby CA',
+                'active': False,
+            },
+        ]
+        with mock.patch('ca.fleet_trust.get_expected_cas', new=mock.AsyncMock(return_value=mock_cas)):
+            res = self.client.get('/ca-trust/api/cas')
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(len(data), 2)
+            self.assertIn('probe_port', data[0])
+            self.assertIn('probe_url', data[0])
+            self.assertEqual(data[0]['probe_port'], 9443)
+            self.assertEqual(data[1]['probe_port'], 9444)
+
     def test_probe_leaf_cert_generation(self):
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
@@ -523,6 +546,46 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs['results'], [])
             self.assertEqual(kwargs['error_message'], 'Missing SSH key')
 
+    async def test_probe_endpoint_via_ssh_live_tls_success(self):
+        mock_ep = mock.MagicMock()
+        mock_ep.id = 'ep_live_tls'
+        mock_ep.name = 'Live TLS Server'
+        mock_ep.host = 'live.example.com'
+        mock_ep.port = 22
+        mock_ep.username = 'root'
+        mock_ep.auth_type = 'password'
+        mock_ep.auth_secret_enc = b'dummy'
+
+        mock_conn = mock.MagicMock()
+        mock_conn.run = mock.AsyncMock(return_value=mock.MagicMock(stdout='LIVE_TLS_OK\n'))
+        mock_ctx = mock.MagicMock()
+        mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
+
+        cas = [{
+            'serial_number': '1234ABCD',
+            'cn': 'My Root CA',
+            'pem_signature': 'MIIBxxxx',
+            'fingerprint_sha256_raw': 'AABBCCDDEEFF',
+            'active': True,
+        }]
+
+        with (
+            mock.patch('ca.distribution.decrypt_secret', return_value='secret'),
+            mock.patch('ca.fleet_trust.asyncssh.connect', return_value=mock_ctx),
+            mock.patch('ca.distribution.probe_ssh_os', new=mock.AsyncMock(return_value=('linux', 'Debian 13'))),
+            mock.patch('ca.fleet_trust.record_audit', new=mock.AsyncMock(return_value='aud_live_tls')) as mock_record,
+        ):
+            res = await fleet_trust.probe_endpoint_trust_via_ssh(mock_ep, expected_cas=cas)
+            self.assertEqual(res['status'], 'success')
+            self.assertEqual(len(res['results']), 1)
+            self.assertTrue(res['results'][0]['is_trusted'])
+            self.assertIn('Verified via live TLS handshake', res['results'][0]['details'])
+            # Live TLS succeeded, so fallback directory check was bypassed
+            mock_conn.run.assert_called_once()
+            called_cmd = mock_conn.run.call_args[0][0]
+            self.assertIn('/probe', called_cmd)
+
     async def test_probe_endpoint_via_ssh_linux_fast_path(self):
         mock_ep = mock.MagicMock()
         mock_ep.id = 'ep_linux_fast'
@@ -534,7 +597,11 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
         mock_ep.auth_secret_enc = b'dummy'
 
         mock_conn = mock.MagicMock()
-        mock_conn.run = mock.AsyncMock(return_value=mock.MagicMock(stdout='Found in trust bundle /etc/ssl/certs/ca-certificates.crt'))
+        # First call (live TLS) fails without LIVE_TLS_OK, second call (store search) succeeds
+        mock_conn.run = mock.AsyncMock(side_effect=[
+            mock.MagicMock(stdout='Connection refused\n'),
+            mock.MagicMock(stdout='Found in trust bundle /etc/ssl/certs/ca-certificates.crt\n'),
+        ])
         mock_ctx = mock.MagicMock()
         mock_ctx.__aenter__ = mock.AsyncMock(return_value=mock_conn)
         mock_ctx.__aexit__ = mock.AsyncMock(return_value=None)
@@ -558,10 +625,11 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(res['results']), 1)
             self.assertTrue(res['results'][0]['is_trusted'])
             self.assertIn('Found in trust bundle', res['results'][0]['details'])
+            self.assertIn('TLS probe port', res['results'][0]['details'])
 
-            # Verify check_cmd contained SIG and fast-path bundle checks
-            mock_conn.run.assert_called_once()
-            called_cmd = mock_conn.run.call_args[0][0]
+            # Verify both live TLS probe and fallback check_cmd were called
+            self.assertEqual(mock_conn.run.call_count, 2)
+            called_cmd = mock_conn.run.call_args_list[1][0][0]
             self.assertIn('SIG="MIIBxxxx"', called_cmd)
             self.assertIn('grep -Fq "$SIG"', called_cmd)
 

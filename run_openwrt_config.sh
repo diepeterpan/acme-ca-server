@@ -654,7 +654,26 @@ fi
 
 # Check SSL verification from router
 ROUTER_SSL_TEST="$(ssh_exec "curl -s --connect-timeout 5 '${CA_URL}' 2>&1 || true" "read_only")"
-if ! echo "${ROUTER_SSL_TEST}" | grep -q "newOrder"; then
+CA_BASE_URL="$(echo "${CA_URL}" | sed -E 's|^(https?://[^/]+).*|\1|')"
+CA_BASE_HOST="$(echo "${CA_BASE_URL}" | sed -E 's|^https?://([^:/]+).*|\1|')"
+PROBE_EP_RAW="$(ssh_exec "curl -s -k --connect-timeout 4 '${CA_BASE_URL}/ca-trust/api/probe-endpoints' 2>&1 || true" "read_only")"
+PROBE_SSL_OK=true
+PROBE_PORTS=""
+
+if echo "${PROBE_EP_RAW}" | grep -q '"endpoints"'; then
+    PROBE_PORTS="$(echo "${PROBE_EP_RAW}" | grep -o '"port": *[0-9]*' | grep -o '[0-9]*' | sort -u)"
+    for p in ${PROBE_PORTS}; do
+        P_CHECK="$(ssh_exec "curl -fsSL --connect-timeout 4 'https://${CA_BASE_HOST}:${p}/probe' 2>&1 || true" "read_only")"
+        if echo "${P_CHECK}" | grep -q '"status": *"ok"'; then
+            log_success "OpenWrt router successfully verified live TLS trust on probe port ${p}."
+        else
+            log_warn "OpenWrt router failed live TLS verification on probe port ${p}."
+            PROBE_SSL_OK=false
+        fi
+    done
+fi
+
+if ! echo "${ROUTER_SSL_TEST}" | grep -q "newOrder" || [[ "${PROBE_SSL_OK}" == "false" ]]; then
     log_warn "OpenWrt router encountered an SSL certificate verification issue contacting ${CA_URL}."
     DEFAULT_CA_PEM="${CA_CERT_PATH:-${REPO_DIR}/ca.pem}"
 
@@ -705,6 +724,16 @@ grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf || echo '${REMOTE_CA_TARGET}'
                 log_success "OpenWrt router now successfully trusts and verifies the local ACME CA!"
             else
                 log_warn "Router still encountered SSL verification issues contacting ${CA_URL}."
+            fi
+            if [[ -n "${PROBE_PORTS}" ]]; then
+                for p in ${PROBE_PORTS}; do
+                    RETEST_P="$(ssh_exec "curl -fsSL --connect-timeout 4 'https://${CA_BASE_HOST}:${p}/probe' 2>&1 || true" "read_only")"
+                    if echo "${RETEST_P}" | grep -q '"status": *"ok"'; then
+                        log_success "OpenWrt router verified live TLS handshake on probe port ${p}!"
+                    else
+                        log_warn "Probe port ${p} still failed TLS verification from router."
+                    fi
+                done
             fi
             break
         else

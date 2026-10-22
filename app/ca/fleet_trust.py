@@ -168,7 +168,10 @@ async def record_audit(
     elif error_message:
         status = 'error'
     elif active_serials and active_serials.issubset(trusted_serials):
-        if 0 < total_cas <= trusted_count:
+        has_unverified_tls = any(
+            ('unverified' in str(r.get('details', '')).lower() or 'unreachable' in str(r.get('details', '')).lower()) for r in res_list if r.get('is_trusted')
+        )
+        if 0 < total_cas <= trusted_count and not has_unverified_tls:
             status = 'compliant'
         else:
             status = 'partial'
@@ -534,6 +537,7 @@ fi
 # Inspect local trust stores
 TOTAL_CAS=0
 TRUSTED_CAS=0
+HAS_WARNINGS="false"
 RESULTS_PAYLOAD="["
 
 # Parse JSON using python3, perl, or awk/sed
@@ -542,61 +546,87 @@ check_ca_trust() {{
     SERIAL="$2"
     CN="$3"
     ACTIVE="$4"
+    PROBE_PORT="$5"
 
     TOTAL_CAS=$((TOTAL_CAS + 1))
     IS_TRUSTED="false"
+    TLS_VERIFIED="false"
     DETAILS="Certificate not found in local system trust store"
 
-    # 1. Linux trust store checks
-    if [ "$OS_TYPE" = "linux" ] || [ "$OS_TYPE" = "openwrt" ]; then
-        BUNDLE_PATHS="/etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
-        CERT_DIRS="/etc/ssl/certs /usr/local/share/ca-certificates /etc/pki/ca-trust/source/anchors /etc/pki/ca-trust/extracted/pem"
+    # Step 1: Live Web Endpoint TLS Verification (Primary check)
+    PROBE_HOST=$(echo "$SERVER_URL" | sed -e 's|^[^/]*//||' -e 's|[:/].*$||')
+    if [ -n "$PROBE_PORT" ] && [ "$PROBE_PORT" != "0" ]; then
+        PROBE_URL="https://${{PROBE_HOST}}:${{PROBE_PORT}}/probe"
+        if command -v curl >/dev/null 2>&1; then
+            if curl -fsSL --connect-timeout 3 --max-time 6 "$PROBE_URL" >/dev/null 2>&1; then
+                TLS_VERIFIED="true"
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget -qO- --timeout=4 "$PROBE_URL" >/dev/null 2>&1; then
+                TLS_VERIFIED="true"
+            fi
+        elif command -v uclient-fetch >/dev/null 2>&1; then
+            if uclient-fetch -q -O - --timeout=4 "$PROBE_URL" >/dev/null 2>&1; then
+                TLS_VERIFIED="true"
+            fi
+        fi
+    fi
 
-        # Prioritize OpenSSL inspection if available
-        if command -v openssl >/dev/null 2>&1; then
-            FP_NORM=$(echo "$FP_RAW" | tr -d ': ' | tr '[:lower:]' '[:upper:]')
-            SERIAL_NORM=$(echo "$SERIAL" | tr -d ': ' | tr '[:lower:]' '[:upper:]')
+    if [ "$TLS_VERIFIED" = "true" ]; then
+        IS_TRUSTED="true"
+        DETAILS="Verified via TLS handshake on port $PROBE_PORT"
+    else
+        # Step 2: Fallback / Corroborating Trust Store & Directory Inspection
+        # 1. Linux trust store checks
+        if [ "$OS_TYPE" = "linux" ] || [ "$OS_TYPE" = "openwrt" ]; then
+            BUNDLE_PATHS="/etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+            CERT_DIRS="/etc/ssl/certs /usr/local/share/ca-certificates /etc/pki/ca-trust/source/anchors /etc/pki/ca-trust/extracted/pem"
 
-            # Check individual certificate files in anchor directories
-            for CD in $CERT_DIRS; do
-                if [ -d "$CD" ]; then
-                    for CF in "$CD"/*.pem "$CD"/*.crt; do
-                        [ -f "$CF" ] || continue
-                        CUR_FP=$(openssl x509 -in "$CF" -noout -fingerprint -sha256 2>/dev/null | cut -d'=' -f2 | tr -d ': ' | tr '[:lower:]' '[:upper:]')
-                        if [ -n "$CUR_FP" ] && [ "$CUR_FP" = "$FP_NORM" ]; then
-                            IS_TRUSTED="true"
-                            DETAILS="Verified by SHA-256 in $CF"
-                            break 2
-                        fi
-                        CUR_SN=$(openssl x509 -in "$CF" -noout -serial 2>/dev/null | cut -d'=' -f2 | tr -d ': ' | tr '[:lower:]' '[:upper:]')
-                        if [ -n "$CUR_SN" ] && [ "$CUR_SN" = "$SERIAL_NORM" ]; then
-                            IS_TRUSTED="true"
-                            DETAILS="Verified by serial in $CF"
-                            break 2
+            # Prioritize OpenSSL inspection if available
+            if command -v openssl >/dev/null 2>&1; then
+                FP_NORM=$(echo "$FP_RAW" | tr -d ': ' | tr '[:lower:]' '[:upper:]')
+                SERIAL_NORM=$(echo "$SERIAL" | tr -d ': ' | tr '[:lower:]' '[:upper:]')
+
+                # Check individual certificate files in anchor directories
+                for CD in $CERT_DIRS; do
+                    if [ -d "$CD" ]; then
+                        for CF in "$CD"/*.pem "$CD"/*.crt; do
+                            [ -f "$CF" ] || continue
+                            CUR_FP=$(openssl x509 -in "$CF" -noout -fingerprint -sha256 2>/dev/null | cut -d'=' -f2 | tr -d ': ' | tr '[:lower:]' '[:upper:]')
+                            if [ -n "$CUR_FP" ] && [ "$CUR_FP" = "$FP_NORM" ]; then
+                                IS_TRUSTED="true"
+                                DETAILS="Verified by SHA-256 in $CF"
+                                break 2
+                            fi
+                            CUR_SN=$(openssl x509 -in "$CF" -noout -serial 2>/dev/null | cut -d'=' -f2 | tr -d ': ' | tr '[:lower:]' '[:upper:]')
+                            if [ -n "$CUR_SN" ] && [ "$CUR_SN" = "$SERIAL_NORM" ]; then
+                                IS_TRUSTED="true"
+                                DETAILS="Verified by serial in $CF"
+                                break 2
+                            fi
+                        done
+                    fi
+                done
+
+                # Check inside aggregated trust bundles
+                if [ "$IS_TRUSTED" = "false" ]; then
+                    for BUNDLE in $BUNDLE_PATHS; do
+                        if [ -f "$BUNDLE" ]; then
+                            if openssl crl2pkcs7 -nocrl -certfile "$BUNDLE" >/dev/null 2>&1; then
+                                if openssl crl2pkcs7 -nocrl -certfile "$BUNDLE" 2>/dev/null | openssl pkcs7 -print_certs -text 2>/dev/null | grep -iq "$SERIAL_NORM"; then
+                                    IS_TRUSTED="true"
+                                    DETAILS="Found in trust bundle $BUNDLE"
+                                    break
+                                fi
+                            fi
                         fi
                     done
                 fi
-            done
-
-            # Check inside aggregated trust bundles
-            if [ "$IS_TRUSTED" = "false" ]; then
-                for BUNDLE in $BUNDLE_PATHS; do
-                    if [ -f "$BUNDLE" ]; then
-                        if openssl crl2pkcs7 -nocrl -certfile "$BUNDLE" >/dev/null 2>&1; then
-                            if openssl crl2pkcs7 -nocrl -certfile "$BUNDLE" 2>/dev/null | openssl pkcs7 -print_certs -text 2>/dev/null | grep -iq "$SERIAL_NORM"; then
-                                IS_TRUSTED="true"
-                                DETAILS="Found in trust bundle $BUNDLE"
-                                break
-                            fi
-                        fi
-                    fi
-                done
             fi
-        fi
 
-        # Fallback to Python3 certificate inspection if not found yet
-        if [ "$IS_TRUSTED" = "false" ] && command -v python3 >/dev/null 2>&1; then
-            PY_CHECK=$(python3 -c "
+            # Fallback to Python3 certificate inspection if not found yet
+            if [ "$IS_TRUSTED" = "false" ] && command -v python3 >/dev/null 2>&1; then
+                PY_CHECK=$(python3 -c "
 import sys, os, hashlib, base64
 
 target_fp = '$FP_RAW'.upper().replace(':', '').strip()
@@ -658,51 +688,66 @@ for d in dirs:
 
 sys.exit(1)
 " 2>/dev/null || true)
-            if [ -n "$PY_CHECK" ]; then
+                if [ -n "$PY_CHECK" ]; then
+                    IS_TRUSTED="true"
+                    DETAILS="Found in $PY_CHECK"
+                fi
+            fi
+
+            # Fallback to textual subject / CN search if OpenSSL / Python did not find it
+            if [ "$IS_TRUSTED" = "false" ]; then
+                for BUNDLE in $BUNDLE_PATHS; do
+                    if [ -f "$BUNDLE" ] && grep -qi "$CN" "$BUNDLE" 2>/dev/null; then
+                        IS_TRUSTED="true"
+                        DETAILS="Found in trust bundle $BUNDLE"
+                        break
+                    fi
+                done
+                if [ "$IS_TRUSTED" = "false" ] && [ -d /etc/ssl/certs ]; then
+                    if grep -ri "$CN" /etc/ssl/certs/ >/dev/null 2>&1; then
+                        IS_TRUSTED="true"
+                        DETAILS="Found in /etc/ssl/certs trust anchor store"
+                    elif [ -d /usr/local/share/ca-certificates ] && grep -ri "$CN" /usr/local/share/ca-certificates/ >/dev/null 2>&1; then
+                        IS_TRUSTED="true"
+                        DETAILS="Found in /usr/local/share/ca-certificates"
+                    elif [ -d /etc/pki/ca-trust/source/anchors ] && grep -ri "$CN" /etc/pki/ca-trust/source/anchors/ >/dev/null 2>&1; then
+                        IS_TRUSTED="true"
+                        DETAILS="Found in /etc/pki/ca-trust/source/anchors"
+                    fi
+                fi
+            fi
+
+        # 2. macOS System Keychain check
+        elif [ "$OS_TYPE" = "macos" ]; then
+            if security find-certificate -a -c "$CN" /Library/Keychains/System.keychain >/dev/null 2>&1; then
                 IS_TRUSTED="true"
-                DETAILS="Found in $PY_CHECK"
+                DETAILS="Found in macOS System Keychain"
+            elif security find-certificate -a -c "$CN" /System/Library/Keychains/SystemRootCertificates.keychain >/dev/null 2>&1; then
+                IS_TRUSTED="true"
+                DETAILS="Found in SystemRootCertificates"
             fi
         fi
 
-        # Fallback to textual subject / CN search if OpenSSL / Python did not find it
-        if [ "$IS_TRUSTED" = "false" ]; then
-            for BUNDLE in $BUNDLE_PATHS; do
-                if [ -f "$BUNDLE" ] && grep -qi "$CN" "$BUNDLE" 2>/dev/null; then
-                    IS_TRUSTED="true"
-                    DETAILS="Found in trust bundle $BUNDLE"
-                    break
-                fi
-            done
-            if [ "$IS_TRUSTED" = "false" ] && [ -d /etc/ssl/certs ]; then
-                if grep -ri "$CN" /etc/ssl/certs/ >/dev/null 2>&1; then
-                    IS_TRUSTED="true"
-                    DETAILS="Found in /etc/ssl/certs trust anchor store"
-                elif [ -d /usr/local/share/ca-certificates ] && grep -ri "$CN" /usr/local/share/ca-certificates/ >/dev/null 2>&1; then
-                    IS_TRUSTED="true"
-                    DETAILS="Found in /usr/local/share/ca-certificates"
-                elif [ -d /etc/pki/ca-trust/source/anchors ] && grep -ri "$CN" /etc/pki/ca-trust/source/anchors/ >/dev/null 2>&1; then
-                    IS_TRUSTED="true"
-                    DETAILS="Found in /etc/pki/ca-trust/source/anchors"
-                fi
+        if [ "$IS_TRUSTED" = "true" ]; then
+            HAS_WARNINGS="true"
+            if [ -n "$PROBE_PORT" ] && [ "$PROBE_PORT" != "0" ]; then
+                DETAILS="$DETAILS (TLS probe port $PROBE_PORT unverified)"
             fi
-        fi
-
-    # 2. macOS System Keychain check
-    elif [ "$OS_TYPE" = "macos" ]; then
-        if security find-certificate -a -c "$CN" /Library/Keychains/System.keychain >/dev/null 2>&1; then
-            IS_TRUSTED="true"
-            DETAILS="Found in macOS System Keychain"
-        elif security find-certificate -a -c "$CN" /System/Library/Keychains/SystemRootCertificates.keychain >/dev/null 2>&1; then
-            IS_TRUSTED="true"
-            DETAILS="Found in SystemRootCertificates"
         fi
     fi
 
     # Print terminal progress
-    printf "\\n[+] Checking CA: \\033[1m%s\\033[0m (Serial: %s)\\n" "$CN" "$SERIAL"
-    if [ "$IS_TRUSTED" = "true" ]; then
+    PORT_LABEL=""
+    if [ -n "$PROBE_PORT" ] && [ "$PROBE_PORT" != "0" ]; then
+        PORT_LABEL=" (Port $PROBE_PORT)"
+    fi
+    printf "\\n[+] Checking CA: \\033[1m%s\\033[0m (Serial: %s)%s\\n" "$CN" "$SERIAL" "$PORT_LABEL"
+    if [ "$TLS_VERIFIED" = "true" ]; then
         TRUSTED_CAS=$((TRUSTED_CAS + 1))
         printf "    Status: \\033[1;32m[ COMPLIANT - TRUSTED ]\\033[0m (%s)\\n" "$DETAILS"
+    elif [ "$IS_TRUSTED" = "true" ]; then
+        TRUSTED_CAS=$((TRUSTED_CAS + 1))
+        printf "    Status: \\033[1;33m[ WARNING - PARTIAL ]\\033[0m (%s)\\n" "$DETAILS"
     else
         printf "    Status: \\033[1;31m[ ERROR - NOT TRUSTED / MISSING ]\\033[0m\\n"
         printf "    Action: Please install and trust certificate in system trust store.\\n"
@@ -721,25 +766,43 @@ with open('$CAS_JSON') as f:
     data = json.load(f)
 for ca in data:
     active_str = 'true' if ca.get('active') else 'false'
-    print(f\\\"{{ca.get('fingerprint_sha256_raw')}}\\\\t{{ca.get('serial_number')}}\\\\t{{ca.get('cn')}}\\\\t{{active_str}}\\\")
+    print(f\\\"{{ca.get('fingerprint_sha256_raw')}}\\\\t{{ca.get('serial_number')}}\\\\t{{ca.get('cn')}}\\\\t{{active_str}}\\\\t{{ca.get('probe_port', '')}}\\\")
 " > "$TMP_DIR/parsed_cas.txt" 2>/dev/null || true
 
 if [ -s "$TMP_DIR/parsed_cas.txt" ]; then
-    while IFS="$(printf '\\t')" read -r fp serial cn active; do
+    while IFS="$(printf '\\t')" read -r fp serial cn active probe_port; do
         if [ -n "$serial" ]; then
-            check_ca_trust "$fp" "$serial" "$cn" "$active"
+            check_ca_trust "$fp" "$serial" "$cn" "$active" "$probe_port"
         fi
     done < "$TMP_DIR/parsed_cas.txt"
 else
     # Fallback if python3 is not present
     printf "[*] Parsing CA definitions using POSIX stream processor...\\n"
     SERIALS=$(grep -o '"serial_number": *"[^"]*"' "$CAS_JSON" | cut -d'"' -f4)
+    P_IDX=0
     for s in $SERIALS; do
-        check_ca_trust "" "$s" "ACME CA" "true"
+        BASE_P=9443
+        P_PORT=$((BASE_P + P_IDX))
+        P_IDX=$((P_IDX + 1))
+        check_ca_trust "" "$s" "ACME CA" "true" "$P_PORT"
     done
 fi
 
 RESULTS_PAYLOAD="$RESULTS_PAYLOAD]"
+
+# Determine Overall Status
+OVERALL_STATUS="untrusted"
+if [ "$TRUSTED_CAS" -eq "$TOTAL_CAS" ] && [ "$TOTAL_CAS" -gt 0 ]; then
+    if [ "$HAS_WARNINGS" = "true" ]; then
+        OVERALL_STATUS="partial"
+    else
+        OVERALL_STATUS="compliant"
+    fi
+elif [ "$TRUSTED_CAS" -gt 0 ]; then
+    OVERALL_STATUS="partial"
+else
+    OVERALL_STATUS="untrusted"
+fi
 
 # 4. Transmit Telemetry
 printf "\\n--------------------------------------------------------------------------------\\n"
@@ -760,6 +823,7 @@ cat <<EOF > "$REPORT_JSON"
   "ip_address": "$HOST_IDENTIFIER",
   "endpoint_id": $EP_JSON_VAL,
   "verification_method": "cli_probe",
+  "overall_status": "$OVERALL_STATUS",
   "results": $RESULTS_PAYLOAD
 }}
 EOF
@@ -781,10 +845,10 @@ else
 fi
 
 printf "\\033[1;35m================================================================================\\033[0m\\n"
-if [ "$TRUSTED_CAS" -eq "$TOTAL_CAS" ] && [ "$TOTAL_CAS" -gt 0 ]; then
-    printf "\\033[1;32m[✓] OVERALL FLEET STATUS: COMPLIANT (%d/%d CAs trusted)\\033[0m\\n" "$TRUSTED_CAS" "$TOTAL_CAS"
-elif [ "$TRUSTED_CAS" -gt 0 ]; then
-    printf "\\033[1;33m[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE (%d/%d CAs trusted - Action Required)\\033[0m\\n" "$TRUSTED_CAS" "$TOTAL_CAS"
+if [ "$OVERALL_STATUS" = "compliant" ]; then
+    printf "\\033[1;32m[✓] OVERALL FLEET STATUS: COMPLIANT (%d/%d CAs trusted via live TLS)\\033[0m\\n" "$TRUSTED_CAS" "$TOTAL_CAS"
+elif [ "$OVERALL_STATUS" = "partial" ]; then
+    printf "\\033[1;33m[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE (%d/%d CAs in store, but TLS probe unreachable - Action Required)\\033[0m\\n" "$TRUSTED_CAS" "$TOTAL_CAS"
 else
     printf "\\033[1;31m[✗] OVERALL FLEET STATUS: NON-COMPLIANT / UNTRUSTED (0/%d CAs trusted)\\033[0m\\n" "$TOTAL_CAS"
 fi
@@ -917,60 +981,105 @@ try {{
 
 $TotalCas = 0
 $TrustedCas = 0
+$HasWarnings = $false
 $Results = [System.Collections.ArrayList]::new()
+
+$ServerUri = $null
+$ServerHost = "localhost"
+try {{
+    $ServerUri = [System.Uri]$ServerUrl
+    $ServerHost = $ServerUri.Host
+}} catch {{}}
 
 foreach ($ca in $Cas) {{
     $TotalCas++
     $caSerial = [string]$ca.serial_number
     $caCn = [string]$ca.cn
     $caFpRaw = ([string]$ca.fingerprint_sha256_raw).ToUpper().Trim()
+    $caPort = [string]$ca.probe_port
 
     $isTrusted = $false
+    $tlsVerified = $false
     $details = "Certificate not found in Windows Root Certificate Store"
 
-    $normSerial = $caSerial.Replace(" ", "").Replace(":", "").ToUpper()
-
-    # Check LocalMachine Root
-    foreach ($cert in $LocalMachineCerts) {{
-        $certThumb = ($cert.Thumbprint -replace " ", "").ToUpper()
-        $certSerial = ($cert.SerialNumber -replace " ", "").ToUpper()
-
-        if ($caFpRaw -and ($certThumb -eq $caFpRaw)) {{
-            $isTrusted = $true
-            $details = "Verified by SHA-256 in Cert:\\LocalMachine\\Root"
-            break
-        }}
-        if ($normSerial -and ($certSerial -eq $normSerial)) {{
-            $isTrusted = $true
-            $details = "Verified by serial in Cert:\\LocalMachine\\Root"
-            break
-        }}
+    # Step 1: Live Web Endpoint TLS Verification (Primary check)
+    if ($caPort -and ($caPort -ne "0")) {{
+        try {{
+            $ProbeUrl = "https://${{ServerHost}}:${{caPort}}/probe"
+            $req = [System.Net.HttpWebRequest]::Create($ProbeUrl)
+            $req.Timeout = 3000
+            $req.Method = "GET"
+            # Require strict TLS certificate validation against system store
+            $req.ServerCertificateValidationCallback = {{
+                param($s, $cert, $chain, $err)
+                return ($err -eq [System.Net.Security.SslPolicyErrors]::None)
+            }}
+            $resp = $req.GetResponse()
+            if ($resp.StatusCode -eq 200) {{
+                $tlsVerified = $true
+                $isTrusted = $true
+                $details = "Verified via TLS handshake on port $caPort"
+            }}
+            $resp.Close()
+        }} catch {{}}
     }}
 
-    # Fallback check in CurrentUser Root
-    if (-not $isTrusted) {{
-        foreach ($cert in $CurrentUserCerts) {{
+    if (-not $tlsVerified) {{
+        $normSerial = $caSerial.Replace(" ", "").Replace(":", "").ToUpper()
+
+        # Check LocalMachine Root
+        foreach ($cert in $LocalMachineCerts) {{
             $certThumb = ($cert.Thumbprint -replace " ", "").ToUpper()
             $certSerial = ($cert.SerialNumber -replace " ", "").ToUpper()
 
             if ($caFpRaw -and ($certThumb -eq $caFpRaw)) {{
                 $isTrusted = $true
-                $details = "Verified by SHA-256 in Cert:\\CurrentUser\\Root"
+                $details = "Verified by SHA-256 in Cert:\\LocalMachine\\Root"
                 break
             }}
             if ($normSerial -and ($certSerial -eq $normSerial)) {{
                 $isTrusted = $true
-                $details = "Verified by serial in Cert:\\CurrentUser\\Root"
+                $details = "Verified by serial in Cert:\\LocalMachine\\Root"
                 break
+            }}
+        }}
+
+        # Fallback check in CurrentUser Root
+        if (-not $isTrusted) {{
+            foreach ($cert in $CurrentUserCerts) {{
+                $certThumb = ($cert.Thumbprint -replace " ", "").ToUpper()
+                $certSerial = ($cert.SerialNumber -replace " ", "").ToUpper()
+
+                if ($caFpRaw -and ($certThumb -eq $caFpRaw)) {{
+                    $isTrusted = $true
+                    $details = "Verified by SHA-256 in Cert:\\CurrentUser\\Root"
+                    break
+                }}
+                if ($normSerial -and ($certSerial -eq $normSerial)) {{
+                    $isTrusted = $true
+                    $details = "Verified by serial in Cert:\\CurrentUser\\Root"
+                    break
+                }}
+            }}
+        }}
+
+        if ($isTrusted) {{
+            $HasWarnings = $true
+            if ($caPort -and ($caPort -ne "0")) {{
+                $details = "$details (TLS probe port $caPort unverified)"
             }}
         }}
     }}
 
+    $portLabel = if ($caPort -and ($caPort -ne "0")) {{ " (Port $caPort)" }} else {{ "" }}
     Write-Host ""
-    Write-Host "[+] Checking CA: $caCn (Serial: $caSerial)"
-    if ($isTrusted) {{
+    Write-Host "[+] Checking CA: $caCn (Serial: $caSerial)$portLabel"
+    if ($tlsVerified) {{
         $TrustedCas++
         Write-Host "    Status: [ COMPLIANT - TRUSTED ] ($details)" -ForegroundColor Green
+    }} elseif ($isTrusted) {{
+        $TrustedCas++
+        Write-Host "    Status: [ WARNING - PARTIAL ] ($details)" -ForegroundColor Yellow
     }} else {{
         Write-Host "    Status: [ ERROR - NOT TRUSTED / MISSING ]" -ForegroundColor Red
         Write-Host "    Action: Please install and trust certificate in Cert:\\LocalMachine\\Root." -ForegroundColor Yellow
@@ -981,6 +1090,20 @@ foreach ($ca in $Cas) {{
         is_trusted = $isTrusted
         details = $details
     }})
+}}
+
+# Determine Overall Status
+$overallStatus = "untrusted"
+if ($TrustedCas -eq $TotalCas -and $TotalCas -gt 0) {{
+    if ($HasWarnings) {{
+        $overallStatus = "partial"
+    }} else {{
+        $overallStatus = "compliant"
+    }}
+}} elseif ($TrustedCas -gt 0) {{
+    $overallStatus = "partial"
+}} else {{
+    $overallStatus = "untrusted"
 }}
 
 # Transmit Telemetry
@@ -997,6 +1120,7 @@ $ReportPayload = @{{
     ip_address = $HostIdentifier
     endpoint_id = $epVal
     verification_method = "cli_probe"
+    overall_status = $overallStatus
     results = $Results
 }}
 
@@ -1011,10 +1135,10 @@ try {{
 }}
 
 Write-Host "================================================================================" -ForegroundColor Magenta
-if ($TrustedCas -eq $TotalCas -and $TotalCas -gt 0) {{
-    Write-Host "[OK] OVERALL FLEET STATUS: COMPLIANT ($TrustedCas/$TotalCas CAs trusted)" -ForegroundColor Green
-}} elseif ($TrustedCas -gt 0) {{
-    Write-Host "[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE ($TrustedCas/$TotalCas CAs trusted - Action Required)" -ForegroundColor Yellow
+if ($overallStatus -eq "compliant") {{
+    Write-Host "[OK] OVERALL FLEET STATUS: COMPLIANT ($TrustedCas/$TotalCas CAs trusted via live TLS)" -ForegroundColor Green
+}} elseif ($overallStatus -eq "partial") {{
+    Write-Host "[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE ($TrustedCas/$TotalCas CAs in store, but TLS probe unreachable - Action Required)" -ForegroundColor Yellow
 }} else {{
     Write-Host "[FAIL] OVERALL FLEET STATUS: NON-COMPLIANT / UNTRUSTED (0/$TotalCas CAs trusted)" -ForegroundColor Red
 }}
@@ -1124,9 +1248,14 @@ async def probe_endpoint_trust_via_ssh(
             detected_os, os_detail = await dist.probe_ssh_os(conn)
 
             results = []
-            for ca in expected_cas:
+            has_warnings = False
+            probe_base_port = settings.ca.trust_probe_base_port
+            fallback_host = str(settings.external_url.host) if (settings.external_url and settings.external_url.host) else '127.0.0.1'
+
+            for idx, ca in enumerate(expected_cas):
                 serial = ca['serial_number']
                 cn = ca['cn']
+                port = probe_manager.ports.get(serial, probe_base_port + idx)
 
                 if progress_callback:
                     await progress_callback(
@@ -1140,14 +1269,58 @@ async def probe_endpoint_trust_via_ssh(
                     )
 
                 is_trusted = False
+                tls_verified = False
                 details = 'Not found in system trust store'
 
-                fp_raw = ca.get('fingerprint_sha256_raw', '').upper().replace(':', '').strip()
-                serial_norm = serial.upper().replace(':', '').strip()
+                # Step 1: Live TLS probe from remote host to dedicated probe port (Primary check)
+                if detected_os in ('linux', 'openwrt', 'macos'):
+                    live_probe_cmd = f"""
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --connect-timeout 3 --max-time 5 "https://{fallback_host}:{port}/probe" >/dev/null 2>&1 && echo "LIVE_TLS_OK"
+elif command -v wget >/dev/null 2>&1; then
+    wget -qO- --timeout=3 "https://{fallback_host}:{port}/probe" >/dev/null 2>&1 && echo "LIVE_TLS_OK"
+elif command -v uclient-fetch >/dev/null 2>&1; then
+    uclient-fetch -q -O - --timeout=3 "https://{fallback_host}:{port}/probe" >/dev/null 2>&1 && echo "LIVE_TLS_OK"
+fi
+"""
+                    try:
+                        res_probe = await conn.run(live_probe_cmd, check=False, timeout=6)
+                        if 'LIVE_TLS_OK' in str(res_probe.stdout or ''):
+                            tls_verified = True
+                            is_trusted = True
+                            details = f'Verified via live TLS handshake on port {port}'
+                    except (TimeoutError, asyncio.TimeoutError):
+                        pass
 
-                if detected_os == 'linux':
-                    pem_sig = ca.get('pem_signature', '')
-                    check_cmd = f"""
+                elif detected_os == 'windows':
+                    ps_live_cmd = (
+                        f'powershell -NoProfile -Command "'
+                        f'try {{ '
+                        f"$req = [System.Net.HttpWebRequest]::Create('https://{fallback_host}:{port}/probe'); "
+                        f"$req.Timeout = 3000; $req.Method = 'GET'; "
+                        f'$req.ServerCertificateValidationCallback = {{ param($s, $c, $ch, $err) return ($err -eq [System.Net.Security.SslPolicyErrors]::None) }}; '
+                        f'$resp = $req.GetResponse(); '
+                        f"if ($resp.StatusCode -eq 200) {{ Write-Output 'LIVE_TLS_OK' }}; "
+                        f'$resp.Close() '
+                        f'}} catch {{}}"'
+                    )
+                    try:
+                        res_probe = await conn.run(ps_live_cmd, check=False, timeout=6)
+                        if 'LIVE_TLS_OK' in str(res_probe.stdout or ''):
+                            tls_verified = True
+                            is_trusted = True
+                            details = f'Verified via live TLS handshake on port {port}'
+                    except (TimeoutError, asyncio.TimeoutError):
+                        pass
+
+                # Step 2: Fallback to Directory / Store Inspection if TLS probe failed or was unreachable
+                if not tls_verified:
+                    fp_raw = ca.get('fingerprint_sha256_raw', '').upper().replace(':', '').strip()
+                    serial_norm = serial.upper().replace(':', '').strip()
+
+                    if detected_os == 'linux':
+                        pem_sig = ca.get('pem_signature', '')
+                        check_cmd = f"""
 SN="{serial_norm}"
 FP="{fp_raw}"
 SIG="{pem_sig}"
@@ -1200,19 +1373,20 @@ fi
 
 echo "$FOUND"
 """
-                    try:
-                        res = await conn.run(check_cmd, check=False, timeout=12)
-                        out = str(res.stdout or '').strip()
-                        if out:
-                            is_trusted = True
-                            details = out[:100]
-                    except (TimeoutError, asyncio.TimeoutError):
-                        details = 'Check timed out after 12s'
-                        logger.warning('Certificate check timed out for %s on %s', cn, host)
+                        try:
+                            res = await conn.run(check_cmd, check=False, timeout=12)
+                            out = str(res.stdout or '').strip()
+                            if out:
+                                is_trusted = True
+                                has_warnings = True
+                                details = f'{out[:60]} (TLS probe port {port} unverified)'
+                        except (TimeoutError, asyncio.TimeoutError):
+                            details = 'Check timed out after 12s'
+                            logger.warning('Certificate check timed out for %s on %s', cn, host)
 
-                elif detected_os == 'openwrt':
-                    pem_sig = ca.get('pem_signature', '')
-                    check_cmd = f"""
+                    elif detected_os == 'openwrt':
+                        pem_sig = ca.get('pem_signature', '')
+                        check_cmd = f"""
 SN="{serial_norm}"
 SIG="{pem_sig}"
 FOUND=""
@@ -1245,53 +1419,57 @@ fi
 
 echo "$FOUND"
 """
-                    try:
-                        res = await conn.run(check_cmd, check=False, timeout=15)
-                        out = str(res.stdout or '').strip()
-                        if out:
-                            is_trusted = True
-                            details = out[:100]
-                    except (TimeoutError, asyncio.TimeoutError):
-                        details = 'Check timed out after 15s'
-                        logger.warning('Certificate check timed out for %s on %s', cn, host)
+                        try:
+                            res = await conn.run(check_cmd, check=False, timeout=15)
+                            out = str(res.stdout or '').strip()
+                            if out:
+                                is_trusted = True
+                                has_warnings = True
+                                details = f'{out[:60]} (TLS probe port {port} unverified)'
+                        except (TimeoutError, asyncio.TimeoutError):
+                            details = 'Check timed out after 15s'
+                            logger.warning('Certificate check timed out for %s on %s', cn, host)
 
-                elif detected_os == 'windows':
-                    ps_cmd = (
-                        f'powershell -NoProfile -Command "'
-                        f"$cert = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ ($_.SerialNumber -eq '{serial_norm}') -or ($_.Thumbprint -eq '{fp_raw}') }}; "
-                        f"if ($cert) {{ Write-Output ('Verified in Cert:\\LocalMachine\\Root (Thumbprint: ' + $cert.Thumbprint + ')') }}\""
-                    )
-                    try:
-                        res = await conn.run(ps_cmd, check=False, timeout=10)
-                        out = str(res.stdout or '').strip()
-                        if out:
-                            is_trusted = True
-                            details = out[:100]
-                    except (TimeoutError, asyncio.TimeoutError):
-                        details = 'Check timed out after 10s'
-                        logger.warning('Certificate check timed out for %s on %s', cn, host)
+                    elif detected_os == 'windows':
+                        ps_cmd = (
+                            f'powershell -NoProfile -Command "'
+                            f"$cert = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ ($_.SerialNumber -eq '{serial_norm}') -or ($_.Thumbprint -eq '{fp_raw}') }}; "
+                            f"if ($cert) {{ Write-Output ('Verified in Cert:\\LocalMachine\\Root (Thumbprint: ' + $cert.Thumbprint + ')') }}\""
+                        )
+                        try:
+                            res = await conn.run(ps_cmd, check=False, timeout=10)
+                            out = str(res.stdout or '').strip()
+                            if out:
+                                is_trusted = True
+                                has_warnings = True
+                                details = f'{out[:60]} (TLS probe port {port} unverified)'
+                        except (TimeoutError, asyncio.TimeoutError):
+                            details = 'Check timed out after 10s'
+                            logger.warning('Certificate check timed out for %s on %s', cn, host)
 
-                elif detected_os == 'macos':
-                    check_cmd = f"""
+                    elif detected_os == 'macos':
+                        check_cmd = f"""
 if security find-certificate -a -c '{cn}' /Library/Keychains/System.keychain 2>/dev/null | grep -iq '{serial_norm}'; then
     echo "Verified by serial in macOS System.keychain"
 elif security find-certificate -a -c '{cn}' /Library/Keychains/System.keychain >/dev/null 2>&1; then
     echo "Found in macOS System.keychain"
 fi
 """
-                    try:
-                        res = await conn.run(check_cmd, check=False, timeout=8)
-                        out = str(res.stdout or '').strip()
-                        if out:
-                            is_trusted = True
-                            details = out[:100]
-                    except (TimeoutError, asyncio.TimeoutError):
-                        details = 'Check timed out after 8s'
-                        logger.warning('Certificate check timed out for %s on %s', cn, host)
+                        try:
+                            res = await conn.run(check_cmd, check=False, timeout=8)
+                            out = str(res.stdout or '').strip()
+                            if out:
+                                is_trusted = True
+                                has_warnings = True
+                                details = f'{out[:60]} (TLS probe port {port} unverified)'
+                        except (TimeoutError, asyncio.TimeoutError):
+                            details = 'Check timed out after 8s'
+                            logger.warning('Certificate check timed out for %s on %s', cn, host)
 
                 results.append({'ca_serial': serial, 'is_trusted': is_trusted, 'details': details})
 
             dev_name = resolve_endpoint_device_name(endpoint, host)
+            overall_status: ComplianceStatus | None = 'partial' if has_warnings else None
 
             audit_id = await record_audit(
                 device_name=dev_name,
@@ -1302,6 +1480,7 @@ fi
                 endpoint_id=endpoint.id,
                 verification_method='ssh_sweep',
                 results=results,
+                overall_status=overall_status,
             )
 
             return {'status': 'success', 'audit_id': audit_id, 'results': results, 'os': detected_os, 'os_detail': os_detail}

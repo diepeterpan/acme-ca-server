@@ -151,11 +151,14 @@ Generated At          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S 
 After completing the installation above, verify that this system trusts
 the newly installed CA certificate by running the automated audit probe:
 
-Option 1: Using cURL (Recommended)
+Option 1: Using cURL (Recommended - Live TLS & Store Audit)
    curl -sSL {ext_url}/ca-trust/probe.sh{probe_param} | sudo bash
 
 Option 2: Using Wget
    wget -qO- {ext_url}/ca-trust/probe.sh{probe_param} | sudo bash
+
+Option 3: Interactive Web Browser Verification
+   {ext_url}/ca-trust/verify{probe_param}
 ================================================================================
 """
 
@@ -163,7 +166,7 @@ Option 2: Using Wget
 After completing the installation above, verify that this system trusts
 the newly installed CA certificate by running the automated audit probe:
 
-Option 1: Using cURL (Recommended)
+Option 1: Using cURL (Recommended - Live TLS & Store Audit)
    curl -sSL {ext_url}/ca-trust/probe.sh{probe_param} | ash
 
 Option 2: Using Wget
@@ -171,6 +174,9 @@ Option 2: Using Wget
 
 Option 3: Using uclient-fetch
    uclient-fetch -q -O - {ext_url}/ca-trust/probe.sh{probe_param} | ash
+
+Option 4: Interactive Web Browser Verification
+   {ext_url}/ca-trust/verify{probe_param}
 ================================================================================
 """
 

@@ -2312,9 +2312,18 @@ async def ca_trust_probe_powershell_script(request: Request, endpoint_id: str | 
 
 
 @api.get('/ca-trust/api/cas')
-async def ca_trust_api_cas():
+async def ca_trust_api_cas(request: Request):
     """Return list of active and known CA certificates for client verification."""
     cas = await ca_fleet_trust.get_expected_cas()
+    base_port = settings.ca.trust_probe_base_port
+    host_header = request.headers.get('host', '')
+    req_host = host_header.split(':')[0].strip() if host_header else ''
+    external_host = req_host or (str(settings.external_url.host) if settings.external_url else 'localhost')
+    for idx, c in enumerate(cas):
+        serial = c['serial_number']
+        port = ca_fleet_trust.probe_manager.ports.get(serial, base_port + idx)
+        c['probe_port'] = port
+        c['probe_url'] = f'https://{external_host}:{port}/probe'
     return JSONResponse(cas)
 
 
@@ -2384,6 +2393,9 @@ async def ca_trust_api_report(request: Request):
         device_name = endpoint_name
 
     user_agent = request.headers.get('user-agent', '')
+    raw_status = body.get('overall_status')
+    valid_statuses = ('compliant', 'partial', 'untrusted', 'error')
+    overall_status_to_pass = raw_status if (raw_status in valid_statuses) else None
 
     try:
         audit_id = await ca_fleet_trust.record_audit(
@@ -2396,6 +2408,7 @@ async def ca_trust_api_report(request: Request):
             endpoint_id=endpoint_id,
             verification_method=body.get('verification_method', 'browser'),
             results=body.get('results', []),
+            overall_status=overall_status_to_pass,
         )
         return JSONResponse({'status': 'ok', 'audit_id': audit_id})
     except Exception as ex:  # noqa: BLE001
