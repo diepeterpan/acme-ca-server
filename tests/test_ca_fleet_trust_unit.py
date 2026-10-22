@@ -46,7 +46,8 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Cert:\\LocalMachine\\Root', script)
         self.assertIn('Cert:\\CurrentUser\\Root', script)
         self.assertIn('Invoke-RestMethod', script)
-        self.assertIn('OVERALL FLEET STATUS', script)
+        self.assertIn('[OK] OVERALL FLEET STATUS', script)
+        self.assertNotIn('[✓]', script)
 
     def test_public_probe_script_endpoint(self):
         from config import settings
