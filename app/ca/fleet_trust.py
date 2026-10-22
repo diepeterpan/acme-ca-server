@@ -816,6 +816,9 @@ try {{
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     }} catch {{}}
 }}
+try {{
+    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {{$true}}
+}} catch {{}}
 
 $ServerUrl = "{clean_url}"
 $EndpointName = "{clean_ep_name}"

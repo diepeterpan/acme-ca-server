@@ -960,7 +960,7 @@
             <label style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-top: 1rem; display: block;">Using Windows (PowerShell):</label>
             <div class="code-block">
                 <button type="button" class="copy-btn" onclick="copySnippet('cliPsCode')">Copy</button>
-                <code id="cliPsCode">powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '{{ external_url }}/ca-trust/probe.ps1')"</code>
+                <code id="cliPsCode">powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; Invoke-Expression (Invoke-RestMethod -Uri '{{ external_url }}/ca-trust/probe.ps1')"</code>
             </div>
 
             <div style="margin-top: 1.25rem; font-size: 0.82rem; color: var(--text-muted); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
@@ -1111,7 +1111,7 @@
 
         if (curlEl) curlEl.textContent = `curl -sSL ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
         if (wgetEl) wgetEl.textContent = `wget -qO- ${extBaseUrl}/ca-trust/probe.sh${param} | sudo bash`;
-        if (psEl) psEl.textContent = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '${extBaseUrl}/ca-trust/probe.ps1${param}')"`;
+        if (psEl) psEl.textContent = `powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; Invoke-Expression (Invoke-RestMethod -Uri '${extBaseUrl}/ca-trust/probe.ps1${param}')"`;
         if (browserEl) browserEl.textContent = `${extBaseUrl}/ca-trust/verify${param}`;
     }
 

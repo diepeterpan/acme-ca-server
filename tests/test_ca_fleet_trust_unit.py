@@ -39,6 +39,8 @@ class TestCaFleetTrustUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('$ServerUrl = "https://ca.example.com"', script)
         self.assertIn('$EndpointName = "WinServer01"', script)
         self.assertIn('$EndpointId = "ep-win-1"', script)
+        self.assertIn('SecurityProtocol', script)
+        self.assertIn('ServerCertificateValidationCallback', script)
         self.assertIn('/ca-trust/api/cas', script)
         self.assertIn('/ca-trust/api/report', script)
         self.assertIn('Cert:\\LocalMachine\\Root', script)

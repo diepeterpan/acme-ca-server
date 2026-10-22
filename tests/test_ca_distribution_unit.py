@@ -92,6 +92,8 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
         self.assertIn('certutil -addstore', win_readme)
         self.assertIn('Import-Certificate', win_readme)
         self.assertIn('probe.ps1', win_readme)
+        self.assertIn('SecurityProtocol', win_readme)
+        self.assertIn('ServerCertificateValidationCallback', win_readme)
         self.assertIn('certutil -verifystore', win_readme)
         self.assertIn('Get-ChildItem Cert:\\LocalMachine\\Root', win_readme)
         self.assertNotIn('sudo bash', win_readme)
