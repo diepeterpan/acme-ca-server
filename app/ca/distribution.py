@@ -162,7 +162,8 @@ Option 2: Using Wget
     ps_bootstrap = (
         f'[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; '
         f'[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {{$true}}; '
-        f"Invoke-Expression (Invoke-RestMethod -Uri '{ext_url}/ca-trust/probe.ps1{probe_param}')"
+        f'$w = New-Object Net.WebClient; $w.Encoding = [Text.Encoding]::UTF8; '
+        f"Invoke-Expression ($w.DownloadString('{ext_url}/ca-trust/probe.ps1{probe_param}'))"
     )
 
     windows_verify_section = f"""[AUTOMATED TRUST VERIFICATION & FLEET AUDITING]
@@ -176,9 +177,11 @@ Option 2: Using Command Prompt / cmd.exe (Automated Fleet Audit)
    powershell -NoProfile -ExecutionPolicy Bypass -Command "{ps_bootstrap}"
 
 Option 3: Local CLI Verification (Built-in Tools - No Remote Probe)
+   certutil -verifystore Root "{ca_name}"
+   -or-
    certutil -verifystore Root "{serial}"
    -or-
-   powershell -Command "Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ $_.SerialNumber -eq '{serial}' }}"
+   powershell -Command "Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ $_.Subject -like '*{ca_name}*' }}"
 
 Option 4: Interactive Web Browser Verification
    {ext_url}/ca-trust/verify{probe_param}

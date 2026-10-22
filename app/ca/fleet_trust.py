@@ -1012,11 +1012,11 @@ try {{
 
 Write-Host "================================================================================" -ForegroundColor Magenta
 if ($TrustedCas -eq $TotalCas -and $TotalCas -gt 0) {{
-    Write-Host "[✓] OVERALL FLEET STATUS: COMPLIANT ($TrustedCas/$TotalCas CAs trusted)" -ForegroundColor Green
+    Write-Host "[OK] OVERALL FLEET STATUS: COMPLIANT ($TrustedCas/$TotalCas CAs trusted)" -ForegroundColor Green
 }} elseif ($TrustedCas -gt 0) {{
     Write-Host "[!] OVERALL FLEET STATUS: PARTIAL COMPLIANCE ($TrustedCas/$TotalCas CAs trusted - Action Required)" -ForegroundColor Yellow
 }} else {{
-    Write-Host "[✗] OVERALL FLEET STATUS: NON-COMPLIANT / UNTRUSTED (0/$TotalCas CAs trusted)" -ForegroundColor Red
+    Write-Host "[FAIL] OVERALL FLEET STATUS: NON-COMPLIANT / UNTRUSTED (0/$TotalCas CAs trusted)" -ForegroundColor Red
 }}
 Write-Host "================================================================================" -ForegroundColor Magenta
 """

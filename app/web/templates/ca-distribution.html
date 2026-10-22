@@ -1085,7 +1085,7 @@
                             <td style="text-align: right;">
                                 <div class="actions-cell" style="justify-content: flex-end;">
                                     {% if ep.detected_os == 'windows' %}
-                                    <button type="button" class="btn-act" data-probe-cmd="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; Invoke-Expression (Invoke-RestMethod -Uri '{{ external_url }}/ca-trust/probe.ps1?endpoint_id={{ ep.id }}')&quot;" onclick="copyText(this.getAttribute('data-probe-cmd'), this)" title="Copy Windows PowerShell probe command for this endpoint">
+                                    <button type="button" class="btn-act" data-probe-cmd="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}; $w = New-Object Net.WebClient; $w.Encoding = [Text.Encoding]::UTF8; Invoke-Expression ($w.DownloadString('{{ external_url }}/ca-trust/probe.ps1?endpoint_id={{ ep.id }}'))&quot;" onclick="copyText(this.getAttribute('data-probe-cmd'), this)" title="Copy Windows PowerShell probe command for this endpoint">
                                         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
                                         Probe
                                     </button>
