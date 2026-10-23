@@ -603,13 +603,16 @@
 
 <!-- Filter & Search Bar -->
 <div class="filter-card">
-    <form method="get" action="/domains" class="search-wrapper" id="searchForm">
-        <input type="hidden" name="domainstatus" value="{{domainstatus}}">
-        <svg class="search-icon" viewBox="0 0 24 24">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-        </svg>
-        <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search domain name..." autocomplete="off">
-    </form>
+    <div class="search-group">
+        <form method="get" action="/domains" class="search-wrapper" id="searchForm">
+            <input type="hidden" name="domainstatus" value="{{domainstatus}}">
+            <svg class="search-icon" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input type="text" name="domainfilter" class="search-input" value="{{domainfilter}}" placeholder="Search domain name..." autocomplete="off">
+        </form>
+        <span class="grid-count-badge" id="domainsCountBadge" data-total="{{ domains|length }}" title="Total / Filtered Domains">{{ domains|length }}</span>
+    </div>
 
     <div class="filter-actions-group">
         <div class="filter-tabs">
@@ -632,12 +635,12 @@
                 <th data-col-key="ca_coverage" style="width: 125px;" title="Root CA Coverage (Active, Standby, Retired)">CA Coverage</th>
                 <th data-col-key="first_requested" title="Dates in local service time ({{ service_tz_label }})">First Requested</th>
                 <th data-col-key="expires" title="Dates in local service time ({{ service_tz_label }})">Certificate Valid Until</th>
-                <th data-no-sort data-col-key="action" style="text-align: right;">Action</th>
+                <th data-no-sort data-col-key="action">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for domain in domains %}
-            <tr>
+            <tr data-domain="{{ domain.domain_name|lower }}">
                 <td data-sort-val="{{ 1 if domain.is_valid else 2 }}">
                     {% if domain.is_valid %}
                     <span class="badge badge-valid">Valid</span>
@@ -707,8 +710,8 @@
                         {% endif %}
                     </span>
                 </td>
-                <td style="text-align: right;">
-                    <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                <td>
+                    <div style="display: inline-flex; align-items: center; justify-content: flex-start; gap: 0.35rem;">
                         <a href="/certificates?domainfilter={{domain.domain_name}}&certstatus=all" class="btn-action">
                             <span>View Certificates</span>
                             <span>&rarr;</span>
@@ -1047,6 +1050,47 @@ document.addEventListener('DOMContentLoaded', () => {
             hideCoveragePopover(true);
         }
     });
+
+    // Realtime search filtering & count update for domains
+    const domainSearchInput = document.querySelector('input[name="domainfilter"]');
+    const domainsTableBody = document.querySelector('.domain-table tbody');
+    const domainsCountBadge = document.getElementById('domainsCountBadge');
+
+    if (domainSearchInput && domainsTableBody && domainsCountBadge) {
+        const updateDomainFilterCount = () => {
+            const rows = domainsTableBody.querySelectorAll('tr[data-domain]');
+            const total = parseInt(domainsCountBadge.dataset.total || rows.length, 10);
+            let visible = 0;
+            rows.forEach((row) => {
+                if (row.style.display !== 'none') {
+                    visible++;
+                }
+            });
+            if (visible === total) {
+                domainsCountBadge.textContent = total;
+            } else {
+                domainsCountBadge.textContent = `${visible} / ${total}`;
+            }
+        };
+
+        domainSearchInput.addEventListener('input', (e) => {
+            const query = (e.target.value || '').toLowerCase().trim();
+            const rows = domainsTableBody.querySelectorAll('tr[data-domain]');
+            rows.forEach((row) => {
+                const domain = (row.dataset.domain || '').toLowerCase();
+                if (!query || domain.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            updateDomainFilterCount();
+        });
+
+        if (domainSearchInput.value) {
+            updateDomainFilterCount();
+        }
+    }
 });
 </script>
 

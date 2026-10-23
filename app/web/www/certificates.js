@@ -287,7 +287,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // 6. Client-side Realtime Domain Search
     const searchInput = document.querySelector('.search-input');
     const tableBody = document.getElementById('cert-table-body');
+    const certsCountBadge = document.getElementById('certsCountBadge');
     if (searchInput && tableBody) {
+        const updateCertFilterCount = () => {
+            if (!certsCountBadge) return;
+            const rows = tableBody.querySelectorAll('tr[data-domain]');
+            const total = parseInt(certsCountBadge.dataset.total, 10) || rows.length;
+            let visible = 0;
+            rows.forEach((row) => {
+                if (row.style.display !== 'none') {
+                    visible++;
+                }
+            });
+            if (visible === total) {
+                certsCountBadge.textContent = total;
+            } else {
+                certsCountBadge.textContent = `${visible} / ${total}`;
+            }
+        };
+
         searchInput.addEventListener('input', (e) => {
             const query = (e.target.value || '').toLowerCase().trim();
             const rows = tableBody.querySelectorAll('tr[data-domain]');
@@ -301,7 +319,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             updateBatchBar();
+            updateCertFilterCount();
         });
+
+        // Run once on initialization if there is already a filter applied
+        if (searchInput.value) {
+            updateCertFilterCount();
+        }
     }
 
     // 7. Certificate Details Inspection Modal

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#f5f3ff" stroke="#ede9fe" stroke-width="1"/>
-  <g transform="translate(4, 4) scale(1)">
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6" fill="#e6f4fa" stroke="#d0dee5" stroke-width="1"/>
+  <g transform="translate(4, 4)">
     <!-- Shield Outer -->
-    <path fill="#7c3aed" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+    <path fill="#006994" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.08 8.8-7 9.88-3.92-1.08-7-5.34-7-9.88V6.3l7-3.12zM12 6a4 4 0 0 0-4 4c0 1.62.97 3.01 2.37 3.63L9.5 17h5l-.87-3.37A4 4 0 0 0 16 10a4 4 0 0 0-4-4zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
   </g>
 </svg>

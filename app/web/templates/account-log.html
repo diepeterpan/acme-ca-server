@@ -357,7 +357,7 @@
     .action-group {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
         gap: 0.25rem;
         flex-wrap: wrap;
     }
@@ -692,13 +692,16 @@
 
 <!-- Search & Status Filter Bar -->
 <div class="filter-card">
-    <form method="get" action="/accounts" class="search-wrapper">
-        <input type="hidden" name="accountstatus" value="{{accountstatus}}">
-        <svg class="search-icon" viewBox="0 0 24 24">
-            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-        </svg>
-        <input type="text" name="accountfilter" class="search-input" value="{{accountfilter}}" placeholder="Search by email or Account ID..." autocomplete="off">
-    </form>
+    <div class="search-group">
+        <form method="get" action="/accounts" class="search-wrapper">
+            <input type="hidden" name="accountstatus" value="{{accountstatus}}">
+            <svg class="search-icon" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input type="text" name="accountfilter" class="search-input" value="{{accountfilter}}" placeholder="Search by email or Account ID..." autocomplete="off">
+        </form>
+        <span class="grid-count-badge" id="accountsCountBadge" data-total="{{ accounts|length }}" title="Total / Filtered Accounts">{{ accounts|length }}</span>
+    </div>
 
     <div class="filter-actions-group">
         <div class="filter-tabs">
@@ -721,12 +724,12 @@
                 <th data-col-key="certificates">Certificates</th>
                 <th data-col-key="orders">Order Requests</th>
                 <th class="cell-registered" data-col-key="registered" title="Dates in local service time ({{ service_tz_label }})">Registered</th>
-                <th data-no-sort data-col-key="actions" style="text-align: right;">Actions</th>
+                <th data-no-sort data-col-key="actions">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for acc in accounts %}
-            <tr>
+            <tr data-account-search="{{ acc.email|lower }} {{ acc.account_id|lower }}">
                 <td data-sort-val="{{ acc.email|lower }} {{ acc.account_id }}">
                     <div class="account-cell-wrapper">
                         <div class="account-email" tabindex="0">
@@ -1570,6 +1573,47 @@ document.addEventListener('DOMContentLoaded', () => {
             p.style.left = '-9999px';
         });
     }, { passive: true });
+
+    // Realtime search filtering & count update for accounts
+    const accountSearchInput = document.querySelector('input[name="accountfilter"]');
+    const accountsTableBody = document.querySelector('.account-table tbody');
+    const accountsCountBadge = document.getElementById('accountsCountBadge');
+
+    if (accountSearchInput && accountsTableBody && accountsCountBadge) {
+        const updateAccountFilterCount = () => {
+            const rows = accountsTableBody.querySelectorAll('tr[data-account-search]');
+            const total = parseInt(accountsCountBadge.dataset.total || rows.length, 10);
+            let visible = 0;
+            rows.forEach((row) => {
+                if (row.style.display !== 'none') {
+                    visible++;
+                }
+            });
+            if (visible === total) {
+                accountsCountBadge.textContent = total;
+            } else {
+                accountsCountBadge.textContent = `${visible} / ${total}`;
+            }
+        };
+
+        accountSearchInput.addEventListener('input', (e) => {
+            const query = (e.target.value || '').toLowerCase().trim();
+            const rows = accountsTableBody.querySelectorAll('tr[data-account-search]');
+            rows.forEach((row) => {
+                const searchData = (row.dataset.accountSearch || '').toLowerCase();
+                if (!query || searchData.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            updateAccountFilterCount();
+        });
+
+        if (accountSearchInput.value) {
+            updateAccountFilterCount();
+        }
+    }
 });
 </script>
 
