@@ -21,8 +21,8 @@
     .auth-card {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 10px 25px -5px rgba(124, 58, 237, 0.1), 0 8px 10px -6px rgba(124, 58, 237, 0.05);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
         padding: 2.5rem 2rem;
         text-align: center;
     }
@@ -30,13 +30,13 @@
     .auth-icon-wrap {
         width: 56px;
         height: 56px;
-        border-radius: 16px;
+        border-radius: var(--radius-sm);
         background: var(--primary-light);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         margin-bottom: 1.25rem;
-        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.12);
+        box-shadow: 0 4px 12px rgba(0, 105, 148, 0.12);
     }
 
     .auth-icon-wrap svg {
@@ -81,7 +81,7 @@
         width: 100%;
         padding: 0.7rem 0.95rem;
         border: 1.5px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.95rem;
         color: var(--text-body);
         background-color: #ffffff;
@@ -91,7 +91,7 @@
 
     .form-control:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
     }
 
     /* Password strength bars */
@@ -116,18 +116,18 @@
         background-color: var(--primary);
         color: #ffffff;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.95rem;
         font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 4px 10px rgba(0, 105, 148, 0.25);
         transition: all 0.2s ease;
         margin-top: 0.5rem;
     }
 
     .btn-primary:hover {
         background-color: var(--primary-hover);
-        box-shadow: 0 6px 14px rgba(124, 58, 237, 0.35);
+        box-shadow: 0 6px 14px rgba(0, 105, 148, 0.35);
         transform: translateY(-1px);
     }
 
@@ -140,7 +140,7 @@
         border: 1px solid var(--status-expired-border);
         color: var(--status-expired-text);
         padding: 0.75rem 1rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         margin-bottom: 1.25rem;
         font-size: 0.88rem;
         text-align: left;

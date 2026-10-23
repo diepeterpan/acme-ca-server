@@ -8,13 +8,13 @@
     <title>Root CA Trust Verification - {{app_title}}</title>
     <style>
         :root {
-            --primary: #7c3aed;
-            --primary-hover: #6d28d9;
-            --primary-light: #f5f3ff;
-            --primary-border: #ede9fe;
-            --text-heading: #1e1b4b;
+            --primary: #006994;
+            --primary-hover: #004d6e;
+            --primary-light: #e6f4fa;
+            --primary-border: #bee3f8;
+            --text-heading: #1c2830;
             --text-body: #334155;
-            --text-muted: #64748b;
+            --text-muted: #627d98;
             --bg-page: #f8fafc;
             --bg-card: #ffffff;
             --border-card: #e2e8f0;
@@ -27,12 +27,14 @@
             --status-warn-bg: #fffbeb;
             --status-warn-text: #d97706;
             --status-warn-border: #fde68a;
-            --radius-md: 10px;
-            --radius-lg: 16px;
-            --radius-pill: 9999px;
+            --radius-xs: 2px;
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-pill: 4px;
             --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(124, 58, 237, 0.08), 0 2px 4px -2px rgba(124, 58, 237, 0.04);
-            --shadow-lg: 0 10px 25px -5px rgba(124, 58, 237, 0.12), 0 8px 10px -6px rgba(124, 58, 237, 0.04);
+            --shadow-md: 0 4px 6px -1px rgba(0, 105, 148, 0.08), 0 2px 4px -2px rgba(0, 105, 148, 0.04);
+            --shadow-lg: 0 10px 25px -5px rgba(0, 105, 148, 0.12), 0 8px 10px -6px rgba(0, 105, 148, 0.04);
         }
 
         * {
@@ -71,7 +73,7 @@
         }
 
         .verify-header {
-            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            background: linear-gradient(135deg, #006994 0%, #004d6e 100%);
             color: #ffffff;
             padding: 1.75rem 2rem;
             position: relative;
@@ -88,7 +90,7 @@
             background: rgba(255, 255, 255, 0.18);
             backdrop-filter: blur(4px);
             padding: 0.25rem 0.75rem;
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-xs);
             margin-bottom: 0.75rem;
         }
 
@@ -142,7 +144,7 @@
             height: 36px;
             background: #ffffff;
             border: 1px solid var(--primary-border);
-            border-radius: 50%;
+            border-radius: var(--radius-sm);
             color: var(--primary);
             flex-shrink: 0;
         }
@@ -169,7 +171,7 @@
         .device-ip-badge {
             background: #ffffff;
             border: 1px solid var(--primary-border);
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-xs);
             padding: 0.25rem 0.75rem;
             font-size: 0.8rem;
             font-family: monospace;
@@ -266,7 +268,7 @@
             align-items: center;
             gap: 0.35rem;
             padding: 0.35rem 0.85rem;
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-xs);
             font-size: 0.75rem;
             font-weight: 700;
             letter-spacing: 0.03em;
@@ -294,7 +296,7 @@
 
         .info-box {
             padding: 1rem 1.25rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             font-size: 0.88rem;
             line-height: 1.5;
             display: flex;
@@ -368,7 +370,7 @@
             justify-content: center;
             gap: 0.5rem;
             padding: 0.65rem 1.25rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             font-size: 0.88rem;
             font-weight: 600;
             cursor: pointer;
@@ -408,14 +410,14 @@
             flex: 1;
             padding: 0.5rem 0.75rem;
             border: 1px solid #cbd5e1;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             font-size: 0.85rem;
         }
 
         .custom-name-input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+            box-shadow: 0 0 0 2px rgba(0, 105, 148, 0.15);
         }
 
         .verify-footer {
@@ -501,12 +503,12 @@
                             <div class="ca-title">
                                 {{ ca.cn }}
                                 {% if ca.active %}
-                                <span style="font-size: 0.7rem; font-weight: 700; color: #7c3aed; background: #f5f3ff; border: 1px solid #ede9fe; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">ACTIVE</span>
+                                <span style="font-size: 0.7rem; font-weight: 700; color: #006994; background: #e6f4fa; border: 1px solid #bee3f8; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">ACTIVE</span>
                                 {% endif %}
                             </div>
                             <div class="ca-sub">
                                 Serial: {{ ca.serial_number[:12] }}... | Fingerprint: {{ ca.fingerprint_sha256[:20] }}...
-                                <span id="probe_badge_{{ ca.serial_number }}" style="font-weight: 600; color: #7c3aed; margin-left: 4px;"></span>
+                                <span id="probe_badge_{{ ca.serial_number }}" style="font-weight: 600; color: #006994; margin-left: 4px;"></span>
                             </div>
                         </div>
                     </div>

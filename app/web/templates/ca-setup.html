@@ -11,7 +11,7 @@
     .setup-card {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         box-shadow: var(--shadow-md);
         padding: 2.25rem;
     }
@@ -99,7 +99,7 @@
         width: 100%;
         padding: 0.65rem 0.95rem;
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.95rem;
         background-color: #ffffff;
         color: var(--text-body);
@@ -109,7 +109,7 @@
 
     .form-control:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
     }
 
     .badge-critical {
@@ -119,7 +119,7 @@
         font-weight: 700;
         text-transform: uppercase;
         padding: 0.15rem 0.45rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         letter-spacing: 0.04em;
     }
 
@@ -129,12 +129,12 @@
         font-size: 0.72rem;
         font-weight: 600;
         padding: 0.15rem 0.45rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
     }
 
     .compliance-box {
-        background: #faf5ff;
-        border: 1px solid var(--primary-subtle);
+        background: #f0f7fa;
+        border: 1px solid #d0dee5;
         border-radius: var(--radius-md);
         padding: 1.25rem;
         margin-bottom: 2rem;
@@ -155,7 +155,7 @@
         justify-content: space-between;
         gap: 1rem;
         padding-bottom: 0.5rem;
-        border-bottom: 1px dashed rgba(124, 58, 237, 0.2);
+        border-bottom: 1px dashed rgba(0, 105, 148, 0.2);
     }
 
     .compliance-item:last-child {
@@ -183,20 +183,21 @@
         gap: 0.6rem;
         width: 100%;
         padding: 0.9rem 1.5rem;
-        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+        background: var(--color-primary);
         color: #ffffff;
         font-size: 1.05rem;
         font-weight: 700;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         cursor: pointer;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        box-shadow: 0 4px 12px rgba(0, 105, 148, 0.25);
     }
 
     .btn-submit:hover {
+        background: var(--color-primary-hover);
         transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+        box-shadow: 0 6px 16px rgba(0, 105, 148, 0.35);
     }
 
     .btn-submit:disabled {
@@ -210,7 +211,7 @@
         border: 1px solid var(--status-expired-border);
         color: var(--status-expired-text);
         padding: 0.9rem 1.25rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         margin-bottom: 1.5rem;
         font-weight: 600;
         display: flex;

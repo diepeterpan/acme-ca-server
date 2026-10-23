@@ -9,21 +9,24 @@
     <title>Maintenance Mode - {{ app_title }}</title>
     <style>
         :root {
-            --primary: #7c3aed;
-            --primary-glow: rgba(124, 58, 237, 0.4);
-            --primary-light: #f5f3ff;
-            --bg-gradient-start: #0f0c1b;
-            --bg-gradient-end: #1e1238;
-            --card-bg: rgba(30, 20, 56, 0.75);
-            --card-border: rgba(167, 139, 250, 0.25);
-            --text-heading: #f8fafc;
-            --text-body: #cbd5e1;
-            --text-muted: #94a3b8;
-            --badge-bg: rgba(124, 58, 237, 0.2);
-            --badge-border: rgba(167, 139, 250, 0.35);
-            --badge-text: #c4b5fd;
-            --radius-xl: 18px;
-            --radius-pill: 9999px;
+            --primary: #006994;
+            --primary-glow: rgba(0, 105, 148, 0.4);
+            --primary-light: #e6f4fa;
+            --bg-gradient-start: #08131a;
+            --bg-gradient-end: #0c1e28;
+            --card-bg: rgba(12, 30, 40, 0.85);
+            --card-border: rgba(0, 105, 148, 0.35);
+            --text-heading: #f0f7fa;
+            --text-body: #c0d3de;
+            --text-muted: #829ab1;
+            --badge-bg: rgba(0, 105, 148, 0.2);
+            --badge-border: rgba(0, 105, 148, 0.4);
+            --badge-text: #bae6fd;
+            --radius-xs: 2px;
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-pill: 4px;
         }
 
         * {
@@ -55,7 +58,7 @@
         .veil-card {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-lg);
             box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.6), 0 0 35px var(--primary-glow);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -71,7 +74,7 @@
             left: -50%;
             width: 200%;
             height: 200%;
-            background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 65%);
+            background: radial-gradient(circle, rgba(0, 105, 148, 0.12) 0%, transparent 65%);
             pointer-events: none;
             animation: pulse-glow 4s ease-in-out infinite alternate;
         }
@@ -88,7 +91,7 @@
             padding: 0.35rem 0.9rem;
             background: var(--badge-bg);
             border: 1px solid var(--badge-border);
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-xs);
             color: var(--badge-text);
             font-size: 0.8rem;
             font-weight: 600;
@@ -100,9 +103,9 @@
         .pulse-dot {
             width: 8px;
             height: 8px;
-            background: #a855f7;
+            background: #38bdf8;
             border-radius: 50%;
-            box-shadow: 0 0 10px #c084fc;
+            box-shadow: 0 0 10px #7dd3fc;
             animation: pulse-dot 1.6s infinite;
         }
 
@@ -116,13 +119,13 @@
             width: 72px;
             height: 72px;
             margin: 0 auto 1.5rem;
-            border-radius: 20px;
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(168, 85, 247, 0.15));
-            border: 1px solid rgba(167, 139, 250, 0.35);
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, rgba(0, 105, 148, 0.35), rgba(56, 189, 248, 0.15));
+            border: 1px solid rgba(0, 105, 148, 0.4);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 24px rgba(124, 58, 237, 0.25);
+            box-shadow: 0 8px 24px rgba(0, 105, 148, 0.25);
             animation: float-icon 3s ease-in-out infinite alternate;
         }
 
@@ -134,7 +137,7 @@
         .icon-wrapper svg {
             width: 36px;
             height: 36px;
-            fill: #c4b5fd;
+            fill: #bae6fd;
         }
 
         h1 {
@@ -153,9 +156,9 @@
         }
 
         .progress-box {
-            background: rgba(15, 12, 27, 0.6);
-            border: 1px solid rgba(167, 139, 250, 0.15);
-            border-radius: 12px;
+            background: rgba(8, 19, 26, 0.7);
+            border: 1px solid rgba(0, 105, 148, 0.25);
+            border-radius: var(--radius-sm);
             padding: 1.15rem 1rem;
             margin-bottom: 1.5rem;
             text-align: left;
@@ -199,7 +202,7 @@
             left: 0;
             height: 100%;
             width: 35%;
-            background: linear-gradient(90deg, #7c3aed, #a855f7, #c084fc);
+            background: linear-gradient(90deg, #006994, #0ea5e9, #38bdf8);
             border-radius: 2px;
             animation: progress-move 2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
         }

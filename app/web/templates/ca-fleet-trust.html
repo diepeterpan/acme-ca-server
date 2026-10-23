@@ -55,7 +55,7 @@
     .kpi-card {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         padding: 1.25rem 1.5rem;
         box-shadow: var(--shadow-sm);
         display: flex;
@@ -116,7 +116,7 @@
         font-size: 0.75rem;
         font-weight: 700;
         padding: 0.2rem 0.6rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
     }
 
     .kpi-compliant .kpi-badge { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
@@ -127,7 +127,7 @@
     .filter-toolbar {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         padding: 1rem 1.25rem;
         margin-bottom: 1.5rem;
         box-shadow: var(--shadow-sm);
@@ -164,7 +164,7 @@
         width: 100%;
         padding: 0.55rem 0.85rem 0.55rem 2.4rem;
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         color: var(--text-body);
         background: #f8fafc;
@@ -175,7 +175,7 @@
         outline: none;
         border-color: var(--primary);
         background: #ffffff;
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
     }
 
     .select-wrap {
@@ -186,7 +186,7 @@
         width: 100%;
         padding: 0.55rem 0.85rem;
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         background: #f8fafc;
         color: var(--text-body);
@@ -222,7 +222,7 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.25rem 0.75rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-sm);
         font-size: 0.78rem;
         font-weight: 600;
         text-decoration: none;
@@ -256,7 +256,7 @@
     .os-icon-circle {
         width: 22px;
         height: 22px;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -267,7 +267,7 @@
     .os-icon-circle.os-linux { background: #e0f2fe; color: #0284c7; }
     .os-icon-circle.os-windows { background: #e0e7ff; color: #4338ca; }
     .os-icon-circle.os-macos { background: #f1f5f9; color: #334155; }
-    .os-icon-circle.os-ios { background: #f5f3ff; color: #7c3aed; }
+    .os-icon-circle.os-ios { background: #f0fdfa; color: #0d9488; }
     .os-icon-circle.os-android { background: #ecfdf5; color: #059669; }
     .os-icon-circle.os-openwrt { background: #fef3c7; color: #b45309; }
     .os-icon-circle.os-unknown { background: #f1f5f9; color: #64748b; }
@@ -278,7 +278,7 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.22rem 0.65rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.02em;
@@ -346,7 +346,7 @@
     .method-tag {
         font-size: 11px;
         padding: 0.15rem 0.5rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         background: #f1f5f9;
         color: var(--text-muted);
         font-family: monospace;
@@ -359,7 +359,7 @@
         justify-content: center;
         gap: 0.45rem;
         font-weight: 600;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         text-decoration: none;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -372,13 +372,13 @@
         border: none;
         padding: 0.55rem 1.15rem;
         font-size: 0.88rem;
-        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 2px 6px rgba(0, 105, 148, 0.25);
     }
 
     .btn-primary:hover {
         background-color: var(--primary-hover);
         transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+        box-shadow: 0 4px 10px rgba(0, 105, 148, 0.35);
     }
 
     .btn-primary:disabled {
@@ -404,7 +404,7 @@
     .table-card {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         box-shadow: var(--shadow-md);
         overflow: hidden;
     }
@@ -431,7 +431,7 @@
         align-items: center;
         gap: 0.3rem;
         padding: 0.25rem 0.55rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 11px;
         font-weight: 600;
         text-decoration: none;
@@ -475,7 +475,7 @@
         background: #0f172a;
         color: #f8fafc;
         padding: 1rem 1.25rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-family: monospace;
         font-size: 0.85rem;
         position: relative;
@@ -491,7 +491,7 @@
         color: #ffffff;
         border: none;
         padding: 0.25rem 0.6rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         font-size: 0.75rem;
         cursor: pointer;
     }
@@ -530,7 +530,7 @@
     .sweep-veil-card {
         background: #ffffff;
         border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 16px;
+        border-radius: var(--radius-lg);
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
         width: 100%;
         max-width: 540px;
@@ -584,7 +584,7 @@
         width: 100%;
         height: 8px;
         background: #e2e8f0;
-        border-radius: 9999px;
+        border-radius: var(--radius-xs);
         overflow: hidden;
         margin: 1.5rem 0 1rem 0;
         position: relative;
@@ -594,14 +594,14 @@
         height: 100%;
         width: 0%;
         background: linear-gradient(90deg, var(--primary), #38bdf8);
-        border-radius: 9999px;
+        border-radius: var(--radius-xs);
         transition: width 0.35s ease;
     }
 
     .sweep-step-box {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-radius: 10px;
+        border-radius: var(--radius-sm);
         padding: 1rem 1.25rem;
         margin-top: 1.25rem;
         text-align: left;
@@ -642,7 +642,7 @@
         align-items: center;
         gap: 0.3rem;
         padding: 0.2rem 0.65rem;
-        border-radius: 9999px;
+        border-radius: var(--radius-xs);
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.02em;
@@ -994,8 +994,8 @@
         </div>
         <form method="POST" id="delete-audit-form" action="">
             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
-                <button type="button" onclick="closeDeleteAuditModal()" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
-                <button type="submit" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Record</button>
+                <button type="button" onclick="closeDeleteAuditModal()" style="background-color: #ffffff; color: var(--text-body); border: 1px solid #cbd5e1; padding: 0.6rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.92rem; cursor: pointer;">Cancel</button>
+                <button type="submit" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.6rem 1.4rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.92rem; cursor: pointer; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete Record</button>
             </div>
         </form>
     </div>
@@ -1181,13 +1181,13 @@
                 const badgeText = !r.is_trusted ? 'UNTRUSTED' : (isWarn ? 'PARTIAL' : 'TRUSTED');
 
                 return `
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; background: ${bg}; border: 1px solid ${border}; border-radius: 6px; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; background: ${bg}; border: 1px solid ${border}; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
                     <div>
-                        <div style="font-weight: 700; font-size: 0.9rem; color: #1e1b4b;">${escapeHtml(r.ca_cn)}</div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-heading, #1c2830);">${escapeHtml(r.ca_cn)}</div>
                         <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">Serial: ${escapeHtml(r.ca_serial)}</div>
                         <div style="font-size: 0.8rem; color: ${textColor}; margin-top: 2px;">${escapeHtml(r.details) || (r.is_trusted ? 'Verified in trust store' : 'Not trusted')}</div>
                     </div>
-                    <span style="font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 9999px; background: ${badgeBg}; color: #fff;">
+                    <span style="font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: var(--radius-xs, 2px); background: ${badgeBg}; color: #fff;">
                         ${badgeText}
                     </span>
                 </div>

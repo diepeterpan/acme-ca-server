@@ -1150,11 +1150,11 @@ async def distribute_to_email_endpoint(
     if 'android' in target_oses:
         html_sections.append(
             f"""
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <h4 style="margin: 0 0 6px 0; color: #1e1b4b; font-size: 14px; display: flex; align-items: center;">
+            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; color: #1c2830; font-size: 14px; display: flex; align-items: center;">
                     {svg_android} Android
                 </h4>
-                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.5;">
+                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #1c2830; line-height: 1.5;">
                     <li>Download <code>{base_name}.crt</code> to your device.</li>
                     <li>Open <strong>Settings &gt; Security & Privacy &gt; More security settings &gt; Encryption & credentials</strong>.</li>
                     <li>Tap <strong>Install a certificate &gt; CA certificate</strong> (select 'Install anyway' if warned).</li>
@@ -1175,14 +1175,16 @@ async def distribute_to_email_endpoint(
     if 'windows' in target_oses:
         html_sections.append(
             f"""
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <h4 style="margin: 0 0 6px 0; color: #1e1b4b; font-size: 14px; display: flex; align-items: center;">
+            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; color: #1c2830; font-size: 14px; display: flex; align-items: center;">
                     {svg_windows} Microsoft Windows
                 </h4>
-                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.5;">
+                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #1c2830; line-height: 1.5;">
                     <li>Download <code>{base_name}.cer</code> or <code>{base_name}.crt</code>.</li>
                     <li>Open Command Prompt as Administrator and run:<br/>
-                        <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">
+                        <code style="background: #e6f4fa; color: #004d6e; border: 1px solid #d0dee5;
+                                     padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 4px;
+                                     font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
                             certutil -addstore -f "Root" "{base_name}.cer"
                         </code>
                     </li>
@@ -1202,14 +1204,16 @@ async def distribute_to_email_endpoint(
     if 'macos' in target_oses:
         html_sections.append(
             f"""
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <h4 style="margin: 0 0 6px 0; color: #1e1b4b; font-size: 14px; display: flex; align-items: center;">
+            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; color: #1c2830; font-size: 14px; display: flex; align-items: center;">
                     {svg_macos} Apple macOS
                 </h4>
-                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #334155; line-height: 1.5;">
+                <ol style="margin: 0; padding-left: 18px; font-size: 13px; color: #1c2830; line-height: 1.5;">
                     <li>Download <code>{base_name}.crt</code>.</li>
                     <li>Open Terminal and execute:<br/>
-                        <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;">
+                        <code style="background: #e6f4fa; color: #004d6e; border: 1px solid #d0dee5;
+                                     padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 4px;
+                                     font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
                             sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "{base_name}.crt"
                         </code>
                     </li>
@@ -1227,16 +1231,20 @@ async def distribute_to_email_endpoint(
     if 'linux' in target_oses:
         html_sections.append(
             f"""
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <h4 style="margin: 0 0 6px 0; color: #1e1b4b; font-size: 14px; display: flex; align-items: center;">
+            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; color: #1c2830; font-size: 14px; display: flex; align-items: center;">
                     {svg_linux} Linux (Debian / Ubuntu / RHEL / Alpine)
                 </h4>
-                <p style="margin: 0 0 4px 0; font-size: 13px; color: #334155;"><strong>Debian / Ubuntu:</strong></p>
-                <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: block; margin-bottom: 6px; font-size: 12px;">
+                <p style="margin: 0 0 4px 0; font-size: 13px; color: #536571;"><strong>Debian / Ubuntu:</strong></p>
+                <code style="background: #e6f4fa; color: #004d6e; border: 1px solid #d0dee5;
+                             padding: 4px 8px; border-radius: 4px; display: block; margin-bottom: 8px;
+                             font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
                     sudo cp {base_name}.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates
                 </code>
-                <p style="margin: 0 0 4px 0; font-size: 13px; color: #334155;"><strong>RHEL / Fedora:</strong></p>
-                <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: block; font-size: 12px;">
+                <p style="margin: 0 0 4px 0; font-size: 13px; color: #536571;"><strong>RHEL / Fedora:</strong></p>
+                <code style="background: #e6f4fa; color: #004d6e; border: 1px solid #d0dee5;
+                             padding: 4px 8px; border-radius: 4px; display: block;
+                             font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
                     sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo update-ca-trust extract
                 </code>
             </div>
@@ -1256,11 +1264,13 @@ RHEL/Fedora: sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo u
         )
         html_sections.append(
             f"""
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-                <h4 style="margin: 0 0 6px 0; color: #1e1b4b; font-size: 14px; display: flex; align-items: center;">
+            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+                <h4 style="margin: 0 0 6px 0; color: #1c2830; font-size: 14px; display: flex; align-items: center;">
                     {svg_openwrt} OpenWrt
                 </h4>
-                <code style="background: #ede9fe; color: #7c3aed; padding: 2px 6px; border-radius: 4px; display: block; font-size: 12px;">
+                <code style="background: #e6f4fa; color: #004d6e; border: 1px solid #d0dee5;
+                             padding: 4px 8px; border-radius: 4px; display: block;
+                             font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;">
                     {owrt_cmd}
                 </code>
             </div>
@@ -1278,77 +1288,121 @@ RHEL/Fedora: sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo u
     instructions_html = '\n'.join(html_sections)
     instructions_text = '\n'.join(text_sections)
 
-    full_html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
+    full_html = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-             color: #1e1b4b; background-color: #f8fafc; padding: 20px; margin: 0;">
-    <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border: 1px solid #ede9fe;
-                border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.08);">
-        <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 24px 28px; color: #ffffff;">
-            <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-                        opacity: 0.85; margin-bottom: 4px;">Certificate Authority Distribution</div>
-            <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Action Required: Install Root CA Certificate</h2>
-            <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">{ca_name} ({org_name})</p>
-        </div>
-        <div style="padding: 24px 28px;">
-            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px;
-                        margin-bottom: 20px; font-size: 14px; color: #1e40af; line-height: 1.5;">
-                A new Root Certificate Authority certificate has been generated.
-                To prevent security warnings and maintain trusted connectivity to internal services,
-                please install and trust this certificate on your devices.
-            </div>
-
-            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155;">
-                    <tr><td style="padding: 4px 0; font-weight: 600; width: 140px;">Common Name:</td><td style="font-weight: 600; color: #1e1b4b;">{ca_name}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Organization:</td><td>{org_name}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Serial Number:</td><td style="font-family: monospace; font-size: 12px;">{serial_hex}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Valid Period:</td><td>{nvb_str} &rarr; {nva_str}</td></tr>
+             color: #1c2830; background-color: #f8fafb; padding: 24px 12px; margin: 0;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%"
+                       style="max-width: 600px; background: #ffffff; border: 1px solid #d0dee5;
+                              border-radius: 6px; overflow: hidden;
+                              box-shadow: 0 4px 6px -1px rgba(28, 40, 48, 0.08); text-align: left;">
                     <tr>
-                        <td style="padding: 4px 0; font-weight: 600; vertical-align: top;">SHA-256 Fingerprint:</td>
-                        <td style="font-family: monospace; font-size: 11px; word-break: break-all;">{fingerprint_formatted}</td>
+                        <td style="background-color: #006994;
+                                   background: linear-gradient(135deg, #006994 0%, #004d6e 100%);
+                                   padding: 24px 28px; color: #ffffff;">
+                            <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+                                        text-transform: uppercase; color: #e6f4fa; margin-bottom: 6px;">
+                                Certificate Authority Distribution
+                            </div>
+                            <h1 style="margin: 0; font-size: 20px; font-weight: 700; line-height: 28px; color: #ffffff;">
+                                Action Required: Install Root CA Certificate
+                            </h1>
+                            <div style="margin-top: 4px; font-size: 13px; color: #e6f4fa; opacity: 0.9;">
+                                {ca_name} ({org_name})
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 24px 28px; font-size: 14px; line-height: 22px; color: #1c2830;">
+                            <div style="background: #e6f4fa; border: 1px solid #d0dee5; border-radius: 6px;
+                                        padding: 14px 16px; margin-bottom: 20px; font-size: 13px; color: #004d6e; line-height: 20px;">
+                                A new Root Certificate Authority certificate has been generated.
+                                To prevent security warnings and maintain trusted connectivity to internal services,
+                                please install and trust this certificate on your devices.
+                            </div>
+
+                            <div style="background: #f8fafb; border: 1px solid #d0dee5; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+                                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #1c2830;">
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: 600; color: #536571; width: 140px;">Common Name:</td>
+                                        <td style="font-weight: 600; color: #1c2830;">{ca_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: 600; color: #536571;">Organization:</td>
+                                        <td style="color: #1c2830;">{org_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: 600; color: #536571;">Serial Number:</td>
+                                        <td style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: #1c2830;">
+                                            {serial_hex}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: 600; color: #536571;">Valid Period:</td>
+                                        <td style="color: #1c2830;">{nvb_str} &rarr; {nva_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: 600; color: #536571; vertical-align: top;">SHA-256 Fingerprint:</td>
+                                        <td style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px;
+                                                   word-break: break-all; color: #1c2830;">
+                                            {fingerprint_formatted}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="font-size: 13px; font-weight: 700; color: #1c2830; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;">
+                                Attached Certificate Formats
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+                                <span style="background: #f1f5f7; border: 1px solid #d0dee5; padding: 3px 8px;
+                                             border-radius: 2px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, monospace; color: #1c2830;">
+                                    📎 {base_name}.crt
+                                </span>
+                                <span style="background: #f1f5f7; border: 1px solid #d0dee5; padding: 3px 8px;
+                                             border-radius: 2px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, monospace; color: #1c2830;">
+                                    📎 {base_name}.pem
+                                </span>
+                                <span style="background: #f1f5f7; border: 1px solid #d0dee5; padding: 3px 8px;
+                                             border-radius: 2px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, monospace; color: #1c2830;">
+                                    📎 {base_name}.cer
+                                </span>
+                            </div>
+
+                            <div style="font-size: 13px; font-weight: 700; color: #1c2830; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+                                Installation Instructions by Operating System
+                            </div>
+                            {instructions_html}
+
+                            <div style="background: #e6f4fa; border: 1px solid #d0dee5; border-radius: 6px; padding: 20px; margin: 24px 0; text-align: center;">
+                                <h3 style="margin: 0 0 8px 0; font-size: 15px; color: #004d6e; font-weight: 700;">Verify Your Installation</h3>
+                                <p style="margin: 0 0 16px 0; font-size: 13px; color: #1c2830; line-height: 20px;">
+                                    After installing the certificate, click the button below on your device to verify that the Root CA is properly trusted:
+                                </p>
+                                <a href="{verify_url}"
+                                   style="display: inline-block; background-color: #006994; color: #ffffff;
+                                          text-decoration: none; font-weight: 600; font-size: 14px;
+                                          padding: 10px 22px; border-radius: 4px; box-shadow: 0 1px 3px rgba(28, 40, 48, 0.1);">
+                                    ✓ Verify CA Trust on This Device
+                                </a>
+                                <div style="margin-top: 12px; font-size: 11px; color: #536571;">
+                                    Or visit directly: <a href="{verify_url}" style="color: #006994; text-decoration: underline;">{verify_url}</a>
+                                </div>
+                            </div>
+
+                            <div style="border-top: 1px solid #d0dee5; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #536571; text-align: center;">
+                                Sent automatically by {settings.web.app_title} CA Distribution Engine.
+                            </div>
+                        </td>
                     </tr>
                 </table>
-            </div>
-
-            <h3 style="color: #1e1b4b; font-size: 15px; margin: 0 0 12px 0;">Attached Certificate Formats:</h3>
-            <div style="display: flex; gap: 8px; margin-bottom: 24px;">
-                <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; color: #334155;">
-                    📎 {base_name}.crt
-                </span>
-                <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; color: #334155;">
-                    📎 {base_name}.pem
-                </span>
-                <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-family: monospace; color: #334155;">
-                    📎 {base_name}.cer
-                </span>
-            </div>
-
-            <h3 style="color: #1e1b4b; font-size: 15px; margin: 0 0 12px 0;">Installation Instructions by Operating System:</h3>
-            {instructions_html}
-
-            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 18px; margin: 24px 0; text-align: center;">
-                <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #1e1b4b; font-weight: 700;">Verify Your Installation</h4>
-                <p style="margin: 0 0 14px 0; font-size: 13px; color: #4b5563;">
-                    After installing the certificate, click the button below on your device to verify that the Root CA is properly trusted:
-                </p>
-                <a href="{verify_url}"
-                   style="display: inline-block; background: #7c3aed; color: #ffffff;
-                          text-decoration: none; font-weight: 700; font-size: 14px;
-                          padding: 10px 22px; border-radius: 6px;">
-                    ✓ Verify CA Trust on This Device
-                </a>
-                <div style="margin-top: 10px; font-size: 11px; color: #6b7280;">
-                    Or visit directly: <a href="{verify_url}" style="color: #7c3aed;">{verify_url}</a>
-                </div>
-            </div>
-
-            <div style="border-top: 1px solid #e2e8f0; margin-top: 24px; padding-top: 16px; font-size: 12px; color: #64748b; text-align: center;">
-                Sent automatically by {settings.web.app_title} CA Distribution Engine.
-            </div>
-        </div>
-    </div>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """

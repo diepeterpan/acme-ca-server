@@ -1,26 +1,78 @@
-<h1>{{app_title}}</h1>
-<h2>Root Certificate Authority Expiration Notice</h2>
+{% extends "base_email.html" %}
 
-<p>The internal Root CA certificate <strong>{{common_name}}</strong> is scheduled to expire soon.</p>
+{% block title %}Root CA Expiration Warning - {{ app_title }}{% endblock %}
 
-<div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0;">
-    <p style="margin: 0 0 8px 0; font-weight: bold; color: #991b1b;">CA Details:</p>
-    <ul style="margin: 0; padding-left: 20px; color: #374151;">
-        <li><strong>Common Name (CN):</strong> {{common_name}}</li>
-        <li><strong>Serial Number:</strong> {{serial_number}}</li>
-        <li><strong>Expiration Date:</strong> {{expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}}</li>
-        <li><strong>Remaining Time:</strong> {{days_remaining}} day{% if days_remaining != 1 %}s{% endif %}</li>
-    </ul>
+{% block category %}PKI Infrastructure Notice{% endblock %}
+{% block header_title %}Root CA Expiration Warning{% endblock %}
+{% block header_subtitle %}Administrative action required for certificate authority{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <span style="background-color: #fdf5e6; border: 1px solid #b26a00; color: #b26a00; padding: 3px 8px; border-radius: 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; display: inline-block;">
+        ⚠ CA Expires in {{ days_remaining }} day{% if days_remaining != 1 %}s{% endif %}
+    </span>
 </div>
 
-<p><strong>Impact:</strong> In accordance with PKI standards, a CA cannot issue certificates whose validity extends beyond its own expiration. Once this CA expires, existing leaf certificates will fail validation and new ACME issuances will be rejected.</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #1c2830;">
+    The internal Root Certificate Authority <strong>{{ common_name }}</strong> is approaching its expiration date.
+</p>
 
-<p><strong>Recommended Actions:</strong></p>
-<ol>
-    <li>Navigate to the <a href="{{web_url}}ca" target="_blank" rel="noopener noreferrer">CA Management Console</a>.</li>
-    <li>Use the <strong>Renew Root CA</strong> action to generate a renewed CA certificate (created in Standby mode).</li>
-    <li>Distribute the renewed Root CA certificate to client machines, browsers, and endpoint trust stores.</li>
-    <li>Activate the renewed CA to begin issuing future certificates.</li>
+<!-- CA Metadata Details -->
+<div style="background-color: #fdf5e6; border: 1px solid #d0dee5; border-left: 4px solid #b26a00; border-radius: 4px; padding: 16px; margin: 20px 0;">
+    <div style="font-size: 12px; font-weight: 700; color: #b26a00; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+        Root CA Specification
+    </div>
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #1c2830;">
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571; width: 150px;">Common Name (CN):</td>
+            <td style="padding: 4px 0; font-weight: 600; color: #1c2830;">{{ common_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Serial Number:</td>
+            <td style="padding: 4px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1c2830;">
+                {{ serial_number }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Expiration Date:</td>
+            <td style="padding: 4px 0; font-weight: 600; color: #b26a00;">{{ expires_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Remaining Time:</td>
+            <td style="padding: 4px 0; font-weight: 600; color: #b26a00;">{{ days_remaining }} day{% if days_remaining != 1 %}s{% endif %}</td>
+        </tr>
+    </table>
+</div>
+
+<!-- Impact Callout -->
+<div style="background-color: #e6f4fa; border: 1px solid #d0dee5; border-radius: 6px; padding: 14px 16px; margin: 20px 0; font-size: 13px; line-height: 20px; color: #004d6e;">
+    <strong>Impact Analysis:</strong> Under PKI standards, a CA cannot issue certificates whose validity period extends beyond its own expiration. Once this Root CA expires, all leaf certificates signed by it will become invalid and automated renewals will be blocked.
+</div>
+
+<div style="font-size: 13px; font-weight: 700; color: #1c2830; text-transform: uppercase; letter-spacing: 0.05em; margin: 20px 0 8px 0;">
+    Recommended Administrative Workflow
+</div>
+<ol style="margin: 0 0 20px 0; padding-left: 20px; font-size: 13px; line-height: 22px; color: #1c2830;">
+    <li style="margin-bottom: 6px;">
+        Navigate to the <a href="{{ web_url }}ca" target="_blank" rel="noopener noreferrer" style="color: #006994; font-weight: 600;">CA Management Console</a>.
+    </li>
+    <li style="margin-bottom: 6px;">
+        Use the <strong>Renew Root CA</strong> action to generate a renewed CA certificate (created in Standby mode).
+    </li>
+    <li style="margin-bottom: 6px;">
+        Distribute the renewed Root CA certificate to client devices, browsers, and endpoint trust stores.
+    </li>
+    <li style="margin-bottom: 6px;">
+        Activate the renewed CA to begin signing new and renewed certificates.
+    </li>
 </ol>
+{% endblock %}
 
-<p style="color: #6b7280; font-size: 13px; margin-top: 24px;">This is an automated administrative notification from {{app_title}}.</p>
+{% block action_button %}
+<div style="margin-top: 24px; text-align: left;">
+    <a href="{{ web_url }}ca" target="_blank" rel="noopener noreferrer"
+       style="display: inline-block; background-color: #006994; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 22px; border-radius: 4px; box-shadow: 0 1px 3px rgba(28, 40, 48, 0.1);">
+        Open CA Management Console &rarr;
+    </a>
+</div>
+{% endblock %}

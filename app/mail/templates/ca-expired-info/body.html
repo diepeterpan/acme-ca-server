@@ -1,13 +1,58 @@
-<h1>{{app_title}}</h1>
-<h2 style="color: #dc2626;">CRITICAL: Root CA Certificate Has Expired</h2>
+{% extends "base_email.html" %}
 
-<p>The internal Root CA certificate <strong>{{common_name}}</strong> (Serial: <code>{{serial_number}}</code>) has <strong>expired</strong> on {{expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}}.</p>
+{% block title %}CRITICAL: Root CA Expired - {{ app_title }}{% endblock %}
 
-<div style="background: #fef2f2; border: 1px solid #f87171; border-radius: 6px; padding: 12px 16px; margin: 16px 0; color: #991b1b;">
-    <strong>Urgent Attention Required:</strong>
-    <p style="margin: 6px 0 0 0;">This CA is no longer valid. Client devices will reject any TLS connections relying on certificates signed by this CA, and automatic ACME certificate renewals cannot proceed until a valid CA is active.</p>
+{% block category %}Critical Infrastructure Outage{% endblock %}
+{% block header_title %}Root CA Has Expired{% endblock %}
+{% block header_subtitle %}Immediate administrative intervention required{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <span style="background-color: #fdf2f2; border: 1px solid #b92c2c; color: #b92c2c; padding: 3px 8px; border-radius: 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; display: inline-block;">
+        ✕ Root CA Expired
+    </span>
 </div>
 
-<p>Please log in immediately to the <a href="{{web_url}}ca" target="_blank" rel="noopener noreferrer">CA Management Console</a> to activate or generate a replacement Root CA certificate.</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #1c2830;">
+    The internal Root Certificate Authority <strong>{{ common_name }}</strong> expired on <strong>{{ expires_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>.
+</p>
 
-<p style="color: #6b7280; font-size: 13px; margin-top: 24px;">This is an automated administrative notification from {{app_title}}.</p>
+<!-- Urgent Outage Callout -->
+<div style="background-color: #fdf2f2; border: 1px solid #d0dee5; border-left: 4px solid #b92c2c; border-radius: 4px; padding: 16px; margin: 20px 0;">
+    <div style="font-size: 12px; font-weight: 700; color: #b92c2c; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+        Critical PKI Status
+    </div>
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #1c2830; margin-bottom: 12px;">
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571; width: 150px;">Common Name (CN):</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #1c2830;">{{ common_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Serial Number:</td>
+            <td style="padding: 4px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1c2830;">
+                {{ serial_number }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Expired At:</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #b92c2c;">{{ expires_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td>
+        </tr>
+    </table>
+    <p style="margin: 0; font-size: 13px; line-height: 20px; color: #b92c2c;">
+        <strong>Consequences:</strong> All client devices will reject TLS connections relying on certificates signed by this CA. Automated ACME certificate issuance and renewal are completely halted until a replacement Root CA is activated.
+    </p>
+</div>
+
+<p style="margin: 0 0 8px 0; font-size: 13px; color: #536571; line-height: 20px;">
+    Please log in immediately to the CA Management Console to activate an existing standby CA or generate and distribute a replacement Root CA certificate.
+</p>
+{% endblock %}
+
+{% block action_button %}
+<div style="margin-top: 24px; text-align: left;">
+    <a href="{{ web_url }}ca" target="_blank" rel="noopener noreferrer"
+       style="display: inline-block; background-color: #b92c2c; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 22px; border-radius: 4px; box-shadow: 0 1px 3px rgba(28, 40, 48, 0.1);">
+        Resolve in CA Console &rarr;
+    </a>
+</div>
+{% endblock %}

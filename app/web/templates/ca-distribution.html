@@ -82,7 +82,7 @@
         font-size: 0.74rem;
         font-weight: 700;
         padding: 0.08rem 0.45rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
         background: var(--primary-light);
         color: var(--primary);
     }
@@ -98,17 +98,17 @@
     .dist-card {
         background: var(--bg-card);
         border: 1px solid var(--border-card);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         box-shadow: var(--shadow-sm);
         margin-bottom: 1.25rem;
     }
 
     .card-table-header {
         padding: 0.55rem 0.95rem;
-        background: #faf5ff;
+        background: #f0f7fa;
         border-bottom: 1px solid var(--border-card);
-        border-top-left-radius: var(--radius-lg);
-        border-top-right-radius: var(--radius-lg);
+        border-top-left-radius: var(--radius-md);
+        border-top-right-radius: var(--radius-md);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -131,7 +131,7 @@
         align-items: center;
         gap: 0.4rem;
         padding: 0.22rem 0.65rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
         font-size: 0.78rem;
         font-weight: 600;
         line-height: 1.2;
@@ -162,9 +162,9 @@
     }
 
     .os-badge-ios {
-        background: #faf5ff;
-        color: #6b21a8;
-        border: 1px solid #e9d5ff;
+        background: #f0fdfa;
+        color: #0d9488;
+        border: 1px solid #99f6e4;
     }
 
     .os-badge-android {
@@ -190,7 +190,7 @@
         align-items: center;
         gap: 0.3rem;
         padding: 0.15rem 0.5rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
         font-size: 0.74rem;
         font-weight: 600;
         line-height: 1.2;
@@ -232,7 +232,7 @@
         justify-content: center;
         gap: 0.3rem;
         padding: 0.25rem 0.55rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.76rem;
         font-weight: 600;
         cursor: pointer;
@@ -262,7 +262,7 @@
         justify-content: center;
         width: 26px;
         height: 26px;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         border: 1px solid var(--border-card);
         background: #ffffff;
         color: var(--text-heading);
@@ -366,7 +366,7 @@
 
     .table-popover-wrapper:hover .os-icon-tag {
         border-color: var(--primary);
-        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.2);
+        box-shadow: 0 2px 6px rgba(0, 105, 148, 0.2);
         transform: translateY(-1px);
     }
 
@@ -401,8 +401,8 @@
         gap: 0.4rem;
         background: #ffffff;
         border: 1px solid var(--border-card, #e2e8f0);
-        border-radius: 6px;
-        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-md);
         padding: 0.35rem 0.55rem;
         white-space: nowrap;
         text-align: left;
@@ -425,7 +425,7 @@
         background-color: #f1f5f9;
         color: var(--text-muted);
         padding: 0.12rem 0.4rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         border: none;
     }
 
@@ -435,7 +435,7 @@
         color: var(--primary);
         background-color: var(--primary-light);
         padding: 0.12rem 0.4rem;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         border: none;
     }
 
@@ -486,11 +486,11 @@
         background: var(--primary);
         color: #ffffff;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.85rem;
         font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 2px 6px rgba(0, 105, 148, 0.25);
         transition: background 0.15s ease;
     }
 
@@ -530,7 +530,7 @@
         width: 100%;
         padding: 0.55rem 0.8rem;
         border: 1px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         outline: none;
         transition: border 0.15s ease;
@@ -539,7 +539,7 @@
 
     .form-control:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+        box-shadow: 0 0 0 2px rgba(0, 105, 148, 0.15);
     }
 
     .form-row {
@@ -561,7 +561,7 @@
         gap: 0.45rem;
         padding: 0.5rem 0.65rem;
         border: 1px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         cursor: pointer;
         font-size: 0.82rem;
         font-weight: 500;
@@ -570,7 +570,7 @@
 
     .os-checkbox-card:hover {
         border-color: var(--primary);
-        background: #faf5ff;
+        background: #e6f4fa;
     }
 
     .os-checkbox-card input[type="checkbox"]:checked ~ .os-card-label {
@@ -585,12 +585,12 @@
         border-radius: var(--radius-lg);
         padding: 0;
         background: #ffffff;
-        box-shadow: 0 25px 50px -12px rgba(124, 58, 237, 0.25), 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+        box-shadow: var(--shadow-high);
         max-width: 620px;
         width: 95vw;
         max-height: 90vh;
         overflow: hidden;
-        border-top: 5px solid var(--primary);
+        border-top: 4px solid var(--color-primary);
     }
 
     dialog.cert-details-dialog:not([open]) {
@@ -599,7 +599,7 @@
 
     dialog.cert-details-dialog::backdrop,
     dialog.delete-endpoint-modal::backdrop {
-        background: var(--dialog-backdrop, rgba(38, 16, 74, 0.68));
+        background: var(--dialog-backdrop, rgba(15, 23, 42, 0.65));
         backdrop-filter: blur(5px);
         -webkit-backdrop-filter: blur(5px);
     }
@@ -617,7 +617,7 @@
         justify-content: space-between;
         padding: 1.15rem 1.5rem;
         border-bottom: 1px solid #f1f5f9;
-        background: #faf5ff;
+        background: #f0f7fa;
     }
 
     .cert-modal-header-left {
@@ -629,13 +629,13 @@
     .cert-modal-icon-badge {
         width: 42px;
         height: 42px;
-        border-radius: 12px;
-        background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+        border-radius: var(--radius-sm);
+        background: var(--color-primary);
         color: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 4px 10px rgba(0, 105, 148, 0.25);
         flex-shrink: 0;
     }
 
@@ -761,16 +761,16 @@
         padding: 0.35rem 0.8rem;
         background-color: #ffffff;
         color: var(--primary);
-        border: 1px solid var(--primary-border, #ddd6fe);
+        border: 1px solid var(--primary-border, #bae6fd);
         font-size: 0.82rem;
         font-weight: 600;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         cursor: pointer;
         transition: all 0.2s ease;
     }
 
     .btn-copy-output:hover {
-        background-color: var(--primary-light, #faf5ff);
+        background-color: var(--primary-light, #e6f4fa);
         border-color: var(--primary);
     }
 
@@ -788,7 +788,7 @@
         color: #334155;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         padding: 0.75rem;
         max-height: 200px;
         overflow-y: auto;
@@ -802,7 +802,7 @@
     .cert-modal-footer {
         padding: 0.85rem 1.5rem;
         border-top: 1px solid #f1f5f9;
-        background: #faf5ff;
+        background: #f8fafc;
         display: flex;
         justify-content: flex-end;
     }
@@ -829,7 +829,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 4px;
+        border-radius: var(--radius-xs);
         transition: color 0.15s ease, background-color 0.15s ease;
     }
 
@@ -846,18 +846,18 @@
         background-color: var(--primary);
         color: #ffffff;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        box-shadow: 0 2px 6px rgba(0, 105, 148, 0.25);
         transition: all 0.2s ease;
         text-decoration: none;
     }
 
     .btn-create-endpoint:hover {
         background-color: var(--primary-hover);
-        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+        box-shadow: 0 4px 10px rgba(0, 105, 148, 0.35);
         transform: translateY(-1px);
         color: #ffffff;
     }
@@ -1259,7 +1259,7 @@
                                 {{ log.distributed_at.strftime('%Y-%m-%d %H:%M:%S') if log.distributed_at else '' }}
                             </td>
                             <td>
-                                <code style="font-size: 12px; background: #ede9fe; color: var(--primary); padding: 2px 6px; border-radius: 4px;">
+                                <code style="font-size: 12px; background: #e6f4fa; color: var(--color-primary); padding: 2px 6px; border-radius: 4px;">
                                     {{ log.ca_serial[:12] }}...
                                 </code>
                             </td>

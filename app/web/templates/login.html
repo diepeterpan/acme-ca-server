@@ -33,7 +33,7 @@
         background: var(--bg-card);
         border: 1px solid var(--border-card);
         border-radius: var(--radius-md);
-        box-shadow: 0 4px 16px -2px rgba(124, 58, 237, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.04);
+        box-shadow: var(--shadow-md);
         padding: 1.25rem 1.25rem;
         text-align: center;
     }
@@ -41,13 +41,13 @@
     .auth-icon-wrap {
         width: 38px;
         height: 38px;
-        border-radius: 10px;
+        border-radius: var(--radius-sm);
         background: var(--primary-light);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         margin-bottom: 0.5rem;
-        box-shadow: 0 3px 8px rgba(124, 58, 237, 0.12);
+        box-shadow: 0 3px 8px rgba(0, 105, 148, 0.12);
     }
 
     .auth-icon-wrap svg {
@@ -92,7 +92,7 @@
         width: 100%;
         padding: 0.5rem 0.75rem;
         border: 1.5px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         color: var(--text-body);
         background-color: #ffffff;
@@ -102,7 +102,7 @@
 
     .form-control:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
     }
 
     .btn-toggle-pwd {
@@ -154,17 +154,17 @@
         background-color: var(--primary);
         color: #ffffff;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         font-weight: 600;
         cursor: pointer;
-        box-shadow: 0 3px 8px rgba(124, 58, 237, 0.2);
+        box-shadow: 0 3px 8px rgba(0, 105, 148, 0.2);
         transition: all 0.2s ease;
     }
 
     .btn-primary:hover {
         background-color: var(--primary-hover);
-        box-shadow: 0 5px 12px rgba(124, 58, 237, 0.3);
+        box-shadow: 0 5px 12px rgba(0, 105, 148, 0.3);
         transform: translateY(-1px);
     }
 
@@ -206,7 +206,7 @@
         background-color: #ffffff;
         color: var(--text-heading);
         border: 1.5px solid #e2e8f0;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         font-size: 0.88rem;
         font-weight: 600;
         text-decoration: none;
@@ -219,7 +219,7 @@
         background-color: var(--primary-light);
         border-color: var(--primary-subtle);
         color: var(--primary);
-        box-shadow: 0 3px 8px rgba(124, 58, 237, 0.12);
+        box-shadow: 0 3px 8px rgba(0, 105, 148, 0.12);
         transform: translateY(-1px);
     }
 
@@ -237,7 +237,7 @@
         border: 1px solid var(--status-expired-border);
         color: var(--status-expired-text);
         padding: 0.55rem 0.75rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         margin-bottom: 0.75rem;
         font-size: 0.8rem;
         text-align: left;
@@ -260,7 +260,7 @@
         gap: 0.45rem;
         width: 100%;
         padding: 0.48rem 0.65rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         border: 1px solid #e2e8f0;
         background: #f8fafc;
         color: var(--text-heading);
@@ -325,7 +325,7 @@
         display: inline-flex;
         align-items: center;
         padding: 0.1rem 0.45rem;
-        border-radius: var(--radius-pill);
+        border-radius: var(--radius-xs);
         background: #f1f5f9;
         border: 1px solid #e2e8f0;
         color: var(--text-muted);

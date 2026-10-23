@@ -266,34 +266,79 @@ async def test_smtp_connection(
     effective_port = port or port_map.get(encryption, 587)
 
     now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"></head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e1b4b; background-color: #f8fafc; padding: 24px;">
-        <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #ede9fe; border-radius: 12px; padding: 32px;
-                    box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.08);">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; padding: 8px 16px; border-radius: 9999px; font-weight: 600; font-size: 14px;">
-                    ✓ SMTP Test Successful
-                </div>
-            </div>
-            <h2 style="color: #1e1b4b; margin: 0 0 12px 0;">ACME CA Server Email Delivery Test</h2>
-            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                Congratulations! If you are reading this email, your ACME CA Server SMTP settings have been verified and are operating correctly.
-            </p>
-            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155;">
-                    <tr><td style="padding: 4px 0; font-weight: 600; width: 140px;">SMTP Host:</td><td>{host}:{effective_port}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Encryption:</td><td>{encryption.upper()}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Sender:</td><td>{sender}</td></tr>
-                    <tr><td style="padding: 4px 0; font-weight: 600;">Timestamp:</td><td>{now_str}</td></tr>
-                </table>
-            </div>
-            <p style="color: #64748b; font-size: 13px; margin: 0;">
-                Sent automatically by ACME CA Server Administration Console.
-            </p>
-        </div>
+    html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml">
+    <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1c2830; background-color: #f8fafb; margin: 0; padding: 24px 12px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td align="center">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%"
+                           style="max-width: 600px; background: #ffffff; border: 1px solid #d0dee5;
+                                  border-radius: 6px; overflow: hidden;
+                                  box-shadow: 0 4px 6px -1px rgba(28, 40, 48, 0.08); text-align: left;">
+                        <tr>
+                            <td style="background-color: #006994;
+                                       background: linear-gradient(135deg, #006994 0%, #004d6e 100%);
+                                       padding: 24px 28px; color: #ffffff;">
+                                <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+                                            text-transform: uppercase; color: #e6f4fa; margin-bottom: 6px;">
+                                    Diagnostics &amp; Verification
+                                </div>
+                                <h1 style="margin: 0; font-size: 20px; font-weight: 700; line-height: 28px; color: #ffffff;">
+                                    SMTP Delivery Test Successful
+                                </h1>
+                                <div style="margin-top: 4px; font-size: 13px; color: #e6f4fa; opacity: 0.9;">
+                                    ACME CA Server Mail Engine
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 24px 28px; font-size: 14px; line-height: 22px; color: #1c2830;">
+                                <div style="margin-bottom: 16px;">
+                                    <span style="background-color: #eaf6f2; border: 1px solid #1a7a5d; color: #1a7a5d;
+                                                 padding: 3px 8px; border-radius: 2px; font-size: 11px; font-weight: 700;
+                                                 text-transform: uppercase; letter-spacing: 0.04em; display: inline-block;">
+                                        ✓ Connection Verified
+                                    </span>
+                                </div>
+                                <p style="color: #1c2830; font-size: 15px; line-height: 24px; margin: 0 0 16px 0;">
+                                    Congratulations! Your ACME CA Server SMTP settings have been verified and outgoing email delivery is operating correctly.
+                                </p>
+                                <div style="background-color: #e6f4fa; border: 1px solid #d0dee5; border-radius: 6px; padding: 16px; margin: 20px 0;">
+                                    <div style="font-size: 12px; font-weight: 700; color: #004d6e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+                                        Connection Parameters
+                                    </div>
+                                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #1c2830;">
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: 600; color: #536571; width: 140px;">SMTP Host:</td>
+                                            <td style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: #004d6e;">
+                                                {host}:{effective_port}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Encryption:</td>
+                                            <td style="font-weight: 600; color: #1c2830;">{encryption.upper()}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Sender Address:</td>
+                                            <td style="color: #1c2830;">{sender}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Test Timestamp:</td>
+                                            <td style="color: #1c2830;">{now_str}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div style="border-top: 1px solid #d0dee5; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #536571; text-align: center;">
+                                    Sent automatically by ACME CA Server Administration Console.
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
     </body>
     </html>
     """

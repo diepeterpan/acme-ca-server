@@ -1,0 +1,70 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}{{ app_title }}{% endblock %}</title>
+    <style type="text/css">
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #f8fafb; }
+        a { color: #006994; text-decoration: none; }
+        a:hover { text-decoration: underline; color: #004d6e; }
+    </style>
+</head>
+<body style="margin: 0; padding: 24px 12px; background-color: #f8fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1c2830;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="table-layout: fixed;">
+        <tr>
+            <td align="center">
+                <!--[if (gte mso 9)|(IE)]>
+                <table align="center" border="0" cellspacing="0" cellpadding="0" width="600">
+                <tr>
+                <td align="center" valign="top" width="600">
+                <![endif]-->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border: 1px solid #d0dee5; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(28, 40, 48, 0.08); text-align: left;">
+                    <!-- Brand Header Banner -->
+                    <tr>
+                        <td style="background-color: #006994; background: linear-gradient(135deg, #006994 0%, #004d6e 100%); padding: 24px 28px; color: #ffffff;">
+                            <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #e6f4fa; margin-bottom: 6px;">
+                                {% block category %}ACME CA Notification{% endblock %}
+                            </div>
+                            <h1 style="margin: 0; font-size: 20px; font-weight: 700; line-height: 28px; color: #ffffff;">
+                                {% block header_title %}{{ app_title }}{% endblock %}
+                            </h1>
+                            <div style="margin-top: 4px; font-size: 13px; color: #e6f4fa; opacity: 0.9;">
+                                {% block header_subtitle %}{{ app_desc }}{% endblock %}
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 24px 28px; font-size: 14px; line-height: 22px; color: #1c2830;">
+                            {% block content %}{% endblock %}
+
+                            {% block action_button %}{% endblock %}
+
+                            <!-- Footer Section -->
+                            <div style="border-top: 1px solid #d0dee5; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #536571; text-align: center; line-height: 18px;">
+                                <p style="margin: 0 0 6px 0;">
+                                    This is an automated administrative notification from <a href="{{ web_url }}" style="color: #006994; font-weight: 600; text-decoration: none;">{{ app_title }}</a>.
+                                </p>
+                                <p style="margin: 0; color: #536571;">
+                                    Console: <a href="{{ web_url }}" style="color: #006994; text-decoration: none;">{{ web_url }}</a>
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+                <!--[if (gte mso 9)|(IE)]>
+                </td>
+                </tr>
+                </table>
+                <![endif]-->
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

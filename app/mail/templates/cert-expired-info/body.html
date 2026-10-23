@@ -1,19 +1,63 @@
-<h1>{{app_title}}</h1>
-<h2>Certificate Expiration</h2>
+{% extends "base_email.html" %}
 
-Your server certificate <b>has expired</b>.
-If this is not intended please check and fix your certificate renewal automation.
+{% block title %}Certificate Expired - {{ app_title }}{% endblock %}
 
-<p>Expiration date: {{expires_at.isoformat()}}</p>
+{% block category %}Critical Alert{% endblock %}
+{% block header_title %}Certificate Has Expired{% endblock %}
+{% block header_subtitle %}Service connections may encounter SSL/TLS errors{% endblock %}
 
-Affected domains:
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <span style="background-color: #fdf2f2; border: 1px solid #b92c2c; color: #b92c2c; padding: 3px 8px; border-radius: 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; display: inline-block;">
+        ✕ Certificate Expired
+    </span>
+</div>
 
-<ul>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 24px; color: #1c2830;">
+    Your server certificate <strong>has reached expiration</strong>. Web browsers and client applications connecting to the affected domains will now display certificate warnings and may reject connections.
+</p>
+
+<!-- Expiration Metadata Card -->
+<div style="background-color: #fdf2f2; border: 1px solid #d0dee5; border-left: 4px solid #b92c2c; border-radius: 4px; padding: 16px; margin: 20px 0;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; color: #1c2830;">
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571; width: 140px;">Expired On:</td>
+            <td style="padding: 4px 0; font-weight: 700; color: #b92c2c;">
+                {{ expires_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0; font-weight: 600; color: #536571;">Serial Number:</td>
+            <td style="padding: 4px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1c2830;">
+                {{ serial_number }}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div style="font-size: 13px; font-weight: 700; color: #1c2830; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+    Affected Domains ({% if domains %}{{ domains|length }}{% else %}0{% endif %})
+</div>
+<ul style="margin: 0 0 20px 0; padding-left: 20px; font-size: 13px; line-height: 22px; color: #1c2830;">
     {% for domain in domains %}
-    <li>
-        <a href="https://{{domain}}" target="_blank" rel="noopener noreferrer">{{domain}}</a>
+    <li style="margin-bottom: 4px;">
+        <a href="https://{{ domain }}" target="_blank" rel="noopener noreferrer" style="color: #006994; font-weight: 500; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">
+            {{ domain }}
+        </a>
     </li>
     {% endfor %}
 </ul>
 
-If the certificate expiration is intended no action needs to be taken.
+<p style="margin: 0 0 8px 0; font-size: 13px; color: #536571; line-height: 20px;">
+    If this expiration is intentional (e.g. decommissioned domain or server), no further action is required. Otherwise, please execute an ACME certificate issuance or renew manually.
+</p>
+{% endblock %}
+
+{% block action_button %}
+<div style="margin-top: 24px; text-align: left;">
+    <a href="{{ web_url }}" target="_blank" rel="noopener noreferrer"
+       style="display: inline-block; background-color: #006994; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 22px; border-radius: 4px; box-shadow: 0 1px 3px rgba(28, 40, 48, 0.1);">
+        Open Certificate Console &rarr;
+    </a>
+</div>
+{% endblock %}
