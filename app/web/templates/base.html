@@ -678,6 +678,69 @@
             color: var(--color-text-main);
         }
 
+        /* --- Square-Type Toggle Switch Component --- */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+            vertical-align: middle;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+            border-radius: var(--radius-sm);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #ffffff;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: var(--radius-xs);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:focus-visible + .slider {
+            box-shadow: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .switch input:disabled + .slider {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .switch input:disabled + .slider:before {
+            cursor: not-allowed;
+        }
+
         /* --- Standard Data Table Architecture --- */
         .table-container {
             background: var(--color-bg-surface);
