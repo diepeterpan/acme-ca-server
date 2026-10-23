@@ -18,15 +18,16 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (accounts, domains, certificates, root CA status) and ACME Entrypoint hero card with 1-click clipboard copy.
   * 🏛️ **Root CA & X.509 Strict Compliance**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, PEM viewer, and interactive RFC 5280 strict compliance diagnostics.
-  * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with live connectivity and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
-  * 🛡️ **CA Fleet Trust & Audit Dashboard**: Comprehensive fleet compliance tracking (`/ca-fleet-trust`) with KPI summary metrics, automated SSH sweeps, reverse DNS auto-matching, multi-parameter filtering, and live SSE streaming progress.
+  * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with tab-contextual addition buttons, live connectivity, and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
+  * 🛡️ **CA Fleet Trust & Audit Dashboard**: Comprehensive fleet compliance tracking (`/ca-fleet-trust`) with collapsible KPI overview cards (`[▾ Hide Overview]`), automated SSH sweeps, reverse DNS auto-matching, multi-parameter filtering, and live SSE streaming progress.
   * 📱 **Client Root CA Trust Verification Portal**: Interactive self-service verification interface (`/ca-trust/verify`) with real-time TLS handshake probing across dedicated CA ports, platform auto-detection, and tailored installation guides.
   * 📜 **Certificates & Deep Capability Inspector**: Searchable audit logs with status tabs (Valid, Revoked, Expired), direct downloads, and an interactive **Certificate Details Modal** detailing cryptographic properties, health audits, and application capabilities (TLS Server, mTLS Client, Code Signing, S/MIME, Digital Signatures).
+  * 📊 **High-Performance Data Grids**: Sticky frozen column headers during vertical scrolling across all tables, interactive column visibility selector (`[Columns ⚙️]`), 1-click layout reset (`[Reset]`), draggable column resizing with persistent widths, and viewport-locking to eliminate duplicate page scrollbars.
   * 🌐 **Domains Registry**: Domain status monitoring, cross-view certificate navigation, and safe deletion of stale domains.
   * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
   * ✉️ **Mail Settings & Delivery Test**: Dedicated UI screen to configure outbound SMTP parameters, warning policies, and run live connection tests before saving.
   * 🛡️ **Startup Database Integrity Auditor**: Boot-time verification checking 12 relational and cryptographic integrity constraints with automatic maintenance mode veil.
-  * 🔒 **Authentication & User Management**: Secure PBKDF2-hashed login, Remember Me sessions, guided first-boot onboarding, user self-service password changes, administrative user management dashboard (`/users`), and optional **OpenID Connect (OIDC) Single Sign-On** (Authelia, Keycloak, Authentik) with PKCE (RFC 7636) and pre-provisioned access control.
+  * 🔒 **Authentication & User Management**: Secure PBKDF2-hashed login, Remember Me sessions, guided first-boot onboarding, user self-service password changes, streamlined single-line toolbar layout on the user management dashboard (`/users`), and optional **OpenID Connect (OIDC) Single Sign-On** (Authelia, Keycloak, Authentik) with PKCE (RFC 7636) and pre-provisioned access control.
 
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
 
@@ -267,12 +268,17 @@ Overwrite templates (see [here](./app/web/templates)):
 * /app/web/templates/index.html (Startpage / Dashboard)
 * /app/web/templates/ca-details.html (Root CA Certificate & CRL Details)
 * /app/web/templates/ca-setup.html (Root CA Setup & Onboarding)
+* /app/web/templates/ca-distribution.html (CA Certificate Distribution Hub)
+* /app/web/templates/ca-fleet-trust.html (CA Fleet Trust & Compliance Audit)
+* /app/web/templates/ca-trust-verify.html (Client Root CA Trust Verification Portal)
 * /app/web/templates/cert-log.html (Certificate Listing)
 * /app/web/templates/domain-log.html (Domain Listing)
 * /app/web/templates/account-log.html (Account Management & Error Modal)
+* /app/web/templates/mail-settings.html (Mail Settings & Delivery Diagnostics)
 * /app/web/templates/login.html (Sign-in Authentication Screen)
 * /app/web/templates/setup.html (Initial Admin Account Setup)
 * /app/web/templates/users.html (User & Access Management)
+* /app/web/templates/maintenance.html (Database Integrity Maintenance Screen)
 
 Template parameters:
 * `app_title`: `str`  application title from `WEB_APP_TITLE`

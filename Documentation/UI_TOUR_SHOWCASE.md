@@ -86,6 +86,9 @@ The active Certificate Authority screen with a **40% left / 60% right** proporti
 
 ### 06. Certificates Audit Log
 Comprehensive log of all certificates issued by the ACME server:
+- **Sticky Frozen Table Headers**: Header columns stay anchored at the top of the grid viewport during vertical scrolling, ensuring column titles and sort triggers remain immediately accessible across large certificate catalogs.
+- **Column Visibility & 1-Click Reset**: An interactive column selector dropdown (`[Columns ⚙️]`) allows operators to show or hide individual columns, paired with a 1-click `[Reset]` control to restore default column widths and visibility.
+- **Viewport-Locked Clean Layout**: Scoped viewport locking eliminates redundant nested page scrollbars, confining scrolling cleanly within the table container.
 - **Details Inspection Action**: A dedicated "Details" action button on the far left of each row that opens the in-depth Certificate Details Inspection Modal.
 - **Interactive Sortable Columns**: Multi-state 3-way cycle (Ascending ▲ ➔ Descending ▼ ➔ Original order ↕) for **Status**, **Primary FQDN**, **Serial Number**, **Issue Date**, and **Expiry Date**.
 - **User-Resizable Columns**: Draggable border handles on all column headers (including **Actions**) with double-click reset and `localStorage` persistence.
@@ -123,6 +126,9 @@ Clicking the certificate icon (**Details**) on the far left of any certificate r
 
 ### 07. Domains Registry
 Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
+- **Sticky Frozen Table Headers**: Table header remains firmly pinned at the top during vertical scrolling through domain lists.
+- **Column Visibility & Reset Controls**: Dynamic `[Columns ⚙️]` dropdown to toggle column visibility and `[Reset]` button to restore standard column widths and visibility defaults.
+- **Viewport-Locked View**: Eliminates duplicate outer page scrollbars for a clean, application-like experience.
 - **Interactive Sortable Columns**: Sortable by **Status**, **Domain Name**, **First Requested**, and **Certificate Valid Until**.
 - **User-Resizable Columns**: Interactive drag handles to adjust column widths with persistence across visits.
 - **Cross-View Navigation**: The `View Certificates →` action links directly to `/certificates?domainfilter=<domain>&certstatus=all`, ensuring all matching leaf certificates are displayed regardless of the active status tab.
@@ -136,6 +142,9 @@ Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 
 ### 08. Accounts Management
 Management center for all registered ACME client accounts:
+- **Sticky Frozen Table Headers**: Grid headers remain visible when scrolling through accounts.
+- **Column Visibility & Reset Controls**: Built-in `[Columns ⚙️]` menu and `[Reset]` action for personalized column arrangements with `localStorage` persistence.
+- **Viewport-Locked View**: Dedicated single-scroll container without unnecessary outer page scrolling.
 - **Interactive Sortable Columns**: Sortable by **Account & Key**, **Status**, **Certificates** count, **Order Requests** count, and **Registered** date.
 - **User-Resizable Columns**: Draggable column resize handles with automatic minimum-width protection and `localStorage` persistence.
 - **Dedicated Activation & Deactivation Confirmation Modals**: Purpose-built modal dialogs with visual accents and clear severity styling (Emerald Green for activation, Amber for deactivation) to prevent accidental status alterations.
@@ -179,6 +188,9 @@ Dedicated management interface for outbound email delivery and automated notific
 
 ### 11. User Management & Access Control
 Dedicated administrative portal (`/users`) for user lifecycle management, authentication modes, and identity federation:
+- **Unified Single-Line Toolbar**: Search query input, `+ Add User` button, `[Columns ⚙️]` dropdown, and `[Reset]` action are streamlined directly onto a single line beside the Registered Accounts table header.
+- **Sticky Frozen Table Headers**: Keeps column headers pinned at the top while scrolling vertically through user accounts.
+- **Viewport-Locked View**: Dedicated single-scroll container without redundant page scrollbars.
 - **Account Type Differentiation**: Visual badges clearly differentiating between standard Local Accounts (purple shield icon) and OpenID Connect (OIDC) Single Sign-On users (blue globe icon).
 - **Guided User Creation Modal**: Interactive dialog to onboard new local operators (with automatic PBKDF2 password hashing) or pre-provision federated OIDC identity providers (Authelia, Keycloak, Authentik).
 - **Password Administration & Self-Service**: Direct modal dialogs for administrators to reset credentials, with live password confirmation validation.
@@ -191,6 +203,9 @@ Dedicated administrative portal (`/users`) for user lifecycle management, authen
 
 ### 12. CA Certificate Distribution Hub
 Centralized fleet orchestration interface (`/ca-distribution`) for automated certificate delivery across heterogeneous network infrastructure and servers:
+- **Tab-Contextual Action Placement**: The `+ Add SSH Endpoint` and `+ Add Email Endpoint` action buttons are positioned directly inside their respective tab's grid toolbar immediately to the left of the `[Columns ⚙️]` and `[Reset]` controls.
+- **Sticky Frozen Table Headers**: Table header rows remain anchored in place during vertical scrolling across both SSH Endpoints and Email Endpoints data tables.
+- **Viewport-Locked Clean Layout**: Outer page scrollbars are eliminated, keeping table scrolling intuitive and self-contained within the view.
 - **Dual Delivery Channels**: High-contrast tabbed management switching between **SSH / SCP Endpoints** and **Email Distribution Groups**, accompanied by real-time KPI counter badges.
 - **Intelligent Remote OS Auto-Detection**: Live SSH probe engine (`uname`, `/etc/os-release`, `sw_vers`, `cmd.exe /c ver`) that identifies remote platforms (Ubuntu, Debian, RHEL, CentOS, Fedora, Alpine, Arch Linux, OpenWrt routers, macOS Darwin, and Windows Server 2016/2019/2022/10/11 with exact build mapping).
 - **Platform-Tailored Installation Bundles**: Automatically generates OS-specific `README.txt` installation instructions (e.g. `update-ca-certificates`, `certutil.exe -addstore`, `security add-trusted-cert`, OpenWrt `/etc/ssl/certs/`) transferred alongside sanitized `.crt`, `.pem`, and `.cer` certificate formats.
@@ -215,6 +230,8 @@ Direct distribution workflow triggered by clicking **Distribute** from the activ
 
 ### 13. CA Fleet Trust & Compliance Audit
 Centralized fleet compliance and trust propagation tracking dashboard (`/ca-fleet-trust`) providing real-time visibility into root certificate installation across heterogeneous network infrastructure:
+- **Collapsible KPI Overview**: Features an interactive `[▾ Hide Overview] / [▸ Show Overview]` toggle button that smoothly collapses the upper KPI metric cards and actions section to maximize vertical viewport space for the device audit grid, persisting operator preference across visits via `localStorage`.
+- **Sticky Frozen Table Headers & Natural Page Scrolling**: Preserves smooth natural page scrolling for multi-section visibility while pinning the device table's header row when scrolling through audit records.
 - **KPI Summary Metrics**: Real-time counter cards detailing **Audited Endpoints**, **Compliant (Full Trust)**, **Partially Compliant**, **Untrusted / Missing**, and the computed overall **Fleet Trust Compliance Rate**.
 - **Automated Fleet SSH Sweeps**: One-click execution (`Run Fleet Audit Sweep`) that connects to all configured CA distribution endpoints via SSH, inspects remote certificate directories (such as `/usr/local/share/ca-certificates`, `/etc/ssl/certs/`, and Windows Certificate Stores), and verifies certificate validity and bundle presence.
 - **Real-Time SSE Sweep Progress**: Live Server-Sent Events streaming modal (`/ca-fleet-trust/sweep/stream`) that animates target-by-target inspection progress without requiring manual page reloads.
