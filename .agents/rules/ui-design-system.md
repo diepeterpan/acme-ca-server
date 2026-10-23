@@ -51,6 +51,10 @@ Copy and paste these tokens into your global stylesheet to manage the design the
   --shadow-md: 0 4px 6px -1px rgba(28, 40, 48, 0.08), 0 2px 4px -1px rgba(28, 40, 48, 0.04);
   --shadow-high: 0 10px 15px -3px rgba(28, 40, 48, 0.1), 0 4px 6px -2px rgba(28, 40, 48, 0.05);
 
+  /* --- Typography Families --- */
+  --font-family-base: 'Switzer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+
   /* --- Responsive Breakpoints --- */
   --bp-sm: 640px;                 /* Mobile / Mobile Landscape breakpoint */
   --bp-md: 768px;                 /* Tablet breakpoint */
@@ -86,14 +90,54 @@ Shadows must be used selectively to show depth and interaction stages.
 
 ## 🔤 Typography Tokens
 
-Typography scales down slightly for smaller screens to maintain structural balance.
+The application uses **Switzer** (designed by Indian Type Foundry, distributed on Fontshare under the Indian Type Foundry Free Font License) as its primary typeface. Switzer is self-hosted locally in `app/web/www/fonts/` as compressed `.woff2` files (weights 400, 500, 600, 700) to ensure zero third-party telemetry, fast load times, and complete independence for air-gapped environments.
 
+### 1. Self-Hosted Font Loading (`/fonts/switzer.css`)
 ```css
-/* --- Type Hierarchy Rules --- */
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Switzer';
+  src: url('/fonts/Switzer-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+```
+
+### 2. Type Hierarchy Rules
+```css
+body, input, button, select, textarea {
+  font-family: var(--font-family-base);
+}
+
 h1, h2, h3, h4, p {
   margin: 0;
   color: var(--color-text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-family-base);
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-family-mono);
 }
 
 .text-h1 { font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -0.02em; }

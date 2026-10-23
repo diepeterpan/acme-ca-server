@@ -266,10 +266,22 @@ async def test_smtp_connection(
     effective_port = port or port_map.get(encryption, 587)
 
     now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+    ext_url = str(settings.external_url).rstrip('/')
     html_body = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
     <html xmlns="http://www.w3.org/1999/xhtml">
-    <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /></head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1c2830; background-color: #f8fafb; margin: 0; padding: 24px 12px;">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <link rel="stylesheet" href="{ext_url}/fonts/switzer.css" type="text/css" />
+        <!--[if mso]>
+        <style type="text/css">
+            body, table, td, h1, h2, h3, h4, p, a, span {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+            }}
+        </style>
+        <![endif]-->
+    </head>
+    <body style="font-family: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                 color: #1c2830; background-color: #f8fafb; margin: 0; padding: 24px 12px;">
         <table border="0" cellpadding="0" cellspacing="0" width="100%">
             <tr>
                 <td align="center">

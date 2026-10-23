@@ -1290,8 +1290,18 @@ RHEL/Fedora: sudo cp {base_name}.crt /etc/pki/ca-trust/source/anchors/ && sudo u
 
     full_html = f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet" href="{ext_url}/fonts/switzer.css" type="text/css" />
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td, h1, h2, h3, h4, p, a, span {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        }}
+    </style>
+    <![endif]-->
+</head>
+<body style="font-family: 'Switzer', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
              color: #1c2830; background-color: #f8fafb; padding: 24px 12px; margin: 0;">
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
         <tr>
