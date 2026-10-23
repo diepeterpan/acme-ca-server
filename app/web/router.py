@@ -2863,23 +2863,27 @@ async def api_trace_feed_get(after: str = '', exclude_id: str = '', search: str 
     serialized_traces = []
     for t in new_traces:
         ts = t.get('timestamp')
-        serialized_traces.append({
-            'id': t['id'],
-            'timestamp_iso': ts.isoformat() if isinstance(ts, datetime) else '',
-            'timestamp_display': ts.strftime('%Y-%m-%d %H:%M:%S') if isinstance(ts, datetime) else '',
-            'http_method': t['http_method'],
-            'status_code': t['status_code'],
-            'endpoint': t['endpoint'],
-            'client_ip': t['client_ip'],
-            'target_host': t.get('target_host', ''),
-            'duration_ms': t.get('duration_ms', 0),
-        })
+        serialized_traces.append(
+            {
+                'id': t['id'],
+                'timestamp_iso': ts.isoformat() if isinstance(ts, datetime) else '',
+                'timestamp_display': ts.strftime('%Y-%m-%d %H:%M:%S') if isinstance(ts, datetime) else '',
+                'http_method': t['http_method'],
+                'status_code': t['status_code'],
+                'endpoint': t['endpoint'],
+                'client_ip': t['client_ip'],
+                'target_host': t.get('target_host', ''),
+                'duration_ms': t.get('duration_ms', 0),
+            }
+        )
 
-    return JSONResponse({
-        'traces': serialized_traces,
-        'total_count': total_count,
-        'enabled': enabled,
-    })
+    return JSONResponse(
+        {
+            'traces': serialized_traces,
+            'total_count': total_count,
+            'enabled': enabled,
+        }
+    )
 
 
 @api.get('/api-trace/{trace_id}/payload')
@@ -2892,4 +2896,3 @@ async def api_trace_payload_get(trace_id: str):
     if 'timestamp' in trace and isinstance(trace['timestamp'], datetime):
         trace['timestamp'] = trace['timestamp'].isoformat()
     return JSONResponse(trace)
-

@@ -204,7 +204,6 @@ async def get_new_traces(after_timestamp: datetime | None = None, exclude_id: st
         return [dict(r) for r in rows] if rows else []
 
 
-
 async def get_trace_count(search: str = '') -> int:
     """Return total count of traces matching search."""
     query = 'SELECT count(*) FROM api_traces'
