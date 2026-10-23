@@ -2798,3 +2798,54 @@ async def ca_fleet_trust_delete_audit(audit_id: str):
         url=f'/ca-fleet-trust?status_msg={quote("Audit record deleted successfully.")}',
         status_code=status.HTTP_303_SEE_OTHER,
     )
+
+
+@api.get('/api-trace', response_class=HTMLResponse)
+async def api_trace_get(request: Request, search: str = '', status_msg: str = '', error: str = ''):
+    """Render the API Trace diagnostic grid."""
+    enabled = await tools.api_trace.is_api_trace_enabled()
+    traces = await tools.api_trace.get_traces(limit=500, search=search)
+    total_count = await tools.api_trace.get_trace_count(search=search)
+    template = template_engine.get_template('api-trace.html')
+    content = await template.render_async(
+        **default_params,
+        request=request,
+        enabled=enabled,
+        traces=traces,
+        total_count=total_count,
+        search=search,
+        status_msg=status_msg,
+        error=error,
+    )
+    return HTMLResponse(content)
+
+
+@api.post('/api-trace/toggle')
+async def api_trace_toggle_post(enabled: bool = Form(False), delete_logs: bool = Form(False)):
+    """Toggle API Tracing on or off, optionally clearing logs when disabled."""
+    await tools.api_trace.set_api_trace_enabled(enabled, delete_logs=delete_logs)
+    if enabled:
+        msg = 'API Tracing has been enabled.'
+    else:
+        msg = 'API Tracing disabled and all logged calls were permanently deleted.' if delete_logs else 'API Tracing disabled.'
+    return RedirectResponse(url=f'/api-trace?status_msg={quote(msg)}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.post('/api-trace/clear')
+async def api_trace_clear_post():
+    """Clear all logged API traces."""
+    deleted_count = await tools.api_trace.clear_all_traces()
+    msg = f'Deleted {deleted_count} API trace log(s).'
+    return RedirectResponse(url=f'/api-trace?status_msg={quote(msg)}', status_code=status.HTTP_303_SEE_OTHER)
+
+
+@api.get('/api-trace/{trace_id}/payload')
+async def api_trace_payload_get(trace_id: str):
+    """Return JSON details and payloads for modal dialog inspection."""
+    trace = await tools.api_trace.get_trace_payload(trace_id)
+    if not trace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Trace record not found')
+    # Convert datetime to ISO string for JSON serialization
+    if 'timestamp' in trace and isinstance(trace['timestamp'], datetime):
+        trace['timestamp'] = trace['timestamp'].isoformat()
+    return JSONResponse(trace)

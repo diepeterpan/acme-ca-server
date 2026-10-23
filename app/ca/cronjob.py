@@ -14,12 +14,16 @@ async def rebuild_crls():
         async with db.transaction(readonly=True) as sql:
             cas = [record async for record in sql("""select serial_number, cert_pem, key_pem_enc from cas""")]
         for sn, cert_pem, key_pem_enc in cas:
-            ca_cert, ca_key = await asyncio.to_thread(load_ca_sync, cert_pem=cert_pem, key_pem_enc=key_pem_enc)
-            async with db.transaction(readonly=True) as sql:
-                revocations = [record async for record in sql("""select serial_number, revoked_at from certificates where revoked_at is not null""")]
-            _, crl_pem = await asyncio.to_thread(build_crl_sync, ca_key=ca_key, ca_cert=ca_cert, revocations=revocations)
-            async with db.transaction() as sql:
-                await sql.exec("""update cas set crl_pem = $1 where serial_number = $2""", crl_pem, sn)
+            try:
+                ca_cert, ca_key = await asyncio.to_thread(load_ca_sync, cert_pem=cert_pem, key_pem_enc=key_pem_enc)
+                async with db.transaction(readonly=True) as sql:
+                    revocations = [record async for record in sql("""select serial_number, revoked_at from certificates where revoked_at is not null""")]
+                _, crl_pem = await asyncio.to_thread(build_crl_sync, ca_key=ca_key, ca_cert=ca_cert, revocations=revocations)
+                async with db.transaction() as sql:
+                    await sql.exec("""update cas set crl_pem = $1 where serial_number = $2""", crl_pem, sn)
+            except Exception as ca_exc:  # noqa: BLE001
+                err_detail = f'{type(ca_exc).__name__}: {ca_exc}' if str(ca_exc) else type(ca_exc).__name__
+                logger.warning('Could not rebuild CRL for CA %s: %s', sn, err_detail)
     except Exception:  # noqa: BLE001
         logger.error('could not rebuild crl', exc_info=True)
 

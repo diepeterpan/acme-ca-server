@@ -66,11 +66,23 @@ if settings.ca.enabled:
             is_initialized = True
             await cronjob.start()
         else:
-            async with db.transaction() as sql:
-                ok = await sql.value("""select count(serial_number)=1 from cas where active=true and not_valid_after > now()""")
-            if ok:
-                is_initialized = True
-                await cronjob.start()
+            active_ca = None
+            async with db.transaction(readonly=True) as sql:
+                active_ca = await sql.record("""select serial_number, cert_pem, key_pem_enc from cas where active=true and not_valid_after > now()""")
+            if active_ca:
+                try:
+                    f = Fernet(settings.ca.encryption_key.get_secret_value())
+                    f.decrypt(active_ca['key_pem_enc'])
+                    is_initialized = True
+                    await cronjob.start()
+                except Exception as dec_exc:  # noqa: BLE001
+                    is_initialized = False
+                    logger.error(
+                        'Active CA %s private key cannot be decrypted with CA_ENCRYPTION_KEY: %s (%s). Please update CA_ENCRYPTION_KEY or rotate the Root CA.',
+                        active_ca['serial_number'],
+                        type(dec_exc).__name__,
+                        dec_exc,
+                    )
             else:
                 is_initialized = False
                 logger.warning('Internal CA is enabled, but no valid active CA certificate is available (expired or missing). Waiting for CA creation.')

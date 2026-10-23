@@ -10,6 +10,8 @@ from logger import logger
 from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+SECRETS_DIR = '/run/secrets' if Path('/run/secrets').is_dir() else None
+
 
 class WebSettings(BaseSettings):
     enabled: bool = True
@@ -19,14 +21,14 @@ class WebSettings(BaseSettings):
     admin_username: str | None = None
     admin_password: SecretStr | None = None
     session_secret: SecretStr | None = None
-    model_config = SettingsConfigDict(env_prefix='web_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='web_', secrets_dir=SECRETS_DIR)
 
 
 class DbIntegritySettings(BaseSettings):
     enabled: bool = True
     prompt_timeout: int = 60
     auto_repair: bool = False
-    model_config = SettingsConfigDict(env_prefix='db_integrity_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='db_integrity_', secrets_dir=SECRETS_DIR)
 
 
 class CaSettings(BaseSettings):
@@ -40,7 +42,7 @@ class CaSettings(BaseSettings):
     trust_probe_base_port: int = 9443
     trust_probe_host: str = '0.0.0.0'  # noqa: S104
 
-    model_config = SettingsConfigDict(env_prefix='ca_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='ca_', secrets_dir=SECRETS_DIR)
 
     @model_validator(mode='after')
     def valid_check(self) -> 'CaSettings':
@@ -71,7 +73,7 @@ class MailSettings(BaseSettings):
     warn_before_cert_expires: timedelta | Literal[False] = timedelta(days=20)
     notify_when_cert_expired: bool = True
 
-    model_config = SettingsConfigDict(env_prefix='mail_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='mail_', secrets_dir=SECRETS_DIR)
 
     @model_validator(mode='before')
     @classmethod
@@ -107,7 +109,7 @@ class AcmeSettings(BaseSettings):
     allow_wildcards: bool = True
     target_domain_regex: Pattern = r'(\*\.)?[^\*]+\.[^\.]+'  # type: ignore[assignment]
 
-    model_config = SettingsConfigDict(env_prefix='acme_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='acme_', secrets_dir=SECRETS_DIR)
 
     @model_validator(mode='after')
     def sanitize_acme_values(self) -> 'AcmeSettings':
@@ -141,7 +143,7 @@ class OidcSettings(BaseSettings):
     use_pkce: bool = True
     token_auth_method: Literal['auto', 'client_secret_basic', 'client_secret_post'] = 'auto'
 
-    model_config = SettingsConfigDict(env_prefix='oidc_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='oidc_', secrets_dir=SECRETS_DIR)
 
     @model_validator(mode='after')
     def valid_check(self) -> 'OidcSettings':
@@ -171,7 +173,13 @@ class DataManagementSettings(BaseSettings):
     notify_only_on_changes: bool = True
     admin_email: str | None = None
 
-    model_config = SettingsConfigDict(env_prefix='data_mgmt_', secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(env_prefix='data_mgmt_', secrets_dir=SECRETS_DIR)
+
+
+class ApiTraceSettings(BaseSettings):
+    enabled: bool = False
+
+    model_config = SettingsConfigDict(env_prefix='api_trace_', secrets_dir=SECRETS_DIR)
 
 
 class Settings(BaseSettings):
@@ -185,8 +193,9 @@ class Settings(BaseSettings):
     oidc: OidcSettings = OidcSettings()
     db_integrity: DbIntegritySettings = DbIntegritySettings()
     data_mgmt: DataManagementSettings = DataManagementSettings()
+    api_trace: ApiTraceSettings = ApiTraceSettings()
 
-    model_config = SettingsConfigDict(secrets_dir='/run/secrets')
+    model_config = SettingsConfigDict(secrets_dir=SECRETS_DIR)
 
     @model_validator(mode='before')
     @classmethod

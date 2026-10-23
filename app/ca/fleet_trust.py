@@ -1900,7 +1900,8 @@ class CaProbeServerManager:
                     )
 
                 except Exception as ex:  # noqa: BLE001
-                    logger.error('Failed to initialize probe server for CA %s: %s', serial, ex)
+                    err_detail = f'{type(ex).__name__}: {ex}' if str(ex) else type(ex).__name__
+                    logger.warning('Failed to initialize probe server for CA %s: %s', serial, err_detail)
 
             self._is_running = True
 

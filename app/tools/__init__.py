@@ -1,8 +1,8 @@
 """ACME CA Server CLI and administrative maintenance tools."""
 
-from . import cronjob, data_retention
+from . import api_trace, cronjob, data_retention
 
-__all__ = ['cronjob', 'data_retention', 'start_cronjobs']
+__all__ = ['api_trace', 'cronjob', 'data_retention', 'start_cronjobs']
 
 
 async def start_cronjobs() -> None:

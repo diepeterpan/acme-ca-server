@@ -1,3 +1,5 @@
+import asyncio
+import time
 from urllib.parse import quote
 
 import ca
@@ -201,3 +203,98 @@ class CaSetupRedirectMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-
             return RedirectResponse(url='/ca', status_code=status.HTTP_303_SEE_OTHER)
 
         return await call_next(request)
+
+
+class ApiTraceMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-methods
+    """Trace HTTP requests and responses for acme:* and ca//crl endpoints when enabled."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        import tools  # pylint: disable=import-outside-toplevel
+
+        path = request.url.path
+        # Check if URL matches acme:* or ca//crl endpoints
+        is_traced_path = path.startswith('/acme/') or path in ('/directory', '/.well-known/acme-challenge') or (path.startswith('/ca/') and path.endswith('/crl'))
+
+        if not is_traced_path or not await tools.api_trace.is_api_trace_enabled():
+            return await call_next(request)
+
+        start_time = time.time()
+        client_ip = request.client.host if request.client else 'unknown'
+        target_host = request.headers.get('host', request.url.netloc or 'localhost')
+        http_method = request.method
+        req_headers = dict(request.headers)
+
+        # Buffer request payload safely
+        req_body_bytes = await request.body()
+        req_payload_str = ''
+        if req_body_bytes:
+            try:
+                req_payload_str = req_body_bytes.decode('utf-8', errors='replace')
+            except Exception:  # noqa: BLE001
+                req_payload_str = f'<binary data ({len(req_body_bytes)} bytes)>'
+
+        # Wrap receive so downstream handlers can read body without EOF
+        async def receive():
+            return {'type': 'http.request', 'body': req_body_bytes, 'more_body': False}
+
+        request._receive = receive  # pylint: disable=protected-access
+
+        resp_status = 500
+        resp_headers = {}
+        resp_payload_str = ''
+        error_msg = None
+
+        try:
+            response = await call_next(request)
+            resp_status = response.status_code
+            resp_headers = dict(response.headers)
+
+            # Consume and buffer response body
+            resp_body_chunks = []
+            body_iter = getattr(response, 'body_iterator', None)
+            if body_iter is not None:
+                async for chunk in body_iter:  # type: ignore[attr-defined]
+                    resp_body_chunks.append(chunk)
+            elif hasattr(response, 'body'):
+                resp_body_chunks.append(response.body)  # type: ignore[attr-defined]
+
+            full_resp_body = b''.join(resp_body_chunks)
+
+            # Decode or format response payload
+            content_type = response.headers.get('content-type', '').lower()
+            if 'application/pkix-crl' in content_type or 'octet-stream' in content_type:
+                resp_payload_str = f'<binary data: {content_type} ({len(full_resp_body)} bytes)>'
+            else:
+                try:
+                    resp_payload_str = full_resp_body.decode('utf-8', errors='replace')
+                except Exception:  # noqa: BLE001
+                    resp_payload_str = f'<binary data ({len(full_resp_body)} bytes)>'
+
+            # Recreate response with buffered body so client receives response intact
+            response = Response(
+                content=full_resp_body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+            return response
+        except Exception as exc:  # noqa: BLE001
+            error_msg = str(exc)
+            raise
+        finally:
+            duration_ms = int((time.time() - start_time) * 1000)
+            asyncio.create_task(
+                tools.api_trace.record_trace(
+                    client_ip=client_ip,
+                    target_host=target_host,
+                    http_method=http_method,
+                    endpoint=path,
+                    status_code=resp_status,
+                    duration_ms=duration_ms,
+                    request_headers=req_headers,
+                    request_payload=req_payload_str,
+                    response_headers=resp_headers,
+                    response_payload=resp_payload_str,
+                    error_message=error_msg,
+                )
+            )

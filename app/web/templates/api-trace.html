@@ -1,0 +1,834 @@
+{% extends "base.html" %}
+{% block title %}API Trace{% endblock %}
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title svg {
+        width: 32px;
+        height: 32px;
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+
+    .page-subtitle {
+        font-size: 0.92rem;
+        color: var(--text-muted);
+    }
+
+    /* Status Banner */
+    .status-banner {
+        padding: 0.85rem 1.25rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    .status-banner.success {
+        background-color: var(--status-valid-bg);
+        border: 1px solid var(--status-valid-border);
+        color: var(--status-valid-text);
+    }
+
+    .status-banner.error {
+        background-color: var(--status-revoked-bg);
+        border: 1px solid var(--status-revoked-border);
+        color: var(--status-revoked-text);
+    }
+
+    /* Filter Card */
+    .filter-card {
+        background: var(--color-bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 0.60rem 1rem;
+        margin-bottom: 0.65rem;
+        box-shadow: var(--shadow-low);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .search-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 280px;
+    }
+
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+        max-width: 440px;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.48rem 0.9rem 0.48rem 2.4rem;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        background-color: #ffffff;
+        color: var(--color-text-main);
+        outline: none;
+        transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px var(--color-primary-light);
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        fill: var(--color-text-muted);
+        pointer-events: none;
+    }
+
+    .grid-count-badge {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.80rem;
+        font-weight: 700;
+        background-color: var(--color-bg-main);
+        color: var(--color-text-main);
+        padding: 0.25rem 0.55rem;
+        border-radius: var(--radius-xs);
+        border: 1px solid var(--color-border);
+        white-space: nowrap;
+    }
+
+    .filter-actions-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    /* Switch Container in Toolbar */
+    .toggle-control-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        user-select: none;
+    }
+
+    .toggle-control-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--color-text-main);
+        cursor: pointer;
+    }
+
+    .btn-clear-traces {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.45rem 0.85rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        background-color: #ef4444;
+        color: #ffffff;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-clear-traces:hover {
+        background-color: #dc2626;
+    }
+
+    /* Table & Container */
+    .table-container {
+        background: var(--color-bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-low);
+        overflow-x: auto;
+        position: relative;
+    }
+
+    .trace-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.88rem;
+    }
+
+    .trace-table th {
+        background-color: var(--color-bg-main);
+        color: var(--color-text-muted);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .trace-table td {
+        padding: 0.70rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        color: var(--color-text-main);
+        vertical-align: middle;
+    }
+
+    .trace-table tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.015);
+    }
+
+    .method-badge {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0.15rem 0.45rem;
+        border-radius: var(--radius-xs);
+        text-transform: uppercase;
+    }
+
+    .method-GET { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .method-POST { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .method-HEAD { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+    .status-badge {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0.15rem 0.45rem;
+        border-radius: var(--radius-xs);
+    }
+
+    .status-2xx { background-color: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .status-3xx { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .status-4xx { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .status-5xx { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+    .endpoint-path {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-primary);
+    }
+
+    .ip-badge {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        color: var(--color-text-muted);
+    }
+
+    .duration-badge {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--color-text-muted);
+    }
+
+    .btn-view-payload {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.30rem 0.65rem;
+        font-size: 0.80rem;
+        font-weight: 600;
+        background-color: var(--color-bg-main);
+        color: var(--color-text-main);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-view-payload:hover {
+        background-color: var(--color-primary);
+        color: #ffffff;
+        border-color: var(--color-primary);
+    }
+
+    /* Modal Overlay & Card (on a veil) */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--dialog-backdrop, rgba(28, 40, 48, 0.45));
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .modal-overlay.open {
+        display: flex;
+    }
+
+    .modal-card {
+        background: #ffffff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-high);
+        width: 100%;
+        max-width: 820px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .modal-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--color-text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .modal-close-btn {
+        background: none;
+        border: none;
+        font-size: 1.25rem;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-close-btn:hover {
+        background-color: var(--color-bg-main);
+        color: var(--color-text-main);
+    }
+
+    .modal-body {
+        padding: 1.25rem 1.5rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .modal-tabs {
+        display: flex;
+        gap: 0.5rem;
+        border-bottom: 1px solid var(--color-border);
+        padding-bottom: 0.5rem;
+    }
+
+    .modal-tab-btn {
+        background: none;
+        border: none;
+        font-size: 0.88rem;
+        font-weight: 600;
+        padding: 0.4rem 0.8rem;
+        border-radius: var(--radius-sm);
+        color: var(--color-text-muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .modal-tab-btn.active {
+        background-color: var(--color-primary-light);
+        color: var(--color-primary);
+    }
+
+    .payload-content-box {
+        position: relative;
+    }
+
+    .payload-code-block {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        background-color: #f8fafc;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        padding: 0.85rem 1rem;
+        max-height: 280px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: #1e293b;
+    }
+
+    .btn-copy-payload {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: #ffffff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xs);
+        padding: 0.25rem 0.55rem;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        transition: all 0.15s ease;
+    }
+
+    .btn-copy-payload:hover {
+        color: var(--color-primary);
+        border-color: var(--color-primary);
+    }
+
+    .modal-footer {
+        padding: 0.85rem 1.5rem;
+        border-top: 1px solid var(--color-border);
+        display: flex;
+        justify-content: flex-end;
+        background-color: var(--color-bg-main);
+    }
+
+    .btn-modal-close {
+        padding: 0.45rem 1.1rem;
+        background: #ffffff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-modal-close:hover {
+        background-color: var(--color-bg-main);
+    }
+
+    /* Confirmation Veil for Delete */
+    .confirm-modal-card {
+        background: #ffffff;
+        border-radius: var(--radius-lg);
+        width: 100%;
+        max-width: 500px;
+        box-shadow: 0 20px 25px -5px rgba(220, 38, 38, 0.2);
+        border-top: 4px solid #dc2626;
+        padding: 1.5rem 1.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title-group">
+        <h1 class="page-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            API Trace
+        </h1>
+        <span class="page-subtitle">Diagnostic live request and response call logging for ACME endpoints and CA CRL distribution</span>
+    </div>
+</div>
+
+{% if status_msg %}
+<div class="status-banner success">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <span>{{ status_msg }}</span>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="status-banner error">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+    <span>{{ error }}</span>
+</div>
+{% endif %}
+
+<!-- Filter & Toggle Card -->
+<div class="filter-card">
+    <div class="search-group">
+        <div class="toggle-control-group">
+            <label class="switch" title="Toggle ACME & CA/CRL API Tracing">
+                <input type="checkbox" id="apiTraceToggle" {% if enabled %}checked{% endif %}>
+                <span class="slider"></span>
+            </label>
+            <label for="apiTraceToggle" class="toggle-control-label">API Tracing</label>
+        </div>
+
+        <form method="get" action="/api-trace" class="search-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input type="text" name="search" class="search-input" value="{{ search }}" placeholder="Filter by endpoint, IP, method, host..." autocomplete="off">
+        </form>
+        <span class="grid-count-badge" id="traceCountBadge" data-total="{{ total_count }}" title="Total / Filtered Log Entries">{{ total_count }}</span>
+    </div>
+
+    <div class="filter-actions-group">
+        <div class="table-toolbar-mount"></div>
+        {% if total_count > 0 %}
+        <button type="button" class="btn-clear-traces" id="openClearModalBtn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Clear Logs</span>
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Table View -->
+<div class="table-container">
+    {% if traces|length > 0 %}
+    <table class="trace-table" data-table-id="api-traces">
+        <thead>
+            <tr>
+                <th data-col-key="timestamp" style="width: 170px;">Timestamp</th>
+                <th data-col-key="method" style="width: 90px;">Method</th>
+                <th data-col-key="status" style="width: 80px;">Status</th>
+                <th data-col-key="endpoint">Endpoint / Path</th>
+                <th data-col-key="client_ip" style="width: 130px;">Client IP</th>
+                <th data-col-key="target_host" style="width: 140px;">Target Host</th>
+                <th data-col-key="duration" style="width: 90px;">Duration</th>
+                <th data-no-sort data-col-key="payload" style="width: 110px;">Payload</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in traces %}
+            {% set status_group = (t.status_code // 100) ~ 'xx' %}
+            <tr data-trace-id="{{ t.id }}">
+                <td data-sort-val="{{ t.timestamp.isoformat() if t.timestamp else '' }}" class="cell-registered">
+                    {{ t.timestamp.strftime('%Y-%m-%d %H:%M:%S') if t.timestamp else '' }}
+                </td>
+                <td data-sort-val="{{ t.http_method }}">
+                    <span class="method-badge method-{{ t.http_method }}">{{ t.http_method }}</span>
+                </td>
+                <td data-sort-val="{{ t.status_code }}">
+                    <span class="status-badge status-{{ status_group }}">{{ t.status_code }}</span>
+                </td>
+                <td data-sort-val="{{ t.endpoint }}">
+                    <span class="endpoint-path">{{ t.endpoint }}</span>
+                </td>
+                <td data-sort-val="{{ t.client_ip }}">
+                    <span class="ip-badge">{{ t.client_ip }}</span>
+                </td>
+                <td data-sort-val="{{ t.target_host }}">
+                    <span class="ip-badge">{{ t.target_host }}</span>
+                </td>
+                <td data-sort-val="{{ t.duration_ms }}">
+                    <span class="duration-badge">{{ t.duration_ms }} ms</span>
+                </td>
+                <td>
+                    <button type="button" class="btn-view-payload" onclick="openPayloadModal('{{ t.id }}')">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <span>View</span>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 3.5rem 1.5rem; color: var(--color-text-muted);">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.75rem; opacity: 0.6;">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+        <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--color-text-main); margin-bottom: 0.35rem;">No API Calls Logged</h3>
+        <p style="font-size: 0.88rem; max-width: 420px; margin: 0 auto;">
+            {% if not enabled %}
+            API Tracing is currently disabled. Toggle the switch above to start capturing incoming ACME and CA/CRL requests.
+            {% else %}
+            API Tracing is active. Send requests to ACME endpoints (e.g., via certbot, lego, acme.sh) or fetch CRLs to see live call traces here.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: View Payload on Veil -->
+<div class="modal-overlay" id="payloadModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title" id="payloadModalTitle">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <span>API Trace Payload</span>
+            </h3>
+            <button type="button" class="modal-close-btn" onclick="closePayloadModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-tabs">
+                <button type="button" class="modal-tab-btn active" id="tabReqBtn" onclick="switchPayloadTab('req')">Received (Request)</button>
+                <button type="button" class="modal-tab-btn" id="tabRespBtn" onclick="switchPayloadTab('resp')">Sent (Response)</button>
+            </div>
+
+            <!-- Request Section -->
+            <div id="sectionReq">
+                <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.3rem;">Request Headers</div>
+                <div class="payload-content-box" style="margin-bottom: 1rem;">
+                    <button type="button" class="btn-copy-payload" onclick="copyBoxContent('reqHeadersBox', this)">Copy</button>
+                    <pre class="payload-code-block" id="reqHeadersBox"></pre>
+                </div>
+
+                <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.3rem;">Request Payload / Body</div>
+                <div class="payload-content-box">
+                    <button type="button" class="btn-copy-payload" onclick="copyBoxContent('reqBodyBox', this)">Copy</button>
+                    <pre class="payload-code-block" id="reqBodyBox"></pre>
+                </div>
+            </div>
+
+            <!-- Response Section -->
+            <div id="sectionResp" style="display: none;">
+                <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.3rem;">Response Headers</div>
+                <div class="payload-content-box" style="margin-bottom: 1rem;">
+                    <button type="button" class="btn-copy-payload" onclick="copyBoxContent('respHeadersBox', this)">Copy</button>
+                    <pre class="payload-code-block" id="respHeadersBox"></pre>
+                </div>
+
+                <div style="font-size: 0.82rem; font-weight: 700; color: var(--color-text-muted); margin-bottom: 0.3rem;">Response Payload / Body</div>
+                <div class="payload-content-box">
+                    <button type="button" class="btn-copy-payload" onclick="copyBoxContent('respBodyBox', this)">Copy</button>
+                    <pre class="payload-code-block" id="respBodyBox"></pre>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-modal-close" onclick="closePayloadModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirm Disable Tracing & Delete Traces on Veil -->
+<div class="modal-overlay" id="confirmDisableModal">
+    <div class="confirm-modal-card">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 style="font-size: 1.20rem; font-weight: 700; color: var(--text-heading); margin: 0;">Disable API Tracing & Delete Calls</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.92rem; margin-bottom: 1.25rem; line-height: 1.5;">
+            Disabling API tracing will immediately stop recording and permanently delete all logged trace calls. Are you sure you want to proceed?
+        </div>
+        <form method="post" action="/api-trace/toggle" id="disableTraceForm">
+            <input type="hidden" name="enabled" value="false">
+            <input type="hidden" name="delete_logs" value="true">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" class="btn-modal-close" onclick="cancelDisableToggle()">Cancel</button>
+                <button type="submit" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.55rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.90rem; cursor: pointer;">
+                    Confirm &amp; Delete All
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Confirm Explicit Clear Logs on Veil -->
+<div class="modal-overlay" id="confirmClearModal">
+    <div class="confirm-modal-card">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626; flex-shrink: 0;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            </div>
+            <h3 style="font-size: 1.20rem; font-weight: 700; color: var(--text-heading); margin: 0;">Clear All API Traces</h3>
+        </div>
+        <div style="color: var(--text-body); font-size: 0.92rem; margin-bottom: 1.25rem; line-height: 1.5;">
+            Are you sure you want to permanently delete all logged API trace entries? This action cannot be undone.
+        </div>
+        <form method="post" action="/api-trace/clear">
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                <button type="button" class="btn-modal-close" onclick="closeClearModal()">Cancel</button>
+                <button type="submit" style="background-color: #dc2626; color: #ffffff; border: none; padding: 0.55rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.90rem; cursor: pointer;">
+                    Delete All Traces
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Toggle handling with confirmation modal on disable
+    const traceToggle = document.getElementById('apiTraceToggle');
+    const confirmDisableModal = document.getElementById('confirmDisableModal');
+
+    if (traceToggle) {
+        traceToggle.addEventListener('change', function(e) {
+            if (!this.checked) {
+                // User turned off switch -> show confirmation veil
+                confirmDisableModal.classList.add('open');
+            } else {
+                // User turned on switch -> enable directly
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/api-trace/toggle';
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'enabled';
+                input.value = 'true';
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+
+    function cancelDisableToggle() {
+        if (confirmDisableModal) {
+            confirmDisableModal.classList.remove('open');
+        }
+        if (traceToggle) {
+            traceToggle.checked = true; // revert checkbox
+        }
+    }
+
+    // Explicit Clear Modal
+    const confirmClearModal = document.getElementById('confirmClearModal');
+    const openClearBtn = document.getElementById('openClearModalBtn');
+    if (openClearBtn) {
+        openClearBtn.addEventListener('click', () => {
+            if (confirmClearModal) confirmClearModal.classList.add('open');
+        });
+    }
+
+    function closeClearModal() {
+        if (confirmClearModal) confirmClearModal.classList.remove('open');
+    }
+
+    // Payload Modal logic
+    const payloadModal = document.getElementById('payloadModal');
+
+    function formatPayload(raw) {
+        if (!raw) return '(empty)';
+        try {
+            const parsed = JSON.parse(raw);
+            return JSON.stringify(parsed, null, 2);
+        } catch(e) {
+            return String(raw);
+        }
+    }
+
+    async function openPayloadModal(traceId) {
+        if (!payloadModal) return;
+        payloadModal.classList.add('open');
+        document.getElementById('payloadModalTitle').innerHTML = '<span>Loading trace...</span>';
+        document.getElementById('reqHeadersBox').textContent = 'Loading...';
+        document.getElementById('reqBodyBox').textContent = 'Loading...';
+        document.getElementById('respHeadersBox').textContent = 'Loading...';
+        document.getElementById('respBodyBox').textContent = 'Loading...';
+
+        switchPayloadTab('req');
+
+        try {
+            const resp = await fetch(`/api-trace/${traceId}/payload`);
+            if (!resp.ok) throw new Error('Trace not found');
+            const data = await resp.json();
+
+            document.getElementById('payloadModalTitle').innerHTML = `<span>API Trace: ${data.http_method} ${data.endpoint} (${data.status_code})</span>`;
+            document.getElementById('reqHeadersBox').textContent = JSON.stringify(data.request_headers || {}, null, 2);
+            document.getElementById('reqBodyBox').textContent = formatPayload(data.request_payload);
+            document.getElementById('respHeadersBox').textContent = JSON.stringify(data.response_headers || {}, null, 2);
+            document.getElementById('respBodyBox').textContent = formatPayload(data.response_payload);
+        } catch (err) {
+            document.getElementById('payloadModalTitle').innerHTML = '<span>Error Loading Trace</span>';
+            document.getElementById('reqBodyBox').textContent = String(err);
+        }
+    }
+
+    function closePayloadModal() {
+        if (payloadModal) payloadModal.classList.remove('open');
+    }
+
+    function switchPayloadTab(tab) {
+        const secReq = document.getElementById('sectionReq');
+        const secResp = document.getElementById('sectionResp');
+        const btnReq = document.getElementById('tabReqBtn');
+        const btnResp = document.getElementById('tabRespBtn');
+
+        if (tab === 'req') {
+            secReq.style.display = 'block';
+            secResp.style.display = 'none';
+            btnReq.classList.add('active');
+            btnResp.classList.remove('active');
+        } else {
+            secReq.style.display = 'none';
+            secResp.style.display = 'block';
+            btnReq.classList.remove('active');
+            btnResp.classList.add('active');
+        }
+    }
+
+    function copyBoxContent(boxId, btn) {
+        const box = document.getElementById(boxId);
+        if (!box) return;
+        navigator.clipboard.writeText(box.textContent || '').then(() => {
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
+    }
+
+    // Close modals on backdrop click
+    window.addEventListener('click', (e) => {
+        if (e.target === payloadModal) closePayloadModal();
+        if (e.target === confirmClearModal) closeClearModal();
+        if (e.target === confirmDisableModal) cancelDisableToggle();
+    });
+
+    // Close modals on Escape key
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closePayloadModal();
+            closeClearModal();
+            cancelDisableToggle();
+        }
+    });
+</script>
+{% endblock %}

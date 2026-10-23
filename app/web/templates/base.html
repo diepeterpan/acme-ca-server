@@ -1313,6 +1313,12 @@
                                 <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                 <span>API Endpoints</span>
                             </a>
+                            <a href="/api-trace" class="dropdown-item {% if request is defined and request.url.path.startswith('/api-trace') %}active{% endif %}">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                </svg>
+                                <span>API Trace</span>
+                            </a>
                         </div>
                     </div>
                 </div>

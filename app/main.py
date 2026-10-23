@@ -101,6 +101,7 @@ if settings.web.enabled:
     app.add_middleware(web.middleware.WebAuthMiddleware)  # type: ignore[arg-type]
 
 app.add_middleware(web.middleware.MaintenanceModeMiddleware)  # type: ignore[arg-type]
+app.add_middleware(web.middleware.ApiTraceMiddleware)  # type: ignore[arg-type]
 
 if settings.web.enabled:
 
