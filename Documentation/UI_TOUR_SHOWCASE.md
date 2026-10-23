@@ -29,6 +29,8 @@ To re-generate or update these captures at any time, run:
    - [13. CA Fleet Trust & Compliance Audit](#13-ca-fleet-trust--compliance-audit)
    - [13b. CA Fleet Trust CLI Probe Commands Modal](#13b-ca-fleet-trust-cli-probe-commands-modal)
    - [14. Client Root CA Trust Verification Portal](#14-client-root-ca-trust-verification-portal)
+   - [15. Data Management & Automated Retention](#15-data-management--automated-retention)
+   - [15b. Data Retention Dry-Run & Simulation Modal](#15b-data-retention-dry-run--simulation-modal)
 
 ---
 
@@ -98,7 +100,7 @@ Comprehensive log of all certificates issued by the ACME server:
 - **Local Service Timezone Tooltips**: Issue and expiration timestamps display formatted in local service time, with hover tooltips rendering the precise second and timezone designation (`YYYY-MM-DD HH:MM:SS TZ`).
 - **High-Density Expanded Layout**: Responsive 1560px max container with clean padding for enhanced visibility on widescreen displays.
 - Filterable by status tabs: **All**, **Valid**, **Expiring**, **Revoked**, **Expired**.
-- Real-time client-side text search by domain, common name, or serial number.
+- **Dynamic Search Filter & Count Badges**: Real-time client-side search input filtering across domains, Common Names, and serial numbers, accompanied by an instant dynamic counter badge reflecting filtered matches (`Showing X of Y`).
 - Direct download of individual leaf certificates and certificate chains.
 - Revocation management with confirmation dialog and CRL synchronization.
 
@@ -133,6 +135,8 @@ Registry of all Fully Qualified Domain Names (FQDNs) managed by ACME clients:
 - **User-Resizable Columns**: Interactive drag handles to adjust column widths with persistence across visits.
 - **Cross-View Navigation**: The `View Certificates →` action links directly to `/certificates?domainfilter=<domain>&certstatus=all`, ensuring all matching leaf certificates are displayed regardless of the active status tab.
 - **Safe Domain Deletion**: Allows safe deletion of invalid domains that no longer have associated active certificates, cleaning up old ACME authorizations, challenges, orders, and failure logs with modal confirmation and filter state retention.
+- **Root CA Coverage Micro-Badges & Status**: Visual micro-badges (`🛡️ S`) indicate which internal Certificate Authority issued active leaf certificates for the domain, providing instant visibility into fleet coverage and highlighting orphaned or uncovered domains.
+- **Dynamic Search Filter & Count Badges**: Real-time client-side search input accompanied by an instant dynamic counter badge displaying the exact count of filtered domains (`Showing X of Y`).
 - **Local Timezone Display**: First requested and validity timestamps feature hover tooltips detailing exact seconds and active server timezone.
 - Status badges indicating domain validity.
 
@@ -150,6 +154,7 @@ Management center for all registered ACME client accounts:
 - **Dedicated Activation & Deactivation Confirmation Modals**: Purpose-built modal dialogs with visual accents and clear severity styling (Emerald Green for activation, Amber for deactivation) to prevent accidental status alterations.
 - **Guarded Account Deletion**: Deactivated accounts without active certificates can be permanently deleted with confirmation, removing associated ACME orders, challenges, and error logs. Client and server-side safety checks dynamically disable deletion if valid certificates are tied to the account.
 - **Preserved Filter Navigation**: Filter query strings (`accountstatus`, `accountfilter`) remain preserved upon status toggles and account deletion.
+- **Dynamic Search Filter & Count Badges**: Real-time client-side search input supporting instant search across Account IDs (`kid`) and contact emails, paired with an active dynamic counter badge showing matching records (`Showing X of Y`).
 - Displays Account ID (`kid`), contact email, and public key type (RSA/ECDSA).
 - Certificate breakdown counters: **Valid**, **Revoked**, and **Expired**.
 - Order request breakdown counters: **Valid**, **Pending**, **Processing**, and **Errors**.
@@ -268,6 +273,39 @@ A dedicated, responsive self-service verification interface (`/ca-trust/verify`)
 - **Telemetry Auto-Reporting**: Automatically logs successful and failed verification checks back to the server, feeding real-time device trust metrics directly into the administrative CA Fleet Trust dashboard.
 
 ![Client Root CA Trust Verification Portal](screenshots/14_ca_trust_verify.png)
+
+---
+
+### 15. Data Management & Automated Retention
+Centralized database retention and automated storage maintenance interface (`/data-management`):
+- **Automated Retention Rule Engine**: Granular day threshold settings (with `0` to disable) across 8 core retention rules:
+  - **Deactivated Accounts**: Purges deactivated accounts older than the threshold while safely protecting accounts with active valid certificates.
+  - **Inactive & Expired Orders**: Prunes stale orders without associated active certificates.
+  - **Invalid Domain Records**: Cleans up abandoned domain authorizations and orphaned challenges where linked certificates have expired or been revoked.
+  - **Revoke Expired Certificates**: Automatically transitions expired leaf certificates to revoked status and syncs the active Certificate Revocation List (CRL).
+  - **Delete Revoked Certificates**: Permanently purges revoked certificates older than the retention threshold and updates the CRL without them.
+  - **CA Distribution Logs**: Prunes historical delivery records while always preserving the single latest log per endpoint.
+  - **Fleet Trust Audit History**: Prunes device audit logs while retaining the most recent probe result per (Device, IP, Verification Method).
+  - **Maintenance Run History**: Cleans up older audit records while preserving the 15 most recent maintenance sweeps.
+- **Background Cronjob Scheduling**: Configurable automated scheduler running at custom intervals (e.g., every 24 hours) with preferred UTC execution hour.
+- **Email Summary Reporting**: Dispatches comprehensive HTML maintenance reports to administrators with a "Notify Only on Changes" toggle to avoid empty notification clutter.
+- **Dry-Run Audit Simulation**: Instant one-click simulation (`[Dry Run Audit]`) executing all active retention rules in read-only mode to preview affected record counts without modifying or deleting data.
+- **Maintenance Run Audit Log**: Complete history table logging each execution timestamp, trigger type (Cron vs. Manual), status, duration in milliseconds, total records impacted, and popovers with granular per-rule breakdowns.
+
+![Data Management & Automated Retention](screenshots/15_data_management.png)
+
+---
+
+### 15b. Data Retention Dry-Run & Simulation Modal
+Interactive simulation dialog triggered by clicking **Dry Run Audit** or **Run Clean-up Now**:
+- **Real-Time Simulation Execution**: Executes retention evaluation asynchronously with animated loading spinner and state indicators.
+- **Visual KPI Overview**: Instant summary cards rendering total **Records Impacted**, execution **Duration (ms)**, and **Status** (`Dry Run` vs. `Pruned`).
+- **Policy Rule Breakdown Table**: Comprehensive itemized grid displaying each evaluated retention policy rule, configured day threshold, and exact impacted record count.
+- **Read-Only Safety Confirmation**: Contextual alert banner confirming read-only audit simulation status with reassurance that zero records were altered or deleted.
+- **Smart View Refresh**: Automatically refreshes the main Data Management history log and table metrics upon dialog closure if any sweeps were executed.
+
+![Data Retention Dry-Run & Simulation Modal](screenshots/15b_data_management_modal.png)
+
 
 
 

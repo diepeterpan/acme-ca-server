@@ -19,6 +19,8 @@ Captures high-resolution screenshots of all web UI screens:
   13. CA Fleet Trust & Compliance Audit
   13b. CA Fleet Trust - CLI Probe & Manual Diagnostics Modal
   14. Client Root CA Trust Verification Portal
+  15. Data Management & Automated Retention
+  15b. Data Management - Dry Run & Simulation Modal
 
 Usage:
   python3 scripts/capture_ui_screens.py
@@ -132,6 +134,10 @@ async def obfuscate_page(page):
                 if (match.includes('example.com') || match.includes('example.org')) return match;
                 return 'admin@example.com';
             });
+
+            // 4. Sanitize app version tags if running in local dev
+            res = res.replace(/\bv0\.0\.0\b/g, 'v1.2.0');
+            res = res.replace(/\bv1\.0\.6\b/g, 'v1.2.0');
             
             return res;
         }
@@ -189,7 +195,7 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
 
     default_params = {
         'app_title': 'ACME CA Server',
-        'app_version': 'v1.0.6',
+        'app_version': 'v1.2.0',
         'is_authenticated': False,
         'current_user': None,
         'active_tab': '',
@@ -892,6 +898,208 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
             await context_verify.close()
         except Exception as e:
             print(f"    Warning: Could not capture CA trust verification portal: {e}")
+
+        # 15: Data Management & Automated Retention
+        print("--> Capturing 15_data_management.png...")
+        try:
+            captured = False
+            try:
+                resp = await page_auth.goto(f"{base_url}/data-management", wait_until='networkidle', timeout=4000)
+                if resp and resp.status == 200:
+                    captured = True
+            except Exception:
+                captured = False
+
+            if not captured:
+                dm_template = env.get_template('data-management.html')
+                sample_cfg = {
+                    'enabled': True,
+                    'cron_schedule_hours': 24,
+                    'run_at_hour_utc': 2,
+                    'delete_deactivated_accounts_days': 28,
+                    'delete_stale_orders_days': 14,
+                    'delete_invalid_domains_days': 28,
+                    'revoke_expired_certs_days': 7,
+                    'delete_revoked_certs_days': 14,
+                    'delete_distribution_logs_days': 14,
+                    'delete_fleet_audits_days': 7,
+                    'delete_run_history_days': 30,
+                    'email_notification_enabled': True,
+                    'notify_only_on_changes': True,
+                    'admin_email': 'admin@example.com',
+                }
+                sample_runs = [
+                    {
+                        'id': 'run-01',
+                        'started_at': datetime(2026, 10, 23, 2, 0, tzinfo=timezone.utc),
+                        'trigger': 'cron',
+                        'is_dry_run': False,
+                        'status': 'success',
+                        'duration_ms': 420,
+                        'records_impacted': 8,
+                        'details': {'stale_orders_deleted': 5, 'expired_certs_revoked': 2, 'distribution_logs_pruned': 1},
+                    },
+                    {
+                        'id': 'run-02',
+                        'started_at': datetime(2026, 10, 22, 2, 0, tzinfo=timezone.utc),
+                        'trigger': 'cron',
+                        'is_dry_run': False,
+                        'status': 'success',
+                        'duration_ms': 310,
+                        'records_impacted': 3,
+                        'details': {'stale_orders_deleted': 3},
+                    },
+                    {
+                        'id': 'run-03',
+                        'started_at': datetime(2026, 10, 21, 15, 30, tzinfo=timezone.utc),
+                        'trigger': 'manual',
+                        'is_dry_run': True,
+                        'status': 'success',
+                        'duration_ms': 180,
+                        'records_impacted': 4,
+                        'details': {'stale_orders_deleted': 4, 'note': 'Dry-run preview simulation'},
+                    },
+                ]
+                dm_params = dict(default_params)
+                dm_params.update({
+                    'is_authenticated': True,
+                    'current_user': admin_user,
+                    'request': MockRequest('/data-management', admin_user),
+                    'cfg': sample_cfg,
+                    'recent_runs': sample_runs,
+                    'error': '',
+                    'status_msg': '',
+                })
+                dm_html = await dm_template.render_async(**dm_params)
+                await page_auth.set_content(dm_html, wait_until='networkidle')
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "15_data_management.png"), full_page=False)
+            print("    Data Management screen captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture data management: {e}")
+
+        # 15b: Data Management - Dry Run Simulation Modal
+        print("--> Capturing 15b_data_management_modal.png...")
+        try:
+            dry_run_btn = page_auth.locator("#btnDryRun")
+            modal_captured = False
+            if await dry_run_btn.count() > 0:
+                await dry_run_btn.click()
+                try:
+                    await page_auth.wait_for_selector("#modalBody .dm-kpi-grid", state='visible', timeout=5000)
+                    await asyncio.sleep(0.5)
+                    modal_captured = True
+                except Exception:
+                    modal_captured = False
+
+            if not modal_captured:
+                js_modal = """() => {
+                    const modal = document.getElementById('dmModal');
+                    if (modal) {
+                        modal.classList.add('active');
+                        const title = document.getElementById('modalTitle');
+                        const subtitle = document.getElementById('modalSubtitle');
+                        const iconBadge = document.getElementById('modalIconBadge');
+                        const body = document.getElementById('modalBody');
+                        const closeBtn = document.getElementById('modalCloseBtn');
+                        const cancelBtn = document.getElementById('modalCancelBtn');
+                        const confirmBtn = document.getElementById('modalConfirmBtn');
+                        if (title) title.textContent = 'Dry Run Simulation';
+                        if (subtitle) subtitle.textContent = 'Auditing retention policies...';
+                        if (iconBadge) {
+                            iconBadge.className = 'dm-modal-badge badge-success';
+                            iconBadge.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                        }
+                        if (closeBtn) closeBtn.style.visibility = 'visible';
+                        if (confirmBtn) confirmBtn.style.display = 'none';
+                        if (cancelBtn) {
+                            cancelBtn.style.display = 'inline-flex';
+                            cancelBtn.textContent = 'Close';
+                            cancelBtn.className = 'btn-action btn-run-now';
+                        }
+                        if (body) {
+                            body.innerHTML = `
+                                <div class="dm-kpi-grid">
+                                    <div class="dm-kpi-card">
+                                        <div class="dm-kpi-label">Records Impacted</div>
+                                        <div class="dm-kpi-val highlight">11</div>
+                                    </div>
+                                    <div class="dm-kpi-card">
+                                        <div class="dm-kpi-label">Duration</div>
+                                        <div class="dm-kpi-val">245 ms</div>
+                                    </div>
+                                    <div class="dm-kpi-card">
+                                        <div class="dm-kpi-label">Status</div>
+                                        <div class="dm-kpi-val" style="font-size: 0.95rem; color: var(--color-success);">Dry Run</div>
+                                    </div>
+                                </div>
+                                <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-heading); margin-bottom: 0.4rem;">
+                                    Policy Rule Breakdown
+                                </div>
+                                <table class="dm-results-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align: left;">Retention Policy Rule</th>
+                                            <th style="text-align: center; width: 110px;">Threshold</th>
+                                            <th style="text-align: right; width: 90px;">Impacted</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style="font-weight: 500;">Deactivated Accounts</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">28 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--text-muted);">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 500;">Inactive & Expired Orders</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">14 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--primary); font-weight: 700;">6</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 500;">Invalid Domain Records</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">28 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--text-muted);">0</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 500;">Revoke Expired Certificates</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">7 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--primary); font-weight: 700;">3</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 500;">Delete Revoked Certificates</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">14 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--primary); font-weight: 700;">2</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: 500;">CA Distribution Logs</td>
+                                            <td style="text-align: center; color: var(--text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">14 days</td>
+                                            <td style="text-align: right; font-family: var(--font-family-mono); font-size: 0.85rem; color: var(--text-muted);">0</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div class="dm-status-note note-info">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                    <span><strong>Simulation Complete:</strong> This was a read-only audit. No database records were modified or deleted.</span>
+                                </div>
+                            `;
+                        }
+                    }
+                }"""
+                await page_auth.evaluate(js_modal)
+                await asyncio.sleep(0.4)
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "15b_data_management_modal.png"), full_page=False)
+            print("    Data Management modal captured successfully!")
+            close_btn = page_auth.locator("#modalCloseBtn, #modalCancelBtn").first
+            if await close_btn.count() > 0:
+                await close_btn.click()
+                await asyncio.sleep(0.3)
+        except Exception as e:
+            print(f"    Warning: Could not capture data management modal: {e}")
 
         await context_auth.close()
         await browser.close()

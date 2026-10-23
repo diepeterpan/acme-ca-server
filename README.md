@@ -2,9 +2,7 @@
 
 [![Build](https://github.com/diepeterpan/acme-ca-server/actions/workflows/docker-image.yml/badge.svg)](https://github.com/diepeterpan/acme-ca-server/actions/workflows/docker-image.yml)
 
-A self-hosted ACME server with a built-in CA and optional web interface.
-
-> 🤖 **Note**: The refreshed Web UI and RFC 8555 DNS-01 challenge support were added by **AI Vibe Coding**.
+A self-hosted ACME server with a built-in CA and web interface.
 
 ## Features
 
@@ -14,6 +12,7 @@ A self-hosted ACME server with a built-in CA and optional web interface.
 * 🚀 **Automated CA Distribution** &mdash; Fleet delivery and installation of Root CA certificates via SSH/SCP and Email distribution groups. Features intelligent remote OS auto-detection (Ubuntu/Debian, RHEL/CentOS, Alpine, Arch, OpenWrt, macOS, Windows Server/Desktop), platform-tailored installation guides (`README.txt`), encrypted credential storage at rest (`CA_ENCRYPTION_KEY`), multi-endpoint batch distribution, and audit logging.
 * 🛡️ **CA Fleet Trust & Compliance Audit (BETA)** &mdash; Enterprise-wide trust propagation tracking and compliance dashboard (`/ca-fleet-trust`). Performs automated SSH sweeps across distribution endpoints, validates installed root certificates in system stores (Linux, OpenWrt, Windows, macOS), correlates endpoints via reverse DNS, and monitors overall fleet compliance with real-time SSE progress streaming.
 * 🎯 **Dedicated CA TLS Trust Probes & Verification Portal** &mdash; Standalone TLS probe servers running on dedicated ports (e.g. 9443, 9444) for every active and standby CA. Powers a client-facing self-service verification portal (`/ca-trust/verify`) that tests browser/device root CA trust in real-time, provides platform-specific remediation guides (iOS, Android, macOS, Windows), and automatically posts telemetry back to the fleet audit dashboard.
+* 🧹 **Automated Data Management & Retention** &mdash; Automated background worker and cron scheduler (`DATA_MGMT_*`) for database maintenance: configurable retention rules for deactivated accounts, stale orders, invalid domain authorizations, expired certificate auto-revocation, revoked certificate purging, distribution logs, and fleet audit history. Includes dry-run simulation mode, interactive progress UI, and HTML email maintenance reports.
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (accounts, domains, certificates, root CA status) and ACME Entrypoint hero card with 1-click clipboard copy.
@@ -21,13 +20,15 @@ A self-hosted ACME server with a built-in CA and optional web interface.
   * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with tab-contextual addition buttons, live connectivity, and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
   * 🛡️ **CA Fleet Trust & Audit Dashboard**: Comprehensive fleet compliance tracking (`/ca-fleet-trust`) with collapsible KPI overview cards (`[▾ Hide Overview]`), automated SSH sweeps, reverse DNS auto-matching, multi-parameter filtering, and live SSE streaming progress.
   * 📱 **Client Root CA Trust Verification Portal**: Interactive self-service verification interface (`/ca-trust/verify`) with real-time TLS handshake probing across dedicated CA ports, platform auto-detection, and tailored installation guides.
-  * 📜 **Certificates & Deep Capability Inspector**: Searchable audit logs with status tabs (Valid, Revoked, Expired), direct downloads, and an interactive **Certificate Details Modal** detailing cryptographic properties, health audits, and application capabilities (TLS Server, mTLS Client, Code Signing, S/MIME, Digital Signatures).
+  * 🧹 **Data Management & Retention Hub**: Dedicated management interface (`/data-management`) to configure automated retention rules, trigger live **Dry Run Audits** with simulated impact breakdowns, and review historical maintenance sweeps.
+  * 📜 **Certificates & Deep Capability Inspector**: Searchable audit logs with status tabs (Valid, Revoked, Expired), real-time search filtering with dynamic match counters (`Showing X of Y`), direct downloads, and an interactive **Certificate Details Modal** detailing cryptographic properties, health audits, and application capabilities (TLS Server, mTLS Client, Code Signing, S/MIME, Digital Signatures).
   * 📊 **High-Performance Data Grids**: Sticky frozen column headers during vertical scrolling across all tables, interactive column visibility selector (`[Columns ⚙️]`), 1-click layout reset (`[Reset]`), draggable column resizing with persistent widths, and viewport-locking to eliminate duplicate page scrollbars.
-  * 🌐 **Domains Registry**: Domain status monitoring, cross-view certificate navigation, and safe deletion of stale domains.
-  * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
+  * 🌐 **Domains Registry**: Domain status monitoring, Root CA coverage micro-badges (`🛡️ S`), real-time search filtering with dynamic match counters (`Showing X of Y`), cross-view certificate navigation, and safe deletion of stale domains.
+  * 👥 **Accounts Management**: ACME account registry (`kid`), certificate/order breakdowns, real-time search filtering with dynamic match counters (`Showing X of Y`), activate/deactivate actions, and interactive order error diagnostics with batch deletion safeguards.
   * ✉️ **Mail Settings & Delivery Test**: Dedicated UI screen to configure outbound SMTP parameters, warning policies, and run live connection tests before saving.
   * 🛡️ **Startup Database Integrity Auditor**: Boot-time verification checking 12 relational and cryptographic integrity constraints with automatic maintenance mode veil.
   * 🔒 **Authentication & User Management**: Secure PBKDF2-hashed login, Remember Me sessions, guided first-boot onboarding, user self-service password changes, streamlined single-line toolbar layout on the user management dashboard (`/users`), and optional **OpenID Connect (OIDC) Single Sign-On** (Authelia, Keycloak, Authentik) with PKCE (RFC 7636) and pre-provisioned access control.
+  * 🎨 **Modern Typography & Design System**: Self-hosted Switzer font typography, centralized toggle switches, sleek glassmorphism modal dialogs, and unified visual components.
 
 Tested with [Certbot](https://certbot.eff.org/), [Traefik](https://traefik.io/traefik/), [Caddy](https://caddyserver.com/), [uacme](https://github.com/ndilieto/uacme), [acme.sh](https://github.com/acmesh-official/acme.sh).
 
@@ -218,6 +219,20 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | OIDC_X509_REQUIRED        | `True` | whether to enforce strict X.509 certificate validation for the OIDC provider (set `False` to relax for legacy certs) |
 | OIDC_USE_PKCE        | `True` | whether to use PKCE (RFC 7636) code exchange (required by Authelia, Keycloak 22+) |
 | OIDC_TOKEN_AUTH_METHOD        | `auto` | client auth method for token exchange: `auto`, `client_secret_basic`, or `client_secret_post` |
+| DATA_MGMT_ENABLED        | `True` | whether automated background data retention and maintenance sweeps are enabled |
+| DATA_MGMT_CRON_SCHEDULE_HOURS | `24` | run interval in hours for the automated data retention background worker |
+| DATA_MGMT_RUN_AT_HOUR_UTC | `2` | preferred UTC hour (0-23) to execute daily retention sweeps |
+| DATA_MGMT_DELETE_DEACTIVATED_ACCOUNTS_DAYS | `28` | days after deactivation to permanently purge accounts without valid certificates (0 = disabled) |
+| DATA_MGMT_DELETE_STALE_ORDERS_DAYS | `14` | days after which stale orders without active certificates are purged (0 = disabled) |
+| DATA_MGMT_DELETE_INVALID_DOMAINS_DAYS | `28` | days after which invalid domain records and authorizations are cleaned up (0 = disabled) |
+| DATA_MGMT_REVOKE_EXPIRED_CERTS_DAYS | `7` | days after expiration when expired certificates are automatically transitioned to revoked status (0 = disabled) |
+| DATA_MGMT_DELETE_REVOKED_CERTS_DAYS | `14` | days after revocation when revoked certificates are permanently removed from the database and CRL (0 = disabled) |
+| DATA_MGMT_DELETE_DISTRIBUTION_LOGS_DAYS | `14` | days to retain CA distribution historical logs while preserving latest per endpoint (0 = disabled) |
+| DATA_MGMT_DELETE_FLEET_AUDITS_DAYS | `7` | days to retain device fleet trust audit history while preserving latest per target (0 = disabled) |
+| DATA_MGMT_DELETE_RUN_HISTORY_DAYS | `30` | days to retain maintenance run history records while preserving the 15 most recent runs (0 = disabled) |
+| DATA_MGMT_EMAIL_NOTIFICATION_ENABLED | `True` | whether to dispatch an HTML maintenance summary email report to the administrator upon completion |
+| DATA_MGMT_NOTIFY_ONLY_ON_CHANGES | `True` | avoid sending maintenance email reports if 0 records were impacted during the sweep |
+| DATA_MGMT_ADMIN_EMAIL | `None` | recipient email address override for maintenance reports (defaults to sender/admin from Mail Settings) |
 
 ### Configuration Precedence: Seed Variables vs. Authoritative Variables
 
@@ -227,6 +242,8 @@ The server distinguishes between **Seed Variables** (which initialize the databa
 These environment variables serve solely as **initial bootstrap defaults**. Once written to PostgreSQL, the database becomes the single source of truth:
 * **Mail Settings (`MAIL_*`)**: `MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_ENCRYPTION`, `MAIL_SENDER`, `MAIL_NOTIFY_ON_ACCOUNT_CREATION`, `MAIL_WARN_BEFORE_CERT_EXPIRES`, `MAIL_NOTIFY_WHEN_CERT_EXPIRED`.
   * *Behavior*: On clean database installations, these seed the initial row in `mail_settings`. After initialization or after changes are saved via the Web UI (**Mail Settings** screen), the database values take precedence. Changing `MAIL_*` environment variables afterwards will **not** override stored database settings. To update mail settings, use the Web UI or update the `mail_settings` table directly.
+* **Data Management & Retention Settings (`DATA_MGMT_*`)**: `DATA_MGMT_ENABLED`, `DATA_MGMT_CRON_SCHEDULE_HOURS`, `DATA_MGMT_RUN_AT_HOUR_UTC`, `DATA_MGMT_DELETE_DEACTIVATED_ACCOUNTS_DAYS`, `DATA_MGMT_DELETE_STALE_ORDERS_DAYS`, `DATA_MGMT_DELETE_INVALID_DOMAINS_DAYS`, `DATA_MGMT_REVOKE_EXPIRED_CERTS_DAYS`, `DATA_MGMT_DELETE_REVOKED_CERTS_DAYS`, `DATA_MGMT_DELETE_DISTRIBUTION_LOGS_DAYS`, `DATA_MGMT_DELETE_FLEET_AUDITS_DAYS`, `DATA_MGMT_DELETE_RUN_HISTORY_DAYS`, `DATA_MGMT_EMAIL_NOTIFICATION_ENABLED`, `DATA_MGMT_NOTIFY_ONLY_ON_CHANGES`, `DATA_MGMT_ADMIN_EMAIL`.
+  * *Behavior*: On clean database installations, these seed the initial row in `data_management_settings`. Subsequent changes made via the Web UI (**Data Management** screen) take precedence and are persisted in PostgreSQL.
 * **Initial Admin Credentials (`WEB_ADMIN_*`)**: `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD`.
   * *Behavior*: Pre-provisions an initial administrator account on startup only if the username does not already exist in the database. If the user already exists, changing `WEB_ADMIN_PASSWORD` in the environment will **not** alter the existing password hash stored in the database.
 * **CA Import Files (`CA_IMPORT_DIR`)**:
