@@ -153,6 +153,241 @@
         gap: 0.45rem;
     }
 
+    /* CA Coverage Micro-Badges */
+    .ca-coverage-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        cursor: pointer;
+        padding: 0.15rem 0.35rem;
+        border-radius: var(--radius-xs);
+        transition: all 0.15s ease;
+        outline: none;
+        user-select: none;
+    }
+
+    .ca-coverage-cell:hover,
+    .ca-coverage-cell:focus-visible {
+        background-color: var(--color-primary-light);
+        box-shadow: 0 0 0 2px var(--color-border);
+    }
+
+    .ca-micro-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.22rem;
+        padding: 0.10rem 0.35rem;
+        border-radius: var(--radius-xs);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+        transition: transform 0.1s ease;
+    }
+
+    .ca-coverage-cell:hover .ca-micro-badge {
+        transform: translateY(-1px);
+    }
+
+    .ca-badge-icon {
+        width: 11px;
+        height: 11px;
+        fill: currentColor;
+        flex-shrink: 0;
+    }
+
+    /* Active CA: Deep Mint Green */
+    .ca-badge-active {
+        background-color: var(--status-valid-bg, #eaf6f2);
+        color: var(--status-valid-text, #1a7a5d);
+        border: 1px solid #bce5d8;
+    }
+
+    /* Standby CA: Shallow Aqua / Sea Blue */
+    .ca-badge-standby {
+        background-color: var(--color-primary-light, #e6f4fa);
+        color: var(--color-primary, #006994);
+        border: 1px solid #bee3f8;
+    }
+
+    /* Retired CA: Ochre Amber */
+    .ca-badge-retired {
+        background-color: var(--status-warning-bg, #fdf5e6);
+        color: var(--status-warning-text, #b26a00);
+        border: 1px solid #f9e2ba;
+    }
+
+    .ca-coverage-empty {
+        color: var(--color-text-muted);
+        font-size: 13px;
+        padding-left: 0.35rem;
+    }
+
+    /* Interactive CA Coverage Popover */
+    .ca-popover {
+        position: fixed;
+        z-index: 9999;
+        width: 320px;
+        background: var(--color-bg-surface, #ffffff);
+        border: 1px solid var(--color-border, #d0dee5);
+        border-radius: var(--radius-md, 6px);
+        box-shadow: var(--shadow-high, 0 10px 15px -3px rgba(28, 40, 48, 0.15));
+        padding: 0.85rem 1rem;
+        font-size: 12px;
+        color: var(--color-text-main, #1c2830);
+        display: none;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        pointer-events: auto;
+    }
+
+    .ca-popover.is-visible {
+        display: block;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .ca-popover.is-pinned {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-high);
+    }
+
+    .ca-popover-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 0.60rem;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .ca-popover-title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+
+    .ca-popover-title {
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--color-text-main);
+        word-break: break-all;
+    }
+
+    .ca-popover-subtitle {
+        font-size: 11px;
+        color: var(--color-text-muted);
+    }
+
+    .ca-popover-close {
+        background: none;
+        border: none;
+        font-size: 17px;
+        line-height: 1;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        padding: 2px 5px;
+        border-radius: var(--radius-xs);
+        transition: all 0.1s ease;
+    }
+
+    .ca-popover-close:hover {
+        color: var(--color-error);
+        background-color: var(--status-error-bg);
+    }
+
+    .ca-popover-card {
+        background-color: var(--color-bg-main, #f8fafb);
+        border: 1px solid var(--color-border, #d0dee5);
+        border-radius: var(--radius-sm, 4px);
+        padding: 0.50rem 0.65rem;
+        margin-bottom: 0.45rem;
+    }
+
+    .ca-popover-card:last-child {
+        margin-bottom: 0;
+    }
+
+    .ca-popover-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.35rem;
+    }
+
+    .ca-popover-badge {
+        padding: 0.10rem 0.35rem;
+        border-radius: var(--radius-xs);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .ca-popover-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        line-height: 1.4;
+        margin-bottom: 0.15rem;
+    }
+
+    .ca-popover-label {
+        color: var(--color-text-muted);
+    }
+
+    .ca-popover-value {
+        font-family: var(--font-family-mono, monospace);
+        color: var(--color-text-main);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .ca-popover-copy-btn {
+        background: none;
+        border: none;
+        color: var(--color-text-muted);
+        cursor: pointer;
+        padding: 1px 3px;
+        border-radius: var(--radius-xs);
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .ca-popover-copy-btn:hover {
+        color: var(--color-primary);
+        background-color: var(--color-primary-light);
+    }
+
+    .ca-popover-footer {
+        margin-top: 0.60rem;
+        padding-top: 0.45rem;
+        border-top: 1px solid var(--color-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+    }
+
+    .ca-popover-link {
+        color: var(--color-primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .ca-popover-link:hover {
+        text-decoration: underline;
+    }
+
+    .ca-popover-hint {
+        color: var(--color-text-muted);
+        font-size: 10px;
+    }
+
     .domain-globe {
         width: 18px;
         height: 18px;
@@ -394,6 +629,7 @@
             <tr>
                 <th data-col-key="status" style="width: 110px;">Status</th>
                 <th data-col-key="domain">Domain Name</th>
+                <th data-col-key="ca_coverage" style="width: 125px;" title="Root CA Coverage (Active, Standby, Retired)">CA Coverage</th>
                 <th data-col-key="first_requested" title="Dates in local service time ({{ service_tz_label }})">First Requested</th>
                 <th data-col-key="expires" title="Dates in local service time ({{ service_tz_label }})">Certificate Valid Until</th>
                 <th data-no-sort data-col-key="action" style="text-align: right;">Action</th>
@@ -420,6 +656,38 @@
                         </a>
                         {% endif %}
                     </div>
+                </td>
+                <td data-sort-val="{{ domain.ca_coverage.sort_val }}">
+                    {% if domain.ca_coverage.has_any %}
+                    <div class="ca-coverage-cell"
+                         tabindex="0"
+                         role="button"
+                         aria-haspopup="dialog"
+                         aria-expanded="false"
+                         data-domain="{{ domain.domain_name }}"
+                         data-coverage='{{ domain.ca_coverage|tojson }}'>
+                        {% if domain.ca_coverage.has_active %}
+                        <span class="ca-micro-badge ca-badge-active" title="Active CA">
+                            <svg class="ca-badge-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                            <span>A</span>
+                        </span>
+                        {% endif %}
+                        {% if domain.ca_coverage.has_standby %}
+                        <span class="ca-micro-badge ca-badge-standby" title="Standby CA">
+                            <svg class="ca-badge-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v6h-2V7zm0 8h2v2h-2v-2z"/></svg>
+                            <span>S</span>
+                        </span>
+                        {% endif %}
+                        {% if domain.ca_coverage.has_retired %}
+                        <span class="ca-micro-badge ca-badge-retired" title="Retired CA">
+                            <svg class="ca-badge-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm1 14h-2v-2h2v2zm0-4h-2V7h2v4z"/></svg>
+                            <span>R</span>
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <span class="ca-coverage-empty" title="No CA certificates">&mdash;</span>
+                    {% endif %}
                 </td>
                 <td data-sort-val="{{ domain.first_requested_at|local_isoformat if domain.first_requested_at else '' }}">
                     <span class="date-text" title="{{ domain.first_requested_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if domain.first_requested_at else '' }}">
@@ -555,6 +823,246 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // CA Coverage Interactive Popover Controller
+    const popover = document.getElementById('ca-coverage-popover');
+    const popoverDomainTitle = document.getElementById('ca-popover-domain-title');
+    const popoverBody = document.getElementById('ca-popover-body-content');
+    const popoverLink = document.getElementById('ca-popover-certs-link');
+    const popoverClose = document.getElementById('ca-popover-close-btn');
+
+    let activeCell = null;
+    let isPinned = false;
+    let hoverTimeout = null;
+
+    function formatShortSerial(sn) {
+        if (!sn) return '—';
+        return sn.length > 16 ? `${sn.slice(0, 8)}...${sn.slice(-6)}` : sn;
+    }
+
+    function positionPopover(cell) {
+        if (!popover || !cell) return;
+        const rect = cell.getBoundingClientRect();
+        const popoverWidth = 320;
+        let left = rect.left + window.scrollX;
+        let top = rect.bottom + window.scrollY + 6;
+
+        // Prevent overflow right
+        if (left + popoverWidth > window.innerWidth - 16) {
+            left = window.innerWidth - popoverWidth - 16;
+        }
+        if (left < 16) left = 16;
+
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+    }
+
+    function renderPopoverContent(domain, coverage) {
+        if (!popoverDomainTitle || !popoverBody || !popoverLink) return;
+
+        popoverDomainTitle.textContent = domain;
+        popoverLink.href = `/certificates?domainfilter=${encodeURIComponent(domain)}&certstatus=all`;
+
+        let html = '';
+
+        const sections = [
+            { key: 'active_items', title: 'Active Root CA', badgeCls: 'ca-badge-active' },
+            { key: 'standby_items', title: 'Standby Root CA', badgeCls: 'ca-badge-standby' },
+            { key: 'retired_items', title: 'Retired Root CA', badgeCls: 'ca-badge-retired' }
+        ];
+
+        sections.forEach((sec) => {
+            const items = coverage[sec.key] || [];
+            if (items.length > 0) {
+                items.forEach((item) => {
+                    const isValid = item.is_valid;
+                    const statusColor = isValid ? '#1a7a5d' : '#b92c2c';
+                    const statusText = isValid ? 'Valid' : (item.is_revoked ? 'Revoked' : 'Expired');
+                    const daysText = item.days_remaining !== null
+                        ? (item.days_remaining >= 0 ? `(in ${item.days_remaining}d)` : '(expired)')
+                        : '';
+                    const expFormatted = item.not_valid_after ? item.not_valid_after.replace('T', ' ').replace('Z', ' UTC') : '—';
+
+                    html += `
+                        <div class="ca-popover-card">
+                            <div class="ca-popover-card-header">
+                                <span class="ca-popover-badge ${sec.badgeCls}">${escapeHtml(sec.title)}</span>
+                                <span style="color: ${statusColor}; font-weight: 700; font-size: 11px;">● ${statusText}</span>
+                            </div>
+                            <div class="ca-popover-row">
+                                <span class="ca-popover-label">CA Name:</span>
+                                <span style="font-weight: 600; color: var(--color-text-main);">${escapeHtml(item.ca_name)}</span>
+                            </div>
+                            <div class="ca-popover-row">
+                                <span class="ca-popover-label">CA Serial:</span>
+                                <span class="ca-popover-value" title="${escapeHtml(item.ca_serial || '')}">
+                                    ${escapeHtml(formatShortSerial(item.ca_serial))}
+                                </span>
+                            </div>
+                            <div class="ca-popover-row">
+                                <span class="ca-popover-label">Cert Serial:</span>
+                                <span class="ca-popover-value" title="${escapeHtml(item.cert_serial || '')}">
+                                    ${escapeHtml(formatShortSerial(item.cert_serial))}
+                                    <button type="button" class="ca-popover-copy-btn copy-serial-btn" data-serial="${escapeHtml(item.cert_serial || '')}" title="Copy serial">
+                                        <svg style="width:10px;height:10px;fill:currentColor;" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                                    </button>
+                                </span>
+                            </div>
+                            <div class="ca-popover-row">
+                                <span class="ca-popover-label">Valid Until:</span>
+                                <span style="font-size: 10px; color: var(--color-text-muted);">${escapeHtml(expFormatted)} ${escapeHtml(daysText)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        });
+
+        if (!html) {
+            html = '<div style="color: var(--color-text-muted); padding: 0.5rem 0;">No active CA certificates detected for this domain.</div>';
+        }
+
+        popoverBody.innerHTML = html;
+
+        // Attach copy button handlers
+        popoverBody.querySelectorAll('.copy-serial-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sn = btn.dataset.serial;
+                if (sn && navigator.clipboard) {
+                    navigator.clipboard.writeText(sn).then(() => {
+                        const originalHTML = btn.innerHTML;
+                        btn.innerHTML = '<span style="font-size:9px;color:var(--color-success);">Copied</span>';
+                        setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+                    });
+                }
+            });
+        });
+    }
+
+    function showCoveragePopover(cell, pin = false) {
+        if (!popover || !cell) return;
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+
+        const domain = cell.dataset.domain;
+        let coverage = {};
+        try {
+            coverage = JSON.parse(cell.dataset.coverage || '{}');
+        } catch (e) {
+            coverage = {};
+        }
+
+        activeCell = cell;
+        isPinned = pin;
+
+        renderPopoverContent(domain, coverage);
+        positionPopover(cell);
+
+        popover.classList.add('is-visible');
+        if (isPinned) {
+            popover.classList.add('is-pinned');
+            cell.setAttribute('aria-expanded', 'true');
+        } else {
+            popover.classList.remove('is-pinned');
+        }
+    }
+
+    function hideCoveragePopover(force = false) {
+        if (!popover) return;
+        if (isPinned && !force) return;
+
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+            popover.classList.remove('is-visible', 'is-pinned');
+            if (activeCell) {
+                activeCell.setAttribute('aria-expanded', 'false');
+                activeCell = null;
+            }
+            isPinned = false;
+        }, 120);
+    }
+
+    // Attach to all coverage cells
+    document.querySelectorAll('.ca-coverage-cell').forEach((cell) => {
+        cell.addEventListener('mouseenter', () => {
+            if (!isPinned) {
+                if (hoverTimeout) clearTimeout(hoverTimeout);
+                showCoveragePopover(cell, false);
+            }
+        });
+
+        cell.addEventListener('mouseleave', () => {
+            if (!isPinned) {
+                hideCoveragePopover(false);
+            }
+        });
+
+        cell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeCell === cell && isPinned) {
+                hideCoveragePopover(true);
+            } else {
+                showCoveragePopover(cell, true);
+            }
+        });
+
+        cell.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showCoveragePopover(cell, true);
+            } else if (e.key === 'Escape') {
+                hideCoveragePopover(true);
+            }
+        });
+    });
+
+    if (popover) {
+        popover.addEventListener('mouseenter', () => {
+            if (hoverTimeout) clearTimeout(hoverTimeout);
+        });
+
+        popover.addEventListener('mouseleave', () => {
+            if (!isPinned) {
+                hideCoveragePopover(false);
+            }
+        });
+
+        if (popoverClose) {
+            popoverClose.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideCoveragePopover(true);
+            });
+        }
+    }
+
+    // Close on outside click or Escape
+    document.addEventListener('click', (e) => {
+        if (popover && !popover.contains(e.target) && (!activeCell || !activeCell.contains(e.target))) {
+            hideCoveragePopover(true);
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            hideCoveragePopover(true);
+        }
+    });
 });
 </script>
+
+<!-- Floating CA Coverage Popover -->
+<div id="ca-coverage-popover" class="ca-popover" role="dialog" aria-modal="false" aria-hidden="true">
+    <div class="ca-popover-header">
+        <div class="ca-popover-title-group">
+            <span class="ca-popover-title" id="ca-popover-domain-title">example.com</span>
+            <span class="ca-popover-subtitle">CA Certificate Coverage</span>
+        </div>
+        <button type="button" class="ca-popover-close" id="ca-popover-close-btn" title="Close" aria-label="Close">&times;</button>
+    </div>
+    <div class="ca-popover-body" id="ca-popover-body-content"></div>
+    <div class="ca-popover-footer">
+        <a href="#" class="ca-popover-link" id="ca-popover-certs-link">View Domain Certificates &rarr;</a>
+        <span class="ca-popover-hint">Click cell to pin</span>
+    </div>
+</div>
 {% endblock %}

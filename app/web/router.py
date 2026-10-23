@@ -1468,25 +1468,51 @@ async def domain_log(
     domainstatus: Literal['all', 'valid', 'invalid'] = 'valid',
     status_msg: str = '',
 ):
+    all_cas = await ca_service.list_all_cas() if settings.ca.enabled else []
+    ca_map = {c['serial_number']: c for c in all_cas}
+    now_utc = datetime.now(timezone.utc)
+
     async with db.transaction(readonly=True) as sql:
-        domains = [
+        raw_domains = [
             record
             async for record in sql(
                 """
-                with data as (
+                with cert_data as (
                     select
                         authz.domain as domain_name,
-                        min(coalesce(cert.not_valid_before, ord.expires_at - interval '60 minutes')) as first_requested_at,
-                        max(cert.not_valid_after) as expires_at,
-                        coalesce((max(cert.not_valid_after) FILTER (WHERE cert.revoked_at is null)) > now(), false) AS is_valid,
-                        count(cert.serial_number) as cert_count
+                        ord.expires_at - interval '60 minutes' as order_requested_at,
+                        cert.serial_number as cert_serial,
+                        cert.not_valid_before as cert_nvb,
+                        cert.not_valid_after as cert_nva,
+                        cert.revoked_at as cert_revoked_at,
+                        (cert.revoked_at is null and cert.not_valid_after > now()) as cert_is_valid,
+                        cas.serial_number as ca_serial
                     from orders ord
                     join authorizations authz on authz.order_id = ord.id
                     left join certificates cert on cert.order_id = ord.id
+                    left join cas on cert.chain_pem like '%' || cas.cert_pem || '%'
                     where ($1::text = '' or authz.domain ilike '%' || $1::text || '%')
-                    group by authz.domain
+                ),
+                domain_summary as (
+                    select
+                        domain_name,
+                        min(coalesce(cert_nvb, order_requested_at)) as first_requested_at,
+                        max(cert_nva) as expires_at,
+                        coalesce((max(cert_nva) FILTER (WHERE cert_revoked_at is null)) > now(), false) AS is_valid,
+                        count(distinct cert_serial) as cert_count,
+                        jsonb_agg(
+                            distinct jsonb_build_object(
+                                'cert_serial', cert_serial,
+                                'ca_serial', ca_serial,
+                                'not_valid_after', to_char(cert_nva at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                                'is_valid', cert_is_valid,
+                                'is_revoked', (cert_revoked_at is not null)
+                            )
+                        ) filter (where cert_serial is not null) as cert_list
+                    from cert_data
+                    group by domain_name
                 )
-                select * from data
+                select * from domain_summary
                 where ($2 = 'all' or ($2 = 'valid' and is_valid) or ($2 = 'invalid' and not is_valid))
                 order by first_requested_at desc nulls last, domain_name asc
                 """,
@@ -1494,6 +1520,85 @@ async def domain_log(
                 domainstatus,
             )
         ]
+
+    domains = []
+    for r in raw_domains:
+        d = dict(r)
+        raw_list = d.get('cert_list')
+        if isinstance(raw_list, str):
+            try:
+                cert_items = json.loads(raw_list)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                cert_items = []
+        elif isinstance(raw_list, list):
+            cert_items = raw_list
+        else:
+            cert_items = []
+
+        active_certs = []
+        standby_certs = []
+        retired_certs = []
+
+        for c in cert_items:
+            ca_sn = c.get('ca_serial')
+            ca_info = ca_map.get(ca_sn) if ca_sn else None
+            ca_name = ca_info['common_name'] if ca_info else (f'CA {ca_sn[:8]}...' if ca_sn else 'Unknown CA')
+            ca_status = ca_info['status_label'] if ca_info else 'unknown'
+
+            nva_str = c.get('not_valid_after')
+            days_remaining = None
+            if nva_str:
+                try:
+                    nva_dt = datetime.fromisoformat(nva_str.replace('Z', '+00:00'))
+                    days_remaining = (nva_dt - now_utc).days
+                except (ValueError, TypeError):
+                    days_remaining = None
+
+            item = {
+                'ca_serial': ca_sn,
+                'ca_name': ca_name,
+                'ca_status': ca_status,
+                'cert_serial': c.get('cert_serial'),
+                'not_valid_after': nva_str,
+                'days_remaining': days_remaining,
+                'is_valid': bool(c.get('is_valid')),
+                'is_revoked': bool(c.get('is_revoked')),
+            }
+
+            if ca_info and ca_info.get('active'):
+                active_certs.append(item)
+            elif ca_info and ca_status == 'standby':
+                standby_certs.append(item)
+            elif ca_info:
+                retired_certs.append(item)
+
+        has_active = len(active_certs) > 0
+        has_standby = len(standby_certs) > 0
+        has_retired = len(retired_certs) > 0
+
+        if has_active and has_standby:
+            sort_val = 1
+        elif has_active:
+            sort_val = 2
+        elif has_standby:
+            sort_val = 3
+        elif has_retired:
+            sort_val = 4
+        else:
+            sort_val = 9
+
+        d['ca_coverage'] = {
+            'has_active': has_active,
+            'has_standby': has_standby,
+            'has_retired': has_retired,
+            'active_items': active_certs,
+            'standby_items': standby_certs,
+            'retired_items': retired_certs,
+            'has_any': has_active or has_standby or has_retired,
+            'sort_val': sort_val,
+        }
+        domains.append(d)
+
     return await template_engine.get_template('domain-log.html').render_async(
         **default_params,
         request=request,
