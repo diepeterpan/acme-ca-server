@@ -174,6 +174,65 @@
         background-color: #dc2626;
     }
 
+    /* Auto-refresh Live Indicator */
+    .auto-refresh-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: var(--color-text-muted);
+        background-color: var(--color-bg-main);
+        padding: 0.28rem 0.60rem;
+        border-radius: var(--radius-xs);
+        border: 1px solid var(--color-border);
+        user-select: none;
+    }
+
+    .live-pulse-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: live-pulse 2s infinite;
+    }
+
+    .live-pulse-dot.paused {
+        background-color: #9ca3af;
+        box-shadow: none;
+        animation: none;
+    }
+
+    @keyframes live-pulse {
+        0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+        100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+    }
+
+    /* Row entry animation */
+    @keyframes new-row-glow {
+        0% {
+            background-color: rgba(16, 185, 129, 0.25);
+        }
+        100% {
+            background-color: transparent;
+        }
+    }
+
+    .row-highlight-new {
+        animation: new-row-glow 2.5s ease-out;
+    }
+
     /* Table & Container */
     .table-container {
         background: var(--color-bg-surface);
@@ -196,19 +255,26 @@
         color: var(--color-text-muted);
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 0.72rem;
+        font-size: 0.70rem;
         letter-spacing: 0.05em;
-        padding: 0.75rem 1rem;
+        padding: 0.45rem 0.65rem;
         border-bottom: 1px solid var(--color-border);
         white-space: nowrap;
         text-align: left;
     }
 
     .trace-table td {
-        padding: 0.70rem 1rem;
+        padding: 0.28rem 0.65rem;
         border-bottom: 1px solid var(--color-border);
         color: var(--color-text-main);
         vertical-align: middle;
+        font-size: 0.80rem;
+        line-height: 1.25;
+    }
+
+    .trace-table th[data-col-key="timestamp"],
+    .trace-table td.cell-registered {
+        white-space: nowrap !important;
     }
 
     .trace-table tbody tr:hover {
@@ -218,9 +284,10 @@
     .method-badge {
         display: inline-block;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
-        padding: 0.15rem 0.45rem;
+        padding: 0.05rem 0.35rem;
+        line-height: 1.2;
         border-radius: var(--radius-xs);
         text-transform: uppercase;
     }
@@ -232,9 +299,10 @@
     .status-badge {
         display: inline-block;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
-        padding: 0.15rem 0.45rem;
+        padding: 0.05rem 0.35rem;
+        line-height: 1.2;
         border-radius: var(--radius-xs);
     }
 
@@ -245,34 +313,35 @@
 
     .endpoint-path {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 12px;
+        font-size: 11.5px;
         font-weight: 600;
         color: var(--color-primary);
     }
 
     .ip-badge {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 12px;
+        font-size: 11px;
         color: var(--color-text-muted);
     }
 
     .duration-badge {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 11px;
+        font-size: 10.5px;
         color: var(--color-text-muted);
     }
 
     .btn-view-payload {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
-        padding: 0.30rem 0.65rem;
-        font-size: 0.80rem;
+        gap: 0.25rem;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.72rem;
         font-weight: 600;
+        line-height: 1.2;
         background-color: var(--color-bg-main);
         color: var(--color-text-main);
         border: 1px solid var(--color-border);
-        border-radius: var(--radius-sm);
+        border-radius: var(--radius-xs);
         cursor: pointer;
         transition: all 0.15s ease;
     }
@@ -508,26 +577,28 @@
     </div>
 
     <div class="filter-actions-group">
+        <div class="auto-refresh-indicator" id="autoRefreshBadge" title="Grid auto-refreshes every 5 seconds">
+            <span class="live-pulse-dot" id="liveDot"></span>
+            <span id="liveText">Live (5s)</span>
+        </div>
         <div class="table-toolbar-mount"></div>
-        {% if total_count > 0 %}
-        <button type="button" class="btn-clear-traces" id="openClearModalBtn">
+        <button type="button" class="btn-clear-traces" id="openClearModalBtn" style="{% if total_count == 0 %}display: none;{% endif %}">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"></polyline>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
             <span>Clear Logs</span>
         </button>
-        {% endif %}
     </div>
 </div>
 
 <!-- Table View -->
-<div class="table-container">
+<div class="table-container" id="traceTableContainer">
     {% if traces|length > 0 %}
-    <table class="trace-table" data-table-id="api-traces">
+    <table class="trace-table" id="traceTable" data-table-id="api-traces">
         <thead>
             <tr>
-                <th data-col-key="timestamp" style="width: 170px;">Timestamp</th>
+                <th data-col-key="timestamp" style="width: 180px; min-width: 175px;">Timestamp</th>
                 <th data-col-key="method" style="width: 90px;">Method</th>
                 <th data-col-key="status" style="width: 80px;">Status</th>
                 <th data-col-key="endpoint">Endpoint / Path</th>
@@ -576,7 +647,7 @@
         </tbody>
     </table>
     {% else %}
-    <div style="text-align: center; padding: 3.5rem 1.5rem; color: var(--color-text-muted);">
+    <div id="emptyStateNotice" style="text-align: center; padding: 3.5rem 1.5rem; color: var(--color-text-muted);">
         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.75rem; opacity: 0.6;">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
         </svg>
@@ -830,5 +901,194 @@
             cancelDisableToggle();
         }
     });
+
+    // ==========================================
+    // Live Auto-Refresh Engine (every 5 seconds)
+    // ==========================================
+    let pollInterval = null;
+    let isPolling = false;
+
+    // Track the latest trace timestamp and ID present on screen
+    function getLatestTraceMarker() {
+        const firstRow = document.querySelector('#traceTable tbody tr[data-trace-id]');
+        if (!firstRow) return { timestamp: '', id: '' };
+        const id = firstRow.getAttribute('data-trace-id') || '';
+        const timestamp = firstRow.querySelector('td.cell-registered')?.getAttribute('data-sort-val') || '';
+        return { timestamp, id };
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function createTraceRow(t) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-trace-id', t.id);
+        tr.className = 'row-highlight-new';
+
+        const statusGroup = Math.floor(t.status_code / 100) + 'xx';
+
+        // Check if any columns are currently hidden in the table
+        const table = document.getElementById('traceTable');
+        const hiddenCols = [];
+        if (table) {
+            table.querySelectorAll('thead th.col-hidden').forEach(th => {
+                if (th.dataset.colKey) hiddenCols.push(th.dataset.colKey);
+            });
+        }
+
+        const isHidden = (key) => hiddenCols.includes(key) ? 'col-hidden' : '';
+
+        tr.innerHTML = `
+            <td data-sort-val="${escapeHtml(t.timestamp_iso)}" class="cell-registered ${isHidden('timestamp')}">
+                ${escapeHtml(t.timestamp_display)}
+            </td>
+            <td data-sort-val="${escapeHtml(t.http_method)}" class="${isHidden('method')}">
+                <span class="method-badge method-${escapeHtml(t.http_method)}">${escapeHtml(t.http_method)}</span>
+            </td>
+            <td data-sort-val="${t.status_code}" class="${isHidden('status')}">
+                <span class="status-badge status-${statusGroup}">${t.status_code}</span>
+            </td>
+            <td data-sort-val="${escapeHtml(t.endpoint)}" class="${isHidden('endpoint')}">
+                <span class="endpoint-path">${escapeHtml(t.endpoint)}</span>
+            </td>
+            <td data-sort-val="${escapeHtml(t.client_ip)}" class="${isHidden('client_ip')}">
+                <span class="ip-badge">${escapeHtml(t.client_ip)}</span>
+            </td>
+            <td data-sort-val="${escapeHtml(t.target_host)}" class="${isHidden('target_host')}">
+                <span class="ip-badge">${escapeHtml(t.target_host)}</span>
+            </td>
+            <td data-sort-val="${t.duration_ms}" class="${isHidden('duration')}">
+                <span class="duration-badge">${t.duration_ms} ms</span>
+            </td>
+            <td class="${isHidden('payload')}">
+                <button type="button" class="btn-view-payload" onclick="openPayloadModal('${escapeHtml(t.id)}')">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>View</span>
+                </button>
+            </td>
+        `;
+        return tr;
+    }
+
+    async function pollTraceFeed() {
+        if (isPolling) return;
+        // Don't poll if document is hidden to conserve background resources
+        if (document.hidden) return;
+
+        isPolling = true;
+        const liveDot = document.getElementById('liveDot');
+
+        try {
+            const marker = getLatestTraceMarker();
+            const searchInput = document.querySelector('input[name="search"]');
+            const searchVal = searchInput ? searchInput.value.trim() : '';
+
+            const params = new URLSearchParams();
+            if (marker.timestamp) params.set('after', marker.timestamp);
+            if (marker.id) params.set('exclude_id', marker.id);
+            if (searchVal) params.set('search', searchVal);
+
+            const resp = await fetch(`/api-trace/feed?${params.toString()}`);
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+
+            // 1. Update row count badge
+            const countBadge = document.getElementById('traceCountBadge');
+            if (countBadge && typeof data.total_count === 'number') {
+                countBadge.textContent = data.total_count;
+                countBadge.setAttribute('data-total', data.total_count);
+            }
+
+            // 2. Toggle clear button visibility
+            const clearBtn = document.getElementById('openClearModalBtn');
+            if (clearBtn) {
+                clearBtn.style.display = data.total_count > 0 ? 'inline-flex' : 'none';
+            }
+
+            // 3. Insert new records at top if any arrived
+            if (data.traces && data.traces.length > 0) {
+                let table = document.getElementById('traceTable');
+                let tbody = table ? table.querySelector('tbody') : null;
+
+                // If table was not present (empty state was showing), build table shell
+                if (!table || !tbody) {
+                    const container = document.getElementById('traceTableContainer');
+                    const emptyNotice = document.getElementById('emptyStateNotice');
+                    if (emptyNotice) emptyNotice.remove();
+
+                    if (container) {
+                        table = document.createElement('table');
+                        table.className = 'trace-table';
+                        table.id = 'traceTable';
+                        table.setAttribute('data-table-id', 'api-traces');
+                        table.innerHTML = `
+                            <thead>
+                                <tr>
+                                    <th data-col-key="timestamp" style="width: 180px; min-width: 175px;">Timestamp</th>
+                                    <th data-col-key="method" style="width: 90px;">Method</th>
+                                    <th data-col-key="status" style="width: 80px;">Status</th>
+                                    <th data-col-key="endpoint">Endpoint / Path</th>
+                                    <th data-col-key="client_ip" style="width: 130px;">Client IP</th>
+                                    <th data-col-key="target_host" style="width: 140px;">Target Host</th>
+                                    <th data-col-key="duration" style="width: 90px;">Duration</th>
+                                    <th data-no-sort data-col-key="payload" style="width: 110px;">Payload</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        `;
+                        container.appendChild(table);
+                        tbody = table.querySelector('tbody');
+                        if (window.initTableFeatures) {
+                            window.initTableFeatures(table, 'api-traces');
+                        }
+                    }
+                }
+
+                if (tbody) {
+                    // Iterate and prepend so newest ends up at the very top
+                    data.traces.forEach(traceItem => {
+                        // Check if already in DOM (avoid duplicates)
+                        if (tbody.querySelector(`tr[data-trace-id="${traceItem.id}"]`)) return;
+                        const rowEl = createTraceRow(traceItem);
+                        tbody.prepend(rowEl);
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('Auto-refresh poll failed:', err);
+        } finally {
+            isPolling = false;
+        }
+    }
+
+    // Start 5-second polling timer
+    function startAutoRefresh() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(pollTraceFeed, 5000);
+        const liveDot = document.getElementById('liveDot');
+        if (liveDot) liveDot.classList.remove('paused');
+    }
+
+    // Handle tab visibility to save resources
+    document.addEventListener('visibilitychange', () => {
+        const liveDot = document.getElementById('liveDot');
+        if (document.hidden) {
+            if (liveDot) liveDot.classList.add('paused');
+        } else {
+            if (liveDot) liveDot.classList.remove('paused');
+            pollTraceFeed(); // immediate catchup check on tab focus
+        }
+    });
+
+    // Start auto-refresh on page load
+    startAutoRefresh();
 </script>
 {% endblock %}

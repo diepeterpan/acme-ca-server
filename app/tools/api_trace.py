@@ -170,6 +170,41 @@ async def get_traces(limit: int = 500, offset: int = 0, search: str = '') -> lis
         return [dict(r) for r in rows] if rows else []
 
 
+async def get_new_traces(after_timestamp: datetime | None = None, exclude_id: str = '', search: str = '', limit: int = 100) -> list[dict[str, Any]]:
+    """Retrieve new traces created after after_timestamp, ordered by timestamp ASC for prepending."""
+    if not after_timestamp:
+        return []
+
+    query = """
+        SELECT id, timestamp, client_ip, target_host, http_method, endpoint,
+               status_code, duration_ms, request_payload, response_payload, error_message
+        FROM api_traces
+        WHERE timestamp >= $1
+    """
+    params: list[Any] = [after_timestamp]
+
+    if exclude_id:
+        query += f' AND id != ${len(params) + 1}'
+        params.append(exclude_id)
+
+    if search:
+        query += f"""
+            AND (endpoint ILIKE ${len(params) + 1}
+               OR client_ip ILIKE ${len(params) + 1}
+               OR http_method ILIKE ${len(params) + 1}
+               OR target_host ILIKE ${len(params) + 1})
+        """
+        params.append(f'%{search.strip()}%')
+
+    query += f' ORDER BY timestamp ASC LIMIT ${len(params) + 1}'
+    params.append(limit)
+
+    async with db.transaction(readonly=True) as sql:
+        rows = await sql.fetch(query, *params)
+        return [dict(r) for r in rows] if rows else []
+
+
+
 async def get_trace_count(search: str = '') -> int:
     """Return total count of traces matching search."""
     query = 'SELECT count(*) FROM api_traces'

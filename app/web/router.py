@@ -2839,6 +2839,49 @@ async def api_trace_clear_post():
     return RedirectResponse(url=f'/api-trace?status_msg={quote(msg)}', status_code=status.HTTP_303_SEE_OTHER)
 
 
+@api.get('/api-trace/feed')
+async def api_trace_feed_get(after: str = '', exclude_id: str = '', search: str = ''):
+    """Return new traces since a given ISO timestamp and current total count for background auto-refresh."""
+    after_dt = None
+    if after:
+        try:
+            after_dt = datetime.fromisoformat(after)
+        except Exception:  # noqa: BLE001
+            after_dt = None
+
+    if after_dt:
+        new_traces = await tools.api_trace.get_new_traces(after_timestamp=after_dt, exclude_id=exclude_id, search=search)
+    else:
+        # If no timestamp provided, return recent traces (limit 100)
+        new_traces = await tools.api_trace.get_traces(limit=100, search=search)
+        new_traces.reverse()  # Oldest to newest so client prepends in order
+
+    total_count = await tools.api_trace.get_trace_count(search=search)
+    enabled = await tools.api_trace.is_api_trace_enabled()
+
+    # Format trace rows for frontend consumption
+    serialized_traces = []
+    for t in new_traces:
+        ts = t.get('timestamp')
+        serialized_traces.append({
+            'id': t['id'],
+            'timestamp_iso': ts.isoformat() if isinstance(ts, datetime) else '',
+            'timestamp_display': ts.strftime('%Y-%m-%d %H:%M:%S') if isinstance(ts, datetime) else '',
+            'http_method': t['http_method'],
+            'status_code': t['status_code'],
+            'endpoint': t['endpoint'],
+            'client_ip': t['client_ip'],
+            'target_host': t.get('target_host', ''),
+            'duration_ms': t.get('duration_ms', 0),
+        })
+
+    return JSONResponse({
+        'traces': serialized_traces,
+        'total_count': total_count,
+        'enabled': enabled,
+    })
+
+
 @api.get('/api-trace/{trace_id}/payload')
 async def api_trace_payload_get(trace_id: str):
     """Return JSON details and payloads for modal dialog inspection."""
@@ -2849,3 +2892,4 @@ async def api_trace_payload_get(trace_id: str):
     if 'timestamp' in trace and isinstance(trace['timestamp'], datetime):
         trace['timestamp'] = trace['timestamp'].isoformat()
     return JSONResponse(trace)
+
