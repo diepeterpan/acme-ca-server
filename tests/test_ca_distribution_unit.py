@@ -23,6 +23,28 @@ class TestCaDistributionUnit(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.key = rsa.generate_private_key(65537, 2048)
 
+        self.mock_smtp_client = mock.AsyncMock()
+        self.mock_smtp_client.send_message = mock.AsyncMock(return_value=({}, '250 OK: Mock message queued'))
+        self.mock_smtp_client.login = mock.AsyncMock(return_value=(235, '2.7.0 Accepted'))
+        self.mock_smtp_client.connect = mock.AsyncMock(return_value=(220, 'smtp.mock.local ready'))
+        self.mock_smtp_client.quit = mock.AsyncMock(return_value=(221, 'Bye'))
+        self.mock_smtp_client.__aenter__ = mock.AsyncMock(return_value=self.mock_smtp_client)
+        self.mock_smtp_client.__aexit__ = mock.AsyncMock(return_value=None)
+        self.mock_smtp_cls = mock.MagicMock(return_value=self.mock_smtp_client)
+
+        self.patches = [
+            mock.patch('aiosmtplib.SMTP', self.mock_smtp_cls),
+            mock.patch('mail.service.SMTP', self.mock_smtp_cls),
+            mock.patch('mail.SMTP', self.mock_smtp_cls),
+            mock.patch('ca.distribution.SMTP', self.mock_smtp_cls),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+
     def _build_cert(self, org_name: str | None, cn: str, nvb: datetime) -> x509.Certificate:
         attrs = [x509.NameAttribute(x509.NameOID.COMMON_NAME, cn)]
         if org_name:

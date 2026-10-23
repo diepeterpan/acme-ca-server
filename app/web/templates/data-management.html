@@ -1,0 +1,962 @@
+{% extends "base.html" %}
+{% block title %}Data Management & Retention - {{ app_title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style type="text/css">
+    .dm-wrapper {
+        max-width: 1200px;
+        margin: 1.5rem auto 3rem auto;
+    }
+
+    .dm-header {
+        margin-bottom: 1.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .page-title {
+        font-size: 1.85rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        letter-spacing: -0.02em;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title svg {
+        width: 30px;
+        height: 30px;
+        color: var(--primary);
+    }
+
+    .page-desc {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.6rem 1.15rem;
+        font-size: 0.88rem;
+        font-weight: 600;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .btn-dry-run {
+        background-color: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+    }
+
+    .btn-dry-run:hover {
+        background-color: rgba(0, 105, 148, 0.08);
+    }
+
+    .btn-run-now {
+        background-color: var(--primary);
+        color: #ffffff;
+        border: 1px solid var(--primary);
+    }
+
+    .btn-run-now:hover {
+        background-color: #004d6e;
+    }
+
+    .status-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1.25rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        margin-bottom: 1.75rem;
+        box-shadow: var(--shadow-sm);
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--text-heading);
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.55rem;
+        border-radius: var(--radius-xs);
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        line-height: 1.25;
+    }
+
+    .pill-active {
+        background-color: var(--status-valid-bg);
+        color: var(--status-valid-text);
+        border: 1px solid var(--status-valid-border);
+    }
+
+    .pill-disabled {
+        background-color: var(--color-disabled, #f1f5f7);
+        color: var(--color-disabled-text, #536571);
+        border: 1px solid var(--color-border);
+    }
+
+    .last-run-info {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .dm-layout {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 1.75rem;
+        align-items: start;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 960px) {
+        .dm-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .dm-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid var(--border-card);
+    }
+
+    .card-title {
+        font-size: 1.12rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-title svg {
+        width: 20px;
+        height: 20px;
+        color: var(--primary);
+    }
+
+    .rule-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 0;
+        border-bottom: 1px solid var(--border-card);
+        gap: 1rem;
+    }
+
+    .rule-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .rule-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .rule-name {
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--text-heading);
+    }
+
+    .rule-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.35;
+    }
+
+    .rule-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .input-days {
+        width: 75px;
+        padding: 0.45rem 0.6rem;
+        font-size: 0.92rem;
+        text-align: right;
+        border: 1px solid #cbd5e1;
+        border-radius: var(--radius-sm);
+        color: var(--text-heading);
+        background: #ffffff;
+    }
+
+    .input-days:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
+    }
+
+    .input-days-unit {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        min-width: 32px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .form-label {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-body);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.55rem 0.85rem;
+        font-size: 0.92rem;
+        color: var(--text-heading);
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: var(--radius-sm);
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(0, 105, 148, 0.15);
+    }
+
+    /* Toggle switches */
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+    }
+
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #cbd5e1;
+        transition: .25s;
+        border-radius: 24px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .25s;
+        border-radius: 50%;
+    }
+
+    input:checked + .slider {
+        background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(20px);
+    }
+
+    /* Execution History Card & Grid System */
+    .history-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        margin-top: 1.5rem;
+    }
+
+    .history-card-header {
+        padding: 0.60rem 1.0rem;
+        background: var(--table-header-bg, #f0f7fa);
+        border-bottom: 1px solid var(--border-card);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .history-card-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .history-card-title svg {
+        width: 18px;
+        height: 18px;
+        color: var(--primary);
+    }
+
+    .history-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.10rem 0.45rem;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 10px;
+        background: #ffffff;
+        color: var(--text-muted);
+        border: 1px solid var(--border-card);
+    }
+
+    .runs-table-container {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        max-height: 480px;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+
+    .runs-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--font-size-table, 12px);
+        text-align: left;
+    }
+
+    .runs-table th {
+        background-color: var(--table-header-bg, #f0f7fa) !important;
+        color: var(--text-heading) !important;
+        font-weight: 600;
+        font-size: var(--font-size-table-header, 12px);
+        padding: var(--table-cell-padding-y, 0.30rem) var(--table-cell-padding-x, 0.45rem);
+        border-bottom: 1px solid var(--table-border-color, #f1f5f9);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-clip: padding-box;
+        box-shadow: inset 0 -1px 0 var(--table-border-color, #e2e8f0);
+    }
+
+    .runs-table th:first-child,
+    .runs-table td:first-child {
+        padding-left: var(--table-cell-padding-edge, 0.65rem);
+    }
+
+    .runs-table th:last-child,
+    .runs-table td:last-child {
+        padding-right: var(--table-cell-padding-edge, 0.65rem);
+    }
+
+    .runs-table td {
+        padding: var(--table-cell-padding-y, 0.30rem) var(--table-cell-padding-x, 0.45rem);
+        border-bottom: 1px solid var(--table-border-color, #f1f5f9);
+        vertical-align: middle;
+        font-size: var(--font-size-table, 12px);
+        color: var(--text-body);
+    }
+
+    .runs-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    .runs-table tbody tr:hover {
+        background-color: var(--table-row-hover, #f4f9fc);
+    }
+
+    .runs-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Column Specific Styles */
+    .cell-nowrap,
+    th[data-col-key="started_at"],
+    td[data-col-key="started_at"] {
+        white-space: nowrap !important;
+    }
+
+    .cell-mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11.5px;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.10rem 0.45rem;
+        border-radius: var(--radius-xs);
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.25;
+        white-space: nowrap;
+    }
+
+    .badge-valid {
+        background-color: var(--status-valid-bg, #ecfdf5);
+        color: var(--status-valid-text, #065f46);
+        border: 1px solid var(--status-valid-border, #a7f3d0);
+    }
+
+    .badge-subtle {
+        background-color: var(--color-primary-light, #e0f2fe);
+        color: var(--color-primary, #006994);
+        border: 1px solid rgba(0, 105, 148, 0.2);
+    }
+
+    .badge-expiring {
+        background-color: var(--status-expiring-bg, #fffbeb);
+        color: var(--status-expiring-text, #92400e);
+        border: 1px solid var(--status-expiring-border, #fde68a);
+    }
+
+    .badge-revoked {
+        background-color: var(--status-revoked-bg, #fef2f2);
+        color: var(--status-revoked-text, #991b1b);
+        border: 1px solid var(--status-revoked-border, #fecaca);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(3px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .modal-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-md);
+        max-width: 600px;
+        width: 100%;
+        padding: 1.5rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dm-wrapper">
+    <!-- Header -->
+    <div class="dm-header">
+        <div class="header-info">
+            <h1 class="page-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+                Data Management
+            </h1>
+            <div class="page-desc">Automated data retention rules, safe storage clean-up, and background maintenance auditing</div>
+        </div>
+        <div class="header-actions">
+            <button type="button" class="btn-action btn-dry-run" id="btnDryRun" title="Simulate clean-up rules without deleting any data">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                Dry Run Audit
+            </button>
+            <button type="button" class="btn-action btn-run-now" id="btnRunNow" title="Execute retention clean-up routines immediately">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Run Clean-up Now
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="status-banner">
+        <div class="status-indicator">
+            <span>Automated Maintenance:</span>
+            {% if cfg.enabled %}
+                <span class="pill pill-active">● Active</span>
+            {% else %}
+                <span class="pill pill-disabled">○ Disabled</span>
+            {% endif %}
+            <span style="font-weight: normal; color: var(--text-muted); font-size: 0.85rem;">
+                (Runs every {{ cfg.cron_schedule_hours }}h at ~{{ "%02d"|format(cfg.run_at_hour_utc) }}:00 UTC)
+            </span>
+        </div>
+        <div class="last-run-info">
+            {% if cfg.last_run_at %}
+                Last Maintenance Run: <strong>{{ cfg.last_run_at.strftime('%Y-%m-%d %H:%M:%S UTC') if cfg.last_run_at else 'Never' }}</strong>
+            {% else %}
+                Last Maintenance Run: <em>Never</em>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if status_msg %}
+    <div style="background-color: #e6f4ea; border: 1px solid #ceead6; color: #137333; padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.88rem; font-weight: 500;">
+        ✓ {{ status_msg }}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div style="background-color: #fce8e6; border: 1px solid #fad2cf; color: #c5221f; padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; font-size: 0.88rem; font-weight: 500;">
+        ⚠ {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Main Settings Form -->
+    <form method="post" action="/data-management">
+        <div class="dm-layout">
+            <!-- Left Card: Clean-up Rules -->
+            <div class="dm-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Automated Retention Rules
+                    </h2>
+                    <span style="font-size: 0.78rem; color: var(--text-muted);">0 = Disable rule</span>
+                </div>
+
+                <!-- Rule A -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Deactivated Accounts</span>
+                        <span class="rule-desc">Purge deactivated or revoked accounts after threshold days. Accounts with active valid certificates are safely skipped.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_deactivated_accounts_days" value="{{ cfg.delete_deactivated_accounts_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule B -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Inactive & Expired Orders</span>
+                        <span class="rule-desc">Purge stale orders that have no active valid certificates (matching UI order deletion criteria).</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_stale_orders_days" value="{{ cfg.delete_stale_orders_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule C -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Invalid Domain Records</span>
+                        <span class="rule-desc">Clean up domain authorizations and orphaned orders where all linked certificates are expired/revoked.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_invalid_domains_days" value="{{ cfg.delete_invalid_domains_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule D -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Revoke Expired Certificates</span>
+                        <span class="rule-desc">Automatically transition expired certificates to revoked status and sync with the active CRL.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="revoke_expired_certs_days" value="{{ cfg.revoke_expired_certs_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule E -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Delete Revoked Certificates</span>
+                        <span class="rule-desc">Permanently purge revoked certificates older than threshold days and re-sync CRL without them.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_revoked_certs_days" value="{{ cfg.delete_revoked_certs_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule F -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">CA Distribution Logs</span>
+                        <span class="rule-desc">Prune historical deployment logs older than threshold days. The single latest log per endpoint is always preserved.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_distribution_logs_days" value="{{ cfg.delete_distribution_logs_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule G -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Fleet Trust Audit History</span>
+                        <span class="rule-desc">Prune audit probe records older than threshold days. The single latest audit per (Device, IP, Method) is always kept.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_fleet_audits_days" value="{{ cfg.delete_fleet_audits_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+
+                <!-- Rule H -->
+                <div class="rule-item">
+                    <div class="rule-info">
+                        <span class="rule-name">Maintenance Run History</span>
+                        <span class="rule-desc">Prune audit run records older than threshold days. The 15 most recent runs are always preserved.</span>
+                    </div>
+                    <div class="rule-input-group">
+                        <input type="number" name="delete_run_history_days" value="{{ cfg.delete_run_history_days }}" min="0" max="3650" class="input-days" required>
+                        <span class="input-days-unit">days</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Card: Scheduler & Alerts -->
+            <div class="dm-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Schedule & Notifications
+                    </h2>
+                </div>
+
+                <!-- Master Enable Toggle -->
+                <div class="toggle-row">
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.92rem; color: var(--text-heading);">Automated Scheduling</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">Enable background worker to execute retention rules</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="enabled" {% if cfg.enabled %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-group" style="margin-top: 0.5rem;">
+                    <label class="form-label" for="cron_schedule_hours">Run Interval (Hours)</label>
+                    <input type="number" id="cron_schedule_hours" name="cron_schedule_hours" value="{{ cfg.cron_schedule_hours }}" min="1" max="168" class="form-control" required>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Default is 24 hours (Daily run)</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="run_at_hour_utc">Preferred UTC Hour (0-23)</label>
+                    <input type="number" id="run_at_hour_utc" name="run_at_hour_utc" value="{{ cfg.run_at_hour_utc }}" min="0" max="23" class="form-control" required>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Preferred execution time in UTC (e.g. 2 for 02:00 AM UTC)</span>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-card); margin: 0.5rem 0;">
+
+                <!-- Email Notifications -->
+                <div class="toggle-row">
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.92rem; color: var(--text-heading);">Email Summary Report</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">Send HTML maintenance summary to admin</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="email_notification_enabled" {% if cfg.email_notification_enabled %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-row">
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.92rem; color: var(--text-heading);">Notify Only on Changes</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">Avoid sending emails if 0 records were impacted</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="notify_only_on_changes" {% if cfg.notify_only_on_changes %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="admin_email">Notification Email Override</label>
+                    <input type="email" id="admin_email" name="admin_email" value="{{ cfg.admin_email or '' }}" placeholder="Default: from Mail Settings" class="form-control">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Leave empty to use the system admin email from Mail Settings</span>
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <button type="submit" class="btn-action btn-run-now" style="width: 100%; justify-content: center; padding: 0.75rem;">
+                        Save Data Management Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Execution History -->
+    <div class="history-card">
+        <div class="history-card-header">
+            <h2 class="history-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                Recent Maintenance Runs & Audits
+                <span class="history-count-badge">{{ recent_runs|length }}</span>
+            </h2>
+            <div class="table-toolbar-mount"></div>
+        </div>
+
+        <div class="table-container runs-table-container">
+            <table class="data-table runs-table" id="runsTable" data-table-id="data_mgmt_runs">
+                <thead>
+                    <tr>
+                        <th data-col-key="started_at" class="cell-nowrap" style="width: 170px; min-width: 160px;">Started At (UTC)</th>
+                        <th data-col-key="trigger" style="width: 110px;">Trigger</th>
+                        <th data-col-key="status" style="width: 115px;">Status</th>
+                        <th data-col-key="duration" style="width: 110px;">Duration</th>
+                        <th data-col-key="records_impacted" style="width: 135px;">Records Impacted</th>
+                        <th data-col-key="details">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_runs %}
+                        {% for run in recent_runs %}
+                        <tr>
+                            <td data-col-key="started_at" class="cell-nowrap cell-mono" data-sort-val="{{ run.started_at.isoformat() if run.started_at else '' }}">{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S') if run.started_at else 'N/A' }}</td>
+                            <td data-col-key="trigger" style="text-transform: capitalize;">{{ run.trigger_type }}</td>
+                            <td data-col-key="status" data-sort-val="{{ run.status }}">
+                                {% if run.status == 'success' %}
+                                    <span class="badge badge-valid">Completed</span>
+                                {% elif run.status == 'dry_run' %}
+                                    <span class="badge badge-subtle">Dry Run</span>
+                                {% elif run.status == 'running' %}
+                                    <span class="badge badge-expiring">Running</span>
+                                {% else %}
+                                    <span class="badge badge-revoked">Failed</span>
+                                {% endif %}
+                            </td>
+                            <td data-col-key="duration" data-sort-val="{{ run.duration_ms }}"><span class="cell-mono" style="color: var(--text-muted);">{{ run.duration_ms }} ms</span></td>
+                            <td data-col-key="impacted" data-sort-val="{{ run.total_records_affected }}" class="cell-mono" style="font-weight: 700; color: {% if run.total_records_affected > 0 %}var(--primary){% else %}var(--text-muted){% endif %};">{{ run.total_records_affected }}</td>
+                            <td data-col-key="details">
+                                {% if run.error_message %}
+                                    <span style="color: #dc2626; font-size: 11.5px; font-weight: 500;">{{ run.error_message }}</span>
+                                {% elif run.summary_data %}
+                                    <span style="font-size: 11.5px; color: var(--text-muted);">
+                                        {% set parts = [] %}
+                                        {% for k, v in run.summary_data.items() %}
+                                            {% if v.count and v.count > 0 %}
+                                                {% set _ = parts.append(v.name + ': ' + (v.count|string)) %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {{ parts|join(', ') if parts else '0 items matched' }}
+                                    </span>
+                                {% else %}
+                                    <span style="font-size: 11.5px; color: var(--text-muted);">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.75rem 1rem;">
+                                <div class="empty-state" style="padding: 0.5rem 0;">
+                                    <svg viewBox="0 0 24 24" style="width: 30px; height: 30px; fill: var(--color-text-muted); opacity: 0.4; margin-bottom: 0.4rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+                                    <div style="font-weight: 600; color: var(--text-heading); font-size: 0.88rem;">No maintenance runs recorded yet</div>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">Runs will appear here automatically when the cron runs or when triggered manually.</div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Dry Run & Run Now Confirmation / Results -->
+<div class="modal-overlay" id="dmModal">
+    <div class="modal-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 id="modalTitle" style="font-size: 1.15rem; font-weight: 700; margin: 0; color: var(--text-heading);">Maintenance Action</h3>
+            <button type="button" id="modalCloseBtn" style="background: none; border: none; cursor: pointer; color: var(--text-muted);" aria-label="Close">✕</button>
+        </div>
+        <div id="modalBody" style="font-size: 0.92rem; color: var(--text-body); line-height: 1.5; margin-bottom: 1.5rem;">
+            Loading...
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;" id="modalActions">
+            <button type="button" id="modalCancelBtn" class="btn-action btn-dry-run">Close</button>
+            <button type="button" id="modalConfirmBtn" class="btn-action btn-run-now" style="display: none;">Confirm & Run</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('dmModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalCancelBtn = document.getElementById('modalCancelBtn');
+    const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+    const btnDryRun = document.getElementById('btnDryRun');
+    const btnRunNow = document.getElementById('btnRunNow');
+
+    const closeModal = () => {
+        modal.style.display = 'none';
+        modalConfirmBtn.style.display = 'none';
+    };
+
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+    if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeModal);
+    window.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    // Handle Dry Run
+    if (btnDryRun) {
+        btnDryRun.addEventListener('click', async () => {
+            modalTitle.textContent = 'Simulating Retention Policies (Dry Run)...';
+            modalBody.innerHTML = '<div style="text-align: center; padding: 1.5rem;"><div style="display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(0, 105, 148, 0.2); border-radius: 50%; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div><p style="margin-top: 0.75rem; color: var(--text-muted);">Auditing database records matching retention criteria...</p></div>';
+            modalConfirmBtn.style.display = 'none';
+            modal.style.display = 'flex';
+
+            try {
+                const resp = await fetch('/data-management/run?dry_run=true', { method: 'POST' });
+                const data = await resp.json();
+                modalTitle.textContent = 'Dry Run Audit Results';
+                
+                let html = `<p style="margin-bottom: 1rem;">The simulation completed in <strong>${data.duration_ms} ms</strong>. Total records that would be impacted: <strong style="color: var(--primary); font-size: 1.1rem;">${data.total_records_affected}</strong></p>`;
+                html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">';
+                html += '<tr style="background: var(--bg-input); border-bottom: 1px solid var(--border-card);"><th style="padding: 6px 10px; text-align: left;">Rule</th><th style="padding: 6px 10px; text-align: center;">Threshold</th><th style="padding: 6px 10px; text-align: right;">Matches</th></tr>';
+                
+                for (const [k, r] of Object.entries(data.rules || {})) {
+                    html += `<tr style="border-bottom: 1px solid var(--border-card);">
+                        <td style="padding: 6px 10px;">${r.name}</td>
+                        <td style="padding: 6px 10px; text-align: center; color: var(--text-muted);">${r.threshold_days > 0 ? r.threshold_days + ' days' : 'Disabled'}</td>
+                        <td style="padding: 6px 10px; text-align: right; font-weight: 700; color: var(--primary);">${r.count}</td>
+                    </tr>`;
+                }
+                html += '</table>';
+                html += '<p style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);">Note: No data was modified during this dry run simulation.</p>';
+                modalBody.innerHTML = html;
+            } catch (err) {
+                modalBody.innerHTML = `<div style="color: #dc2626;">Failed to execute dry run audit: ${err.message}</div>`;
+            }
+        });
+    }
+
+    // Handle Run Now Confirmation
+    if (btnRunNow) {
+        btnRunNow.addEventListener('click', () => {
+            modalTitle.textContent = 'Confirm Automated Clean-up';
+            modalBody.innerHTML = '<p>Are you sure you want to execute all active data retention policies now?</p><p style="font-size: 0.85rem; color: var(--text-muted);">Records meeting the configured day thresholds will be permanently purged or revoked, and CRLs will be updated accordingly.</p>';
+            modalConfirmBtn.textContent = 'Execute Clean-up';
+            modalConfirmBtn.style.display = 'inline-flex';
+            modal.style.display = 'flex';
+
+            modalConfirmBtn.onclick = async () => {
+                modalConfirmBtn.disabled = true;
+                modalConfirmBtn.textContent = 'Executing...';
+                modalBody.innerHTML = '<div style="text-align: center; padding: 1.5rem;"><div style="display: inline-block; width: 24px; height: 24px; border: 3px solid rgba(0, 105, 148, 0.2); border-radius: 50%; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div><p style="margin-top: 0.75rem; color: var(--text-muted);">Executing retention rules and updating CRL...</p></div>';
+
+                try {
+                    const resp = await fetch('/data-management/run?dry_run=false', { method: 'POST' });
+                    const data = await resp.json();
+                    modalTitle.textContent = 'Clean-up Routine Finished';
+                    modalConfirmBtn.style.display = 'none';
+                    modalBody.innerHTML = `<p style="color: #137333; font-weight: 600;">✓ Maintenance run completed successfully in ${data.duration_ms} ms!</p><p>Total records impacted: <strong>${data.total_records_affected}</strong>.</p><p style="font-size: 0.85rem; color: var(--text-muted);">Reloading page to display updated logs...</p>`;
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                } catch (err) {
+                    modalBody.innerHTML = `<div style="color: #dc2626;">Error executing maintenance: ${err.message}</div>`;
+                    modalConfirmBtn.disabled = false;
+                }
+            };
+        });
+    }
+
+    // Initialize table features (resizable columns, column selector, reset)
+    const runsTable = document.getElementById('runsTable');
+    if (runsTable && window.initTableFeatures) {
+        window.initTableFeatures(runsTable, 'data_mgmt_runs');
+    }
+});
+</script>
+<style>
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+{% endblock %}

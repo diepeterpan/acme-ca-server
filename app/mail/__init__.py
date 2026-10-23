@@ -18,7 +18,7 @@ default_params = {  # pylint: disable=duplicate-code
     'acme_url': str(settings.external_url).removesuffix('/') + '/acme/directory',
 }
 
-Templates = Literal['cert-expired-info', 'cert-expires-warning', 'new-account-info', 'ca-expires-warning', 'ca-expired-info']
+Templates = Literal['cert-expired-info', 'cert-expires-warning', 'new-account-info', 'ca-expires-warning', 'ca-expired-info', 'data-maintenance-report']
 
 
 async def send_mail(receiver: str, template: Templates, subject_vars: dict | None = None, body_vars: dict | None = None):
@@ -119,5 +119,18 @@ async def send_ca_expired_info_mail(*, receiver: str, common_name: str, serial_n
         },
         subject_vars={
             'common_name': common_name,
+        },
+    )
+
+
+async def send_data_maintenance_report(*, receiver: str, run_summary: dict):
+    await send_mail(
+        receiver,
+        'data-maintenance-report',
+        body_vars={
+            'summary': run_summary,
+        },
+        subject_vars={
+            'summary': run_summary,
         },
     )

@@ -12,6 +12,7 @@ from urllib.parse import quote, urlencode
 import ca
 import db
 import mail.service
+import tools
 from ca import distribution as ca_distribution
 from ca import fleet_trust as ca_fleet_trust
 from ca import service as ca_service
@@ -1799,11 +1800,18 @@ async def update_account_status(
 ):
     new_status = 'valid' if action == 'activate' else 'deactivated'
     async with db.transaction() as sql:
-        await sql.exec(
-            'update accounts set status = $2 where id = $1',
-            account_id,
-            new_status,
-        )
+        if action == 'deactivate':
+            await sql.exec(
+                'update accounts set status = $2, deactivated_at = now() where id = $1',
+                account_id,
+                new_status,
+            )
+        else:
+            await sql.exec(
+                'update accounts set status = $2, deactivated_at = null where id = $1',
+                account_id,
+                new_status,
+            )
     msg = 'Account activated successfully' if action == 'activate' else 'Account deactivated successfully'
     redirect_url = make_redirect_url(
         '/accounts',
@@ -2100,6 +2108,88 @@ async def mail_test_post(request: Request):
         status_code=200 if ok else 400,
         content={'ok': ok, 'message' if ok else 'error': msg},
     )
+
+
+@api.get('/data-management', response_class=HTMLResponse)
+async def data_management_get(request: Request, status_msg: str = '', error: str = ''):
+    cfg = await tools.data_retention.get_data_management_settings()
+    recent_runs = await tools.data_retention.list_recent_runs()
+    return await template_engine.get_template('data-management.html').render_async(
+        **default_params,
+        request=request,
+        cfg=cfg,
+        recent_runs=recent_runs,
+        status_msg=status_msg,
+        error=error,
+    )
+
+
+@api.post('/data-management', response_class=HTMLResponse)
+async def data_management_post(
+    request: Request,
+    enabled: str = Form(None),
+    cron_schedule_hours: int = Form(24),
+    run_at_hour_utc: int = Form(2),
+    delete_deactivated_accounts_days: int = Form(28),
+    delete_stale_orders_days: int = Form(14),
+    delete_invalid_domains_days: int = Form(28),
+    revoke_expired_certs_days: int = Form(7),
+    delete_revoked_certs_days: int = Form(14),
+    delete_distribution_logs_days: int = Form(14),
+    delete_fleet_audits_days: int = Form(7),
+    delete_run_history_days: int = Form(30),
+    email_notification_enabled: str = Form(None),
+    notify_only_on_changes: str = Form(None),
+    admin_email: str = Form(''),
+):
+    is_enabled = enabled in ('on', 'true', '1')
+    has_email_notify = email_notification_enabled in ('on', 'true', '1')
+    has_only_changes = notify_only_on_changes in ('on', 'true', '1')
+
+    try:
+        updated_cfg = await tools.data_retention.save_data_management_settings(
+            enabled=is_enabled,
+            cron_schedule_hours=max(1, cron_schedule_hours),
+            run_at_hour_utc=max(0, min(23, run_at_hour_utc)),
+            delete_deactivated_accounts_days=max(0, delete_deactivated_accounts_days),
+            delete_stale_orders_days=max(0, delete_stale_orders_days),
+            delete_invalid_domains_days=max(0, delete_invalid_domains_days),
+            revoke_expired_certs_days=max(0, revoke_expired_certs_days),
+            delete_revoked_certs_days=max(0, delete_revoked_certs_days),
+            delete_distribution_logs_days=max(0, delete_distribution_logs_days),
+            delete_fleet_audits_days=max(0, delete_fleet_audits_days),
+            delete_run_history_days=max(0, delete_run_history_days),
+            email_notification_enabled=has_email_notify,
+            notify_only_on_changes=has_only_changes,
+            admin_email=admin_email.strip() or None,
+        )
+        recent_runs = await tools.data_retention.list_recent_runs()
+        return await template_engine.get_template('data-management.html').render_async(
+            **default_params,
+            request=request,
+            cfg=updated_cfg,
+            recent_runs=recent_runs,
+            status_msg='Data management settings saved successfully.',
+        )
+    except Exception as e:  # noqa: BLE001
+        cfg = await tools.data_retention.get_data_management_settings()
+        recent_runs = await tools.data_retention.list_recent_runs()
+        return await template_engine.get_template('data-management.html').render_async(
+            **default_params,
+            request=request,
+            cfg=cfg,
+            recent_runs=recent_runs,
+            error=f'Failed to save settings: {e}',
+        )
+
+
+@api.post('/data-management/run')
+async def data_management_run(request: Request, dry_run: bool = False):  # pylint: disable=unused-argument
+    result = await tools.data_retention.run_data_retention(
+        trigger_type='manual' if not dry_run else 'dry_run',
+        dry_run=dry_run,
+    )
+    return JSONResponse(result)
 
 
 @api.get('/ca-distribution', response_class=HTMLResponse)

@@ -25,6 +25,29 @@ from mail.service import MailConfig
 
 
 class TestCALifecycleUnit(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.mock_smtp_client = mock.AsyncMock()
+        self.mock_smtp_client.send_message = mock.AsyncMock(return_value=({}, '250 OK: Mock message queued'))
+        self.mock_smtp_client.login = mock.AsyncMock(return_value=(235, '2.7.0 Accepted'))
+        self.mock_smtp_client.connect = mock.AsyncMock(return_value=(220, 'smtp.mock.local ready'))
+        self.mock_smtp_client.quit = mock.AsyncMock(return_value=(221, 'Bye'))
+        self.mock_smtp_client.__aenter__ = mock.AsyncMock(return_value=self.mock_smtp_client)
+        self.mock_smtp_client.__aexit__ = mock.AsyncMock(return_value=None)
+        self.mock_smtp_cls = mock.MagicMock(return_value=self.mock_smtp_client)
+
+        self.patches = [
+            mock.patch('aiosmtplib.SMTP', self.mock_smtp_cls),
+            mock.patch('mail.service.SMTP', self.mock_smtp_cls),
+            mock.patch('mail.SMTP', self.mock_smtp_cls),
+            mock.patch('ca.distribution.SMTP', self.mock_smtp_cls),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+
     def test_mail_config_ca_properties(self):
         # Default with no admin email -> uses sender
         cfg = MailConfig(
@@ -160,7 +183,7 @@ class TestCALifecycleUnit(unittest.IsolatedAsyncioTestCase):
             web_url='https://ca.example.com/',
         )
         self.assertIn('FFEEDDCC', exp_body)
-        self.assertIn('CRITICAL', exp_body)
+        self.assertIn('Critical', exp_body)
 
     async def test_ca_init_expired_ca_marks_uninitialized(self):
         import ca

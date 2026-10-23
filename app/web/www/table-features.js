@@ -510,6 +510,7 @@
             }
             const rows = table.querySelectorAll('tbody tr');
             rows.forEach(r => {
+                if (r.cells.length <= 1 || r.querySelector('.empty-state')) return;
                 const td = r.cells[colIdx];
                 if (td) {
                     if (isHidden) td.classList.add('col-hidden');
@@ -643,7 +644,7 @@
      */
     document.addEventListener('DOMContentLoaded', () => {
         const tables = document.querySelectorAll(
-            'table.data-table, table.cert-table, table.account-table, table.domain-table, table.users-table, table.fleet-table, table.dist-table, table.ca-table, table[data-table-id]'
+            'table.data-table, table.cert-table, table.account-table, table.domain-table, table.users-table, table.fleet-table, table.dist-table, table.ca-table, table.runs-table, table[data-table-id]'
         );
         tables.forEach(table => {
             window.initTableFeatures(table);

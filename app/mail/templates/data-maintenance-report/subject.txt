@@ -1,0 +1,1 @@
+[{{ app_title }}] Data Management & Automated Maintenance Report: {{ summary.total_records_affected }} record(s) processed ({{ summary.status|upper }})

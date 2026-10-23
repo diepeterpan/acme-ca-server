@@ -9,6 +9,7 @@ import ca
 import db
 import db.integrity
 import db.migrations
+import tools
 import web
 from acme.exceptions import ACMEException
 from ca import fleet_trust as ca_fleet_trust
@@ -55,6 +56,8 @@ async def lifespan(app_instance: FastAPI):
                 await ca_fleet_trust.probe_manager.start()
             except Exception as probe_exc:  # noqa: BLE001
                 logger.warning('Failed to start CA trust probe servers: %s', probe_exc)
+
+    await tools.start_cronjobs()
 
     if settings.db_integrity.enabled:
         app_instance.state.maintenance_mode = True

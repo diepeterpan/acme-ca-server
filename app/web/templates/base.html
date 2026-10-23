@@ -689,9 +689,10 @@
             position: relative;
         }
 
-        /* Embedded Table Containers in Cards (e.g. CA Distribution, Users) */
+        /* Embedded Table Containers in Cards (e.g. CA Distribution, Users, Data Management) */
         .dist-card .table-container,
-        .users-card .table-container {
+        .users-card .table-container,
+        .history-card .table-container {
             border: none;
             box-shadow: none;
             border-radius: 0 0 var(--radius-lg) var(--radius-lg);
@@ -705,7 +706,8 @@
         table.users-table,
         table.fleet-table,
         table.dist-table,
-        table.ca-table {
+        table.ca-table,
+        table.runs-table {
             width: 100%;
             border-collapse: collapse;
             text-align: left;
@@ -719,7 +721,8 @@
         table.users-table.table-layout-fixed,
         table.fleet-table.table-layout-fixed,
         table.dist-table.table-layout-fixed,
-        table.ca-table.table-layout-fixed {
+        table.ca-table.table-layout-fixed,
+        table.runs-table.table-layout-fixed {
             table-layout: fixed !important;
         }
 
@@ -730,7 +733,8 @@
         table.users-table th,
         table.fleet-table th,
         table.dist-table th,
-        table.ca-table th {
+        table.ca-table th,
+        table.runs-table th {
             background-color: var(--table-header-bg, #faf5ff);
             color: var(--text-heading);
             font-weight: 600;
@@ -760,7 +764,9 @@
         table.dist-table th:first-child,
         table.dist-table td:first-child,
         table.ca-table th:first-child,
-        table.ca-table td:first-child {
+        table.ca-table td:first-child,
+        table.runs-table th:first-child,
+        table.runs-table td:first-child {
             padding-left: var(--table-cell-padding-edge, 0.50rem);
         }
 
@@ -779,7 +785,9 @@
         table.dist-table th:last-child,
         table.dist-table td:last-child,
         table.ca-table th:last-child,
-        table.ca-table td:last-child {
+        table.ca-table td:last-child,
+        table.runs-table th:last-child,
+        table.runs-table td:last-child {
             padding-right: var(--table-cell-padding-edge, 0.50rem);
         }
 
@@ -790,7 +798,8 @@
         table.users-table td,
         table.fleet-table td,
         table.dist-table td,
-        table.ca-table td {
+        table.ca-table td,
+        table.runs-table td {
             padding: var(--table-cell-padding-y, 0.28rem) var(--table-cell-padding-x, 0.40rem);
             border-bottom: 1px solid var(--table-border-color, #f1f5f9);
             vertical-align: middle;
@@ -822,7 +831,8 @@
         table.users-table tbody tr,
         table.fleet-table tbody tr,
         table.dist-table tbody tr,
-        table.ca-table tbody tr {
+        table.ca-table tbody tr,
+        table.runs-table tbody tr {
             transition: background-color 0.15s ease;
         }
 
@@ -833,7 +843,8 @@
         table.users-table tbody tr:hover,
         table.fleet-table tbody tr:hover,
         table.dist-table tbody tr:hover,
-        table.ca-table tbody tr:hover {
+        table.ca-table tbody tr:hover,
+        table.runs-table tbody tr:hover {
             background-color: var(--table-row-hover, #fbf9ff);
         }
 
@@ -844,7 +855,8 @@
         table.users-table tbody tr:last-child td,
         table.fleet-table tbody tr:last-child td,
         table.dist-table tbody tr:last-child td,
-        table.ca-table tbody tr:last-child td {
+        table.ca-table tbody tr:last-child td,
+        table.runs-table tbody tr:last-child td {
             border-bottom: none;
         }
 
@@ -1189,6 +1201,14 @@
                                     <polyline points="9 12 11 14 15 10"></polyline>
                                 </svg>
                                 <span>CA Fleet Trust</span>
+                            </a>
+                            <a href="/data-management" class="dropdown-item {% if request is defined and request.url.path.startswith('/data-management') %}active{% endif %}">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                                </svg>
+                                <span>Data Management</span>
                             </a>
                             <div class="dropdown-divider"></div>
                             <a href="/endpoints" class="dropdown-item" target="_blank" rel="noopener noreferrer">

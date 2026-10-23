@@ -64,6 +64,30 @@ def testclient() -> Generator[TestClient, None, None]:
         yield tc
 
 
+@pytest.fixture(autouse=True, scope='session')
+def mock_smtp_server():
+    """Mock aiosmtplib.SMTP across all pytest runs so outgoing emails never hit external/live SMTP servers (e.g. smtp.galleon.co.za)."""
+    from unittest import mock
+
+    mock_client = mock.AsyncMock()
+    mock_client.send_message = mock.AsyncMock(return_value=({}, '250 OK: Mock message queued'))
+    mock_client.login = mock.AsyncMock(return_value=(235, '2.7.0 Accepted'))
+    mock_client.connect = mock.AsyncMock(return_value=(220, 'smtp.mock.local ready'))
+    mock_client.quit = mock.AsyncMock(return_value=(221, 'Bye'))
+    mock_client.__aenter__ = mock.AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = mock.AsyncMock(return_value=None)
+
+    mock_smtp_cls = mock.MagicMock(return_value=mock_client)
+
+    with (
+        mock.patch('aiosmtplib.SMTP', mock_smtp_cls),
+        mock.patch('mail.service.SMTP', mock_smtp_cls),
+        mock.patch('mail.SMTP', mock_smtp_cls),
+        mock.patch('ca.distribution.SMTP', mock_smtp_cls),
+    ):
+        yield mock_smtp_cls
+
+
 @pytest.fixture
 def anon_client(testclient: TestClient) -> Generator[httpx.Client, None, None]:
     with httpx.Client(transport=testclient._transport, base_url='http://testserver') as client:

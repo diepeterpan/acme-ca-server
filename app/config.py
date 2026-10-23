@@ -155,6 +155,25 @@ class OidcSettings(BaseSettings):
         return self
 
 
+class DataManagementSettings(BaseSettings):
+    enabled: bool = True
+    cron_schedule_hours: int = 24
+    run_at_hour_utc: int = 2
+    delete_deactivated_accounts_days: int = 28
+    delete_stale_orders_days: int = 14
+    delete_invalid_domains_days: int = 28
+    revoke_expired_certs_days: int = 7
+    delete_revoked_certs_days: int = 14
+    delete_distribution_logs_days: int = 14
+    delete_fleet_audits_days: int = 7
+    delete_run_history_days: int = 30
+    email_notification_enabled: bool = True
+    notify_only_on_changes: bool = True
+    admin_email: str | None = None
+
+    model_config = SettingsConfigDict(env_prefix='data_mgmt_', secrets_dir='/run/secrets')
+
+
 class Settings(BaseSettings):
     external_url: AnyHttpUrl
     db_dsn: PostgresDsn
@@ -165,6 +184,7 @@ class Settings(BaseSettings):
     web: WebSettings = WebSettings()
     oidc: OidcSettings = OidcSettings()
     db_integrity: DbIntegritySettings = DbIntegritySettings()
+    data_mgmt: DataManagementSettings = DataManagementSettings()
 
     model_config = SettingsConfigDict(secrets_dir='/run/secrets')
 

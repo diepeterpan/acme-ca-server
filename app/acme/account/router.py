@@ -124,7 +124,7 @@ async def view_or_update_account(
 
     if data.payload.status == 'deactivated':  # https://www.rfc-editor.org/rfc/rfc8555#section-7.3.6
         async with db.transaction() as sql:
-            await sql.exec("""update accounts set status='deactivated' where id = $1""", acc_id)
+            await sql.exec("""update accounts set status='deactivated', deactivated_at=now() where id = $1""", acc_id)
             await sql.exec(
                 """
                 update orders set status='invalid', error=row('unauthorized','account deactivated')
