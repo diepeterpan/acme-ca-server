@@ -1548,12 +1548,15 @@ async def domain_log(
 
             nva_str = c.get('not_valid_after')
             days_remaining = None
+            nva_formatted = None
             if nva_str:
                 try:
                     nva_dt = datetime.fromisoformat(nva_str.replace('Z', '+00:00'))
                     days_remaining = (nva_dt - now_utc).days
+                    nva_formatted = format_datetime(nva_dt, '%Y-%m-%d %H:%M')
                 except (ValueError, TypeError):
                     days_remaining = None
+                    nva_formatted = None
 
             item = {
                 'ca_serial': ca_sn,
@@ -1561,6 +1564,7 @@ async def domain_log(
                 'ca_status': ca_status,
                 'cert_serial': c.get('cert_serial'),
                 'not_valid_after': nva_str,
+                'not_valid_after_formatted': nva_formatted,
                 'days_remaining': days_remaining,
                 'is_valid': bool(c.get('is_valid')),
                 'is_revoked': bool(c.get('is_revoked')),
@@ -2327,6 +2331,7 @@ async def ca_distribution_endpoint_test(endpoint_id: str):
             'port': endpoint.port if endpoint else 22,
             'username': endpoint.username if endpoint else '',
             'target_dir': endpoint.target_dir if endpoint else '',
+            'tested_at': format_datetime(datetime.now(), '%Y-%m-%d %H:%M:%S'),
         }
     )
 
@@ -2859,15 +2864,15 @@ async def api_trace_feed_get(after: str = '', exclude_id: str = '', search: str 
     total_count = await tools.api_trace.get_trace_count(search=search)
     enabled = await tools.api_trace.is_api_trace_enabled()
 
-    # Format trace rows for frontend consumption
+    # Format trace rows for frontend consumption in server local timezone
     serialized_traces = []
     for t in new_traces:
         ts = t.get('timestamp')
         serialized_traces.append(
             {
                 'id': t['id'],
-                'timestamp_iso': ts.isoformat() if isinstance(ts, datetime) else '',
-                'timestamp_display': ts.strftime('%Y-%m-%d %H:%M:%S') if isinstance(ts, datetime) else '',
+                'timestamp_iso': local_isoformat(ts) if ts else '',
+                'timestamp_display': format_datetime(ts, '%Y-%m-%d %H:%M:%S') if ts else '',
                 'http_method': t['http_method'],
                 'status_code': t['status_code'],
                 'endpoint': t['endpoint'],

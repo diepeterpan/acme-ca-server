@@ -884,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const daysText = item.days_remaining !== null
                         ? (item.days_remaining >= 0 ? `(in ${item.days_remaining}d)` : '(expired)')
                         : '';
-                    const expFormatted = item.not_valid_after ? item.not_valid_after.replace('T', ' ').replace('Z', ' UTC') : '—';
+                    const expFormatted = item.not_valid_after_formatted || (item.not_valid_after ? item.not_valid_after.replace('T', ' ').replace('Z', '') : '—');
 
                     html += `
                         <div class="ca-popover-card">
@@ -913,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div class="ca-popover-row">
                                 <span class="ca-popover-label">Valid Until:</span>
-                                <span style="font-size: 10px; color: var(--color-text-muted);">${escapeHtml(expFormatted)} ${escapeHtml(daysText)}</span>
+                                <span style="font-size: 10px; color: var(--color-text-muted);" title="Date in local service time ({{ service_tz_label }})">${escapeHtml(expFormatted)} ${escapeHtml(daysText)}</span>
                             </div>
                         </div>
                     `;

@@ -598,7 +598,7 @@
     <table class="trace-table" id="traceTable" data-table-id="api-traces">
         <thead>
             <tr>
-                <th data-col-key="timestamp" style="width: 180px; min-width: 175px;">Timestamp</th>
+                <th data-col-key="timestamp" style="width: 180px; min-width: 175px;" title="Dates in local service time ({{ service_tz_label }})">Timestamp</th>
                 <th data-col-key="method" style="width: 90px;">Method</th>
                 <th data-col-key="status" style="width: 80px;">Status</th>
                 <th data-col-key="endpoint">Endpoint / Path</th>
@@ -612,8 +612,8 @@
             {% for t in traces %}
             {% set status_group = (t.status_code // 100) ~ 'xx' %}
             <tr data-trace-id="{{ t.id }}">
-                <td data-sort-val="{{ t.timestamp.isoformat() if t.timestamp else '' }}" class="cell-registered">
-                    {{ t.timestamp.strftime('%Y-%m-%d %H:%M:%S') if t.timestamp else '' }}
+                <td data-sort-val="{{ t.timestamp|local_isoformat if t.timestamp else '' }}" class="cell-registered" title="{{ t.timestamp|format_datetime('%Y-%m-%d %H:%M:%S %Z') if t.timestamp else '' }}">
+                    {{ t.timestamp|format_datetime('%Y-%m-%d %H:%M:%S') if t.timestamp else '' }}
                 </td>
                 <td data-sort-val="{{ t.http_method }}">
                     <span class="method-badge method-{{ t.http_method }}">{{ t.http_method }}</span>
@@ -1032,7 +1032,7 @@
                         table.innerHTML = `
                             <thead>
                                 <tr>
-                                    <th data-col-key="timestamp" style="width: 180px; min-width: 175px;">Timestamp</th>
+                                    <th data-col-key="timestamp" style="width: 180px; min-width: 175px;" title="Dates in local service time ({{ service_tz_label }})">Timestamp</th>
                                     <th data-col-key="method" style="width: 90px;">Method</th>
                                     <th data-col-key="status" style="width: 80px;">Status</th>
                                     <th data-col-key="endpoint">Endpoint / Path</th>

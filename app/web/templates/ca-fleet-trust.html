@@ -812,7 +812,7 @@
                 <tr>
                     <th data-col-key="endpoint">Endpoint / Device name</th>
                     <th data-col-key="host">Hostname/IP Address</th>
-                    <th data-col-key="audited">Last Audited</th>
+                    <th data-col-key="audited" title="Dates in local service time ({{ service_tz_label }})">Last Audited</th>
                     <th data-col-key="method">Method</th>
                     <th data-col-key="trust">CA Trust</th>
                     <th data-col-key="compliance">Compliance</th>
@@ -846,7 +846,7 @@
                         </div>
                     </td>
                     <td><span style="font-family: monospace;">{{ a.ip_address }}</span></td>
-                    <td>{{ a.audited_at | format_datetime }}</td>
+                    <td data-sort-val="{{ a.audited_at|local_isoformat if a.audited_at else '' }}" title="{{ a.audited_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if a.audited_at else '' }}">{{ a.audited_at | format_datetime }}</td>
                     <td><span class="method-tag">{{ a.verification_method }}</span></td>
                     <td>
                         <div class="trust-matrix-dots">

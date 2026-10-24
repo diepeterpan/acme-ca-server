@@ -1243,7 +1243,7 @@
                 <table class="dist-table" data-table-id="ca_dist_logs">
                     <thead>
                         <tr>
-                            <th data-col-key="timestamp">Timestamp</th>
+                            <th data-col-key="timestamp" title="Dates in local service time ({{ service_tz_label }})">Timestamp</th>
                             <th data-col-key="ca_serial">CA Serial</th>
                             <th data-col-key="target_endpoint">Target Endpoint</th>
                             <th data-col-key="type">Type</th>
@@ -1255,8 +1255,8 @@
                     <tbody>
                         {% for log in logs %}
                         <tr>
-                            <td style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">
-                                {{ log.distributed_at.strftime('%Y-%m-%d %H:%M:%S') if log.distributed_at else '' }}
+                            <td data-sort-val="{{ log.distributed_at|local_isoformat if log.distributed_at else '' }}" title="{{ log.distributed_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if log.distributed_at else '' }}" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+                                {{ log.distributed_at|format_datetime('%Y-%m-%d %H:%M:%S') if log.distributed_at else '' }}
                             </td>
                             <td>
                                 <code style="font-size: 12px; background: #e6f4fa; color: var(--color-primary); padding: 2px 6px; border-radius: 4px;">
@@ -1861,7 +1861,7 @@ function showTestResultModal(data) {
         progressFill.style.background = '#ef4444';
     }
 
-    document.getElementById('testModalTimestamp').innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('testModalTimestamp').innerText = (data.tested_at ? data.tested_at + ' ({{ service_tz_label }})' : 'Just now ({{ service_tz_label }})');
 
     // Target System & Environment Card Grid
     document.getElementById('testModalEndpointName').innerText = data.endpoint_name || '—';

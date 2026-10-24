@@ -723,7 +723,7 @@
         </div>
         <div class="last-run-info">
             {% if cfg.last_run_at %}
-                Last Maintenance Run: <strong>{{ cfg.last_run_at.strftime('%Y-%m-%d %H:%M:%S UTC') if cfg.last_run_at else 'Never' }}</strong>
+                Last Maintenance Run: <strong>{{ cfg.last_run_at|format_datetime('%Y-%m-%d %H:%M:%S') }}</strong> ({{ service_tz_label }})
             {% else %}
                 Last Maintenance Run: <em>Never</em>
             {% endif %}
@@ -951,7 +951,7 @@
             <table class="data-table runs-table" id="runsTable" data-table-id="data_mgmt_runs">
                 <thead>
                     <tr>
-                        <th data-col-key="started_at" class="cell-nowrap" style="width: 170px; min-width: 160px;">Started At (UTC)</th>
+                        <th data-col-key="started_at" class="cell-nowrap" style="width: 170px; min-width: 160px;" title="Dates in local service time ({{ service_tz_label }})">Started At</th>
                         <th data-col-key="trigger" style="width: 110px;">Trigger</th>
                         <th data-col-key="status" style="width: 115px;">Status</th>
                         <th data-col-key="duration" style="width: 110px;">Duration</th>
@@ -963,7 +963,7 @@
                     {% if recent_runs %}
                         {% for run in recent_runs %}
                         <tr>
-                            <td data-col-key="started_at" class="cell-nowrap cell-mono" data-sort-val="{{ run.started_at.isoformat() if run.started_at else '' }}">{{ run.started_at.strftime('%Y-%m-%d %H:%M:%S') if run.started_at else 'N/A' }}</td>
+                            <td data-col-key="started_at" class="cell-nowrap cell-mono" data-sort-val="{{ run.started_at|local_isoformat if run.started_at else '' }}" title="{{ run.started_at|format_datetime('%Y-%m-%d %H:%M:%S %Z') if run.started_at else '' }}">{{ run.started_at|format_datetime('%Y-%m-%d %H:%M:%S') if run.started_at else 'N/A' }}</td>
                             <td data-col-key="trigger" style="text-transform: capitalize;">{{ run.trigger_type }}</td>
                             <td data-col-key="status" data-sort-val="{{ run.status }}">
                                 {% if run.status == 'success' %}
