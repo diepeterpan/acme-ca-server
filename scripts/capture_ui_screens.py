@@ -21,6 +21,9 @@ Captures high-resolution screenshots of all web UI screens:
   14. Client Root CA Trust Verification Portal
   15. Data Management & Automated Retention
   15b. Data Management - Dry Run & Simulation Modal
+  16. API Trace Live Diagnostic Grid
+  16b. API Trace Payload & Base64 Decoding Modal
+  16c. API Trace X.509 CSR Decoding Modal
 
 Usage:
   python3 scripts/capture_ui_screens.py
@@ -1100,6 +1103,95 @@ async def capture_all_screens(base_url: str, output_dir: Path, admin_user: str =
                 await asyncio.sleep(0.3)
         except Exception as e:
             print(f"    Warning: Could not capture data management modal: {e}")
+
+        # 16: API Trace Live Diagnostic Grid
+        print("--> Capturing 16_api_trace.png...")
+        try:
+            await page_auth.goto(f"{base_url}/api-trace", wait_until='networkidle')
+            await asyncio.sleep(0.5)
+            # Ensure tracing is enabled on page
+            trace_toggle = page_auth.locator("#apiTraceToggle")
+            if await trace_toggle.count() > 0 and not await trace_toggle.is_checked():
+                await trace_toggle.check()
+                await asyncio.sleep(0.5)
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "16_api_trace.png"), full_page=False)
+            print("    API Trace screen captured successfully!")
+        except Exception as e:
+            print(f"    Warning: Could not capture API Trace screen: {e}")
+
+        # 16b: API Trace Payload Inspection & Base64 Decoding Modal
+        print("--> Capturing 16b_api_trace_payload_modal.png...")
+        try:
+            # Find a view button on the grid
+            view_btns = page_auth.locator(".btn-view-payload")
+            if await view_btns.count() > 0:
+                await view_btns.first.click()
+                await page_auth.wait_for_selector("#payloadModal.open", timeout=4000)
+                await asyncio.sleep(0.4)
+
+                # Click Decode Base64 button to show decoded payload
+                decode_btn = page_auth.locator("#btnDecodePayload")
+                if await decode_btn.count() > 0 and await decode_btn.is_visible():
+                    await decode_btn.click()
+                    await asyncio.sleep(0.4)
+
+                if obfuscate:
+                    await obfuscate_page(page_auth)
+                await page_auth.screenshot(path=str(output_dir / "16b_api_trace_payload_modal.png"), full_page=False)
+                print("    API Trace payload Base64 decoding modal captured successfully!")
+
+                # Dismiss modal
+                close_btn = page_auth.locator("#payloadModal .btn-modal-close").first
+                if await close_btn.count() > 0:
+                    await close_btn.click()
+                    await asyncio.sleep(0.3)
+            else:
+                print("    Notice: No trace rows found to view payload modal.")
+        except Exception as e:
+            print(f"    Warning: Could not capture API Trace payload modal: {e}")
+
+        # 16c: API Trace X.509 CSR Decoding Modal
+        print("--> Capturing 16c_api_trace_csr_modal.png...")
+        try:
+            # Look for a finalize trace row or the row with CSR
+            rows = page_auth.locator("tr[data-trace-id]")
+            finalize_clicked = False
+            row_count = await rows.count()
+            for idx in range(row_count):
+                row_text = await rows.nth(idx).inner_text()
+                if "finalize" in row_text.lower():
+                    btn = rows.nth(idx).locator(".btn-view-payload")
+                    if await btn.count() > 0:
+                        await btn.click()
+                        finalize_clicked = True
+                        break
+
+            if not finalize_clicked and await view_btns.count() > 0:
+                await view_btns.first.click()
+
+            await page_auth.wait_for_selector("#payloadModal.open", timeout=4000)
+            await asyncio.sleep(0.4)
+
+            # Click Decode CSR button if visible
+            csr_btn = page_auth.locator("#btnDecodeCsr")
+            if await csr_btn.count() > 0 and await csr_btn.is_visible():
+                await csr_btn.click()
+                await asyncio.sleep(0.5)
+
+            if obfuscate:
+                await obfuscate_page(page_auth)
+            await page_auth.screenshot(path=str(output_dir / "16c_api_trace_csr_modal.png"), full_page=False)
+            print("    API Trace CSR decoding modal captured successfully!")
+
+            close_btn = page_auth.locator("#payloadModal .btn-modal-close").first
+            if await close_btn.count() > 0:
+                await close_btn.click()
+                await asyncio.sleep(0.3)
+        except Exception as e:
+            print(f"    Warning: Could not capture API Trace CSR modal: {e}")
 
         await context_auth.close()
         await browser.close()

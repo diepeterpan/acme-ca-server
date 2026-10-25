@@ -498,8 +498,60 @@
         padding: 0.85rem 1.5rem;
         border-top: 1px solid var(--color-border);
         display: flex;
+        align-items: center;
         justify-content: flex-end;
+        gap: 0.65rem;
         background-color: var(--color-bg-main);
+    }
+
+    .btn-modal-decode {
+        padding: 0.45rem 1rem;
+        background: #ffffff;
+        border: 1px solid var(--color-primary, #0284c7);
+        color: var(--color-primary, #0284c7);
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+    }
+
+    .btn-modal-decode:hover {
+        background-color: var(--color-primary-light, #f0f9ff);
+    }
+
+    .btn-modal-decode.active {
+        background-color: var(--color-primary, #0284c7);
+        color: #ffffff;
+        border-color: var(--color-primary, #0284c7);
+    }
+
+    .btn-modal-csr {
+        padding: 0.45rem 1rem;
+        background: #ffffff;
+        border: 1px solid #059669;
+        color: #059669;
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.15s ease;
+    }
+
+    .btn-modal-csr:hover {
+        background-color: #ecfdf5;
+    }
+
+    .btn-modal-csr.active {
+        background-color: #059669;
+        color: #ffffff;
+        border-color: #059669;
     }
 
     .btn-modal-close {
@@ -712,6 +764,22 @@
             </div>
         </div>
         <div class="modal-footer">
+            <button type="button" class="btn-modal-decode" id="btnDecodePayload" onclick="toggleBase64Decode()">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                <span id="btnDecodePayloadText">Decode Base64</span>
+            </button>
+            <button type="button" class="btn-modal-csr" id="btnDecodeCsr" onclick="toggleCsrDecode()" style="display: none;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="9" y1="9" x2="15" y2="9"></line>
+                    <line x1="9" y1="13" x2="15" y2="13"></line>
+                    <path d="M9 17h3"></path>
+                </svg>
+                <span id="btnDecodeCsrText">Decode CSR</span>
+            </button>
             <button type="button" class="btn-modal-close" onclick="closePayloadModal()">Close</button>
         </div>
     </div>
@@ -815,20 +883,316 @@
 
     // Payload Modal logic
     const payloadModal = document.getElementById('payloadModal');
+    let currentTraceData = null;
+    let isDecodedMode = false;
 
-    function formatPayload(raw) {
-        if (!raw) return '(empty)';
+    // Helper: Safely decode Base64 or Base64URL string to utf-8 text
+    // Helper: Safely decode Base64 or Base64URL string to utf-8 text
+    function decodeBase64Utf8(str) {
+        if (!str || typeof str !== 'string') return null;
+        const cleaned = str.trim();
+        // Base64 or Base64URL validation check
+        if (!/^[A-Za-z0-9\-_+/=]+$/.test(cleaned) || cleaned.length < 4) return null;
         try {
-            const parsed = JSON.parse(raw);
-            return JSON.stringify(parsed, null, 2);
-        } catch(e) {
-            return String(raw);
+            // Convert Base64URL to standard Base64
+            let b64 = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+            while (b64.length % 4 !== 0) {
+                b64 += '=';
+            }
+            const binStr = atob(b64);
+            // Check for reasonable non-binary printable ascii or utf-8 characters
+            const bytes = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) {
+                bytes[i] = binStr.charCodeAt(i);
+            }
+            const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            // Verify decoded string does not contain excessive control characters
+            let controlChars = 0;
+            for (let i = 0; i < decoded.length; i++) {
+                const code = decoded.charCodeAt(i);
+                if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
+                    controlChars++;
+                }
+            }
+            if (controlChars > decoded.length * 0.05) {
+                return null; // likely raw binary (e.g. DER certificate or binary hash)
+            }
+            return decoded;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Helper: Extract CSR string from trace payloads (raw or parsed JWS)
+    function findCsrInPayload(data) {
+        if (!data) return null;
+        let obj = data;
+        if (typeof obj === 'string') {
+            try {
+                obj = JSON.parse(obj);
+            } catch (e) {
+                // If it's a raw JWS string or base64 JSON, try decoding
+                const dec = decodeBase64Utf8(obj);
+                if (dec) {
+                    try { obj = JSON.parse(dec); } catch (err) {}
+                }
+            }
+        }
+        if (!obj || typeof obj !== 'object') return null;
+
+        // Check top-level 'csr'
+        if (obj.csr && typeof obj.csr === 'string') {
+            return obj.csr;
+        }
+
+        // Check if inside JWS payload
+        if (obj.payload) {
+            let inner = obj.payload;
+            if (typeof inner === 'string') {
+                const dec = decodeBase64Utf8(inner);
+                if (dec) {
+                    try { inner = JSON.parse(dec); } catch (err) {}
+                }
+            }
+            if (inner && typeof inner === 'object' && inner.csr && typeof inner.csr === 'string') {
+                return inner.csr;
+            }
+        }
+
+        return null;
+    }
+
+    let currentCsrString = null;
+    let decodedCsrData = null;
+    let isCsrDecodedMode = false;
+
+    // Recursively decode objects/arrays/strings containing base64/base64url or JWS fields
+    function recursivelyDecode(obj, keyName) {
+        if (obj === null || obj === undefined) return obj;
+
+        if (typeof obj === 'string') {
+            const trimmed = obj.trim();
+
+            // Check if string itself is JSON
+            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    return recursivelyDecode(parsed, keyName);
+                } catch (e) {
+                    // Not valid JSON, continue with base64 decode check
+                }
+            }
+
+            // If key is a known ACME JWS field, prioritize decoding
+            const isKnownB64Field = ['protected', 'payload', 'csr', 'authorization'].includes(String(keyName).toLowerCase());
+
+            const decoded = decodeBase64Utf8(trimmed);
+            if (decoded !== null) {
+                // If decoded text is valid JSON, parse it as a nested JSON structure
+                try {
+                    const parsedJson = JSON.parse(decoded);
+                    return recursivelyDecode(parsedJson, keyName);
+                } catch (e) {
+                    return decoded;
+                }
+            } else if (isKnownB64Field && trimmed.length > 20) {
+                // If it's a binary DER (e.g., CSR bytes), indicate format alongside length
+                return `${trimmed}  [DER/Binary Data: ${trimmed.length} chars]`;
+            }
+
+            return obj;
+        }
+
+        if (Array.isArray(obj)) {
+            return obj.map((item, idx) => recursivelyDecode(item, idx));
+        }
+
+        if (typeof obj === 'object') {
+            const result = {};
+            for (const [k, v] of Object.entries(obj)) {
+                // Decode JWS / ACME structure
+                if (k === 'protected' && typeof v === 'string') {
+                    const dec = decodeBase64Utf8(v);
+                    if (dec) {
+                        try {
+                            result['protected (decoded)'] = recursivelyDecode(JSON.parse(dec), k);
+                        } catch (e) {
+                            result['protected (decoded)'] = dec;
+                        }
+                    } else {
+                        result[k] = v;
+                    }
+                } else if (k === 'payload' && typeof v === 'string') {
+                    const dec = decodeBase64Utf8(v);
+                    if (dec) {
+                        try {
+                            result['payload (decoded)'] = recursivelyDecode(JSON.parse(dec), k);
+                        } catch (e) {
+                            result['payload (decoded)'] = dec;
+                        }
+                    } else {
+                        result[k] = v;
+                    }
+                } else if (k === 'csr' && typeof v === 'string') {
+                    if (isCsrDecodedMode && decodedCsrData) {
+                        result['csr (decoded)'] = decodedCsrData;
+                    } else {
+                        result[k] = v;
+                    }
+                } else {
+                    result[k] = recursivelyDecode(v, k);
+                }
+            }
+            return result;
+        }
+
+        return obj;
+    }
+
+    function formatBoxData(data, decode = false) {
+        if (!data) return '(empty)';
+        let target = data;
+        if (typeof target === 'string') {
+            try {
+                target = JSON.parse(target);
+            } catch (e) {
+                if (decode || isCsrDecodedMode) {
+                    const dec = decodeBase64Utf8(target);
+                    if (dec !== null) {
+                        try {
+                            return JSON.stringify(recursivelyDecode(JSON.parse(dec)), null, 2);
+                        } catch (err) {
+                            return dec;
+                        }
+                    }
+                }
+                return String(target);
+            }
+        }
+
+        if (decode || isCsrDecodedMode) {
+            target = recursivelyDecode(target);
+        }
+
+        return JSON.stringify(target, null, 2);
+    }
+
+    function updateModalBoxes() {
+        if (!currentTraceData) return;
+
+        const reqHBox = document.getElementById('reqHeadersBox');
+        const reqBBox = document.getElementById('reqBodyBox');
+        const respHBox = document.getElementById('respHeadersBox');
+        const respBBox = document.getElementById('respBodyBox');
+
+        reqHBox.textContent = formatBoxData(currentTraceData.request_headers || {}, isDecodedMode);
+        reqBBox.textContent = formatBoxData(currentTraceData.request_payload, isDecodedMode);
+        respHBox.textContent = formatBoxData(currentTraceData.response_headers || {}, isDecodedMode);
+        respBBox.textContent = formatBoxData(currentTraceData.response_payload, isDecodedMode);
+
+        const decodeBtn = document.getElementById('btnDecodePayload');
+        const decodeBtnText = document.getElementById('btnDecodePayloadText');
+        if (decodeBtn && decodeBtnText) {
+            if (isDecodedMode) {
+                decodeBtn.classList.add('active');
+                decodeBtnText.textContent = 'Show Raw';
+                decodeBtn.title = 'Switch back to raw Base64 payloads';
+            } else {
+                decodeBtn.classList.remove('active');
+                decodeBtnText.textContent = 'Decode Base64';
+                decodeBtn.title = 'Decode Base64 and JWS payloads in-place';
+            }
+        }
+
+        const csrBtn = document.getElementById('btnDecodeCsr');
+        const csrBtnText = document.getElementById('btnDecodeCsrText');
+        if (csrBtn && csrBtnText) {
+            if (currentCsrString) {
+                csrBtn.style.display = 'inline-flex';
+                if (isCsrDecodedMode) {
+                    csrBtn.classList.add('active');
+                    csrBtnText.textContent = 'Hide CSR';
+                    csrBtn.title = 'Switch back to encoded CSR';
+                } else {
+                    csrBtn.classList.remove('active');
+                    csrBtnText.textContent = 'Decode CSR';
+                    csrBtn.title = 'Decode X.509 Certificate Signing Request (CSR) details';
+                }
+            } else {
+                csrBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function toggleBase64Decode() {
+        isDecodedMode = !isDecodedMode;
+        updateModalBoxes();
+    }
+
+    async function toggleCsrDecode() {
+        if (!currentCsrString) return;
+
+        if (isCsrDecodedMode) {
+            // Toggle off
+            isCsrDecodedMode = false;
+            updateModalBoxes();
+            return;
+        }
+
+        // If not already fetched and cached, fetch from backend
+        const csrBtn = document.getElementById('btnDecodeCsr');
+        const csrBtnText = document.getElementById('btnDecodeCsrText');
+        if (csrBtnText) csrBtnText.textContent = 'Decoding...';
+
+        try {
+            if (!decodedCsrData) {
+                const resp = await fetch('/api-trace/decode-csr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ csr: currentCsrString })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || 'Failed to decode CSR');
+                }
+                decodedCsrData = await resp.json();
+            }
+
+            isCsrDecodedMode = true;
+            // Also enable base64 decode mode so JWS wrapper is unwrapped
+            isDecodedMode = true;
+            updateModalBoxes();
+        } catch (err) {
+            alert('Could not decode CSR: ' + (err.message || err));
+            if (csrBtnText) csrBtnText.textContent = 'Decode CSR';
         }
     }
 
     async function openPayloadModal(traceId) {
         if (!payloadModal) return;
         payloadModal.classList.add('open');
+        isDecodedMode = false;
+        currentTraceData = null;
+        currentCsrString = null;
+        decodedCsrData = null;
+        isCsrDecodedMode = false;
+
+        const decodeBtn = document.getElementById('btnDecodePayload');
+        const decodeBtnText = document.getElementById('btnDecodePayloadText');
+        if (decodeBtn && decodeBtnText) {
+            decodeBtn.classList.remove('active');
+            decodeBtnText.textContent = 'Decode Base64';
+            decodeBtn.style.display = 'inline-flex';
+        }
+
+        const csrBtn = document.getElementById('btnDecodeCsr');
+        const csrBtnText = document.getElementById('btnDecodeCsrText');
+        if (csrBtn && csrBtnText) {
+            csrBtn.classList.remove('active');
+            csrBtnText.textContent = 'Decode CSR';
+            csrBtn.style.display = 'none'; // hidden until checked
+        }
+
         document.getElementById('payloadModalTitle').innerHTML = '<span>Loading trace...</span>';
         document.getElementById('reqHeadersBox').textContent = 'Loading...';
         document.getElementById('reqBodyBox').textContent = 'Loading...';
@@ -841,20 +1205,28 @@
             const resp = await fetch(`/api-trace/${traceId}/payload`);
             if (!resp.ok) throw new Error('Trace not found');
             const data = await resp.json();
+            currentTraceData = data;
+
+            // Check if request or response payload contains a CSR
+            currentCsrString = findCsrInPayload(data.request_payload) || findCsrInPayload(data.response_payload);
 
             document.getElementById('payloadModalTitle').innerHTML = `<span>API Trace: ${data.http_method} ${data.endpoint} (${data.status_code})</span>`;
-            document.getElementById('reqHeadersBox').textContent = JSON.stringify(data.request_headers || {}, null, 2);
-            document.getElementById('reqBodyBox').textContent = formatPayload(data.request_payload);
-            document.getElementById('respHeadersBox').textContent = JSON.stringify(data.response_headers || {}, null, 2);
-            document.getElementById('respBodyBox').textContent = formatPayload(data.response_payload);
+            updateModalBoxes();
         } catch (err) {
             document.getElementById('payloadModalTitle').innerHTML = '<span>Error Loading Trace</span>';
             document.getElementById('reqBodyBox').textContent = String(err);
+            if (decodeBtn) decodeBtn.style.display = 'none';
+            if (csrBtn) csrBtn.style.display = 'none';
         }
     }
 
     function closePayloadModal() {
         if (payloadModal) payloadModal.classList.remove('open');
+        isDecodedMode = false;
+        currentTraceData = null;
+        currentCsrString = null;
+        decodedCsrData = null;
+        isCsrDecodedMode = false;
     }
 
     function switchPayloadTab(tab) {

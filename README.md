@@ -13,10 +13,14 @@ A self-hosted ACME server with a built-in CA and web interface.
 * 🛡️ **CA Fleet Trust & Compliance Audit (BETA)** &mdash; Enterprise-wide trust propagation tracking and compliance dashboard (`/ca-fleet-trust`). Performs automated SSH sweeps across distribution endpoints, validates installed root certificates in system stores (Linux, OpenWrt, Windows, macOS), correlates endpoints via reverse DNS, and monitors overall fleet compliance with real-time SSE progress streaming.
 * 🎯 **Dedicated CA TLS Trust Probes & Verification Portal** &mdash; Standalone TLS probe servers running on dedicated ports (e.g. 9443, 9444) for every active and standby CA. Powers a client-facing self-service verification portal (`/ca-trust/verify`) that tests browser/device root CA trust in real-time, provides platform-specific remediation guides (iOS, Android, macOS, Windows), and automatically posts telemetry back to the fleet audit dashboard.
 * 🧹 **Automated Data Management & Retention** &mdash; Automated background worker and cron scheduler (`DATA_MGMT_*`) for database maintenance: configurable retention rules for deactivated accounts, stale orders, invalid domain authorizations, expired certificate auto-revocation, revoked certificate purging, distribution logs, and fleet audit history. Includes dry-run simulation mode, interactive progress UI, and HTML email maintenance reports.
+* 🔍 **ACME Protocol Live API Trace & Diagnostics** &mdash; Real-time diagnostic grid (`/api-trace`) capturing every inbound ACME protocol and CA/CRL distribution request with live auto-refreshing (5s), latency tracking, and rich payload inspection:
+  * 🔓 **In-Place Base64 / JWS Decoding**: Unwraps RFC 8555 JSON Web Signature envelopes (`protected`, `payload`, `signatures`) and recursively parses Base64URL content directly into clean, readable JSON within existing text boxes.
+  * 📜 **Cryptographic X.509 CSR Decoder**: Automatically detects certificate signing requests in order finalization payloads and extracts complete public key parameters, Subject DN, SANs, signature algorithm, and PEM formatting with one-click toggling.
 * ✉️ **Mail notifications** (for account creation, expiring and expired certificates) with customizable templates
 * 🌐 [**Web UI**](./Documentation/UI_TOUR_SHOWCASE.md) &mdash; Modern, full-featured administrative web interface ([view screenshot showcase](./Documentation/UI_TOUR_SHOWCASE.md)):
   * 📊 **Operational Dashboard**: Live KPI metrics (accounts, domains, certificates, root CA status) and ACME Entrypoint hero card with 1-click clipboard copy.
   * 🏛️ **Root CA & X.509 Strict Compliance**: Proportional 40%/60% details view with certificate and CRL downloads, validity countdown, PEM viewer, and interactive RFC 5280 strict compliance diagnostics.
+  * 🔍 **API Trace & Protocol Diagnostics Hub**: Real-time request logging grid (`/api-trace`) with live auto-refresh (5s), interactive payload modal, instant Base64/JWS unwrapping, and deep X.509 CSR inspection.
   * 🚀 **CA Distribution Hub & Deployment Modal**: Dedicated hub (`/ca-distribution`) for managing SSH and Email delivery endpoints with tab-contextual addition buttons, live connectivity, and OS detection diagnostics, plus 1-click batch delivery directly from the Root CA details view.
   * 🛡️ **CA Fleet Trust & Audit Dashboard**: Comprehensive fleet compliance tracking (`/ca-fleet-trust`) with collapsible KPI overview cards (`[▾ Hide Overview]`), automated SSH sweeps, reverse DNS auto-matching, multi-parameter filtering, and live SSE streaming progress.
   * 📱 **Client Root CA Trust Verification Portal**: Interactive self-service verification interface (`/ca-trust/verify`) with real-time TLS handshake probing across dedicated CA ports, platform auto-detection, and tailored installation guides.
@@ -233,6 +237,7 @@ For instance, `DB_DSN` can be provided either as an env var or as a file at `/ru
 | DATA_MGMT_EMAIL_NOTIFICATION_ENABLED | `True` | whether to dispatch an HTML maintenance summary email report to the administrator upon completion |
 | DATA_MGMT_NOTIFY_ONLY_ON_CHANGES | `True` | avoid sending maintenance email reports if 0 records were impacted during the sweep |
 | DATA_MGMT_ADMIN_EMAIL | `None` | recipient email address override for maintenance reports (defaults to sender/admin from Mail Settings) |
+| API_TRACE_ENABLED | `False` | whether live diagnostic request/response call tracing is enabled by default |
 
 ### Configuration Precedence: Seed Variables vs. Authoritative Variables
 
@@ -240,6 +245,8 @@ The server distinguishes between **Seed Variables** (which initialize the databa
 
 #### 1. Seed Values (Database Overrides on Future Starts)
 These environment variables serve solely as **initial bootstrap defaults**. Once written to PostgreSQL, the database becomes the single source of truth:
+* **API Trace Settings (`API_TRACE_*`)**: `API_TRACE_ENABLED`.
+  * *Behavior*: Seeds the initial row in `api_trace_settings`. Toggling API tracing via the Web UI (`/api-trace`) updates the database and is persisted across restarts.
 * **Mail Settings (`MAIL_*`)**: `MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_ENCRYPTION`, `MAIL_SENDER`, `MAIL_NOTIFY_ON_ACCOUNT_CREATION`, `MAIL_WARN_BEFORE_CERT_EXPIRES`, `MAIL_NOTIFY_WHEN_CERT_EXPIRED`.
   * *Behavior*: On clean database installations, these seed the initial row in `mail_settings`. After initialization or after changes are saved via the Web UI (**Mail Settings** screen), the database values take precedence. Changing `MAIL_*` environment variables afterwards will **not** override stored database settings. To update mail settings, use the Web UI or update the `mail_settings` table directly.
 * **Data Management & Retention Settings (`DATA_MGMT_*`)**: `DATA_MGMT_ENABLED`, `DATA_MGMT_CRON_SCHEDULE_HOURS`, `DATA_MGMT_RUN_AT_HOUR_UTC`, `DATA_MGMT_DELETE_DEACTIVATED_ACCOUNTS_DAYS`, `DATA_MGMT_DELETE_STALE_ORDERS_DAYS`, `DATA_MGMT_DELETE_INVALID_DOMAINS_DAYS`, `DATA_MGMT_REVOKE_EXPIRED_CERTS_DAYS`, `DATA_MGMT_DELETE_REVOKED_CERTS_DAYS`, `DATA_MGMT_DELETE_DISTRIBUTION_LOGS_DAYS`, `DATA_MGMT_DELETE_FLEET_AUDITS_DAYS`, `DATA_MGMT_DELETE_RUN_HISTORY_DAYS`, `DATA_MGMT_EMAIL_NOTIFICATION_ENABLED`, `DATA_MGMT_NOTIFY_ONLY_ON_CHANGES`, `DATA_MGMT_ADMIN_EMAIL`.
@@ -618,7 +625,7 @@ An interactive script to safely create, update, and push git release tags to tri
 
 ### 7. `scripts/capture_ui_screens.py` &mdash; Automated UI Screen Capture Utility
 
-A Playwright-driven automation utility that captures high-resolution screenshots of all 17 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, Root CA distribution deployment modal, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, the account orders & error modal, mail settings, users & access control, CA distribution hub, CA fleet trust & compliance tracking, CLI probe modal, and the client trust verification portal).
+A Playwright-driven automation utility that captures high-resolution screenshots of all 20 application screens (including unauthenticated login, first-boot onboarding, dashboard, 40/60 CA details with strict compliance diagnostics, Root CA distribution deployment modal, certificates audit log with the interactive Details & capability inspection modal, domains, accounts, the account orders & error modal, mail settings, users & access control, CA distribution hub, CA fleet trust & compliance tracking, CLI probe modal, client trust verification portal, Data Management with dry-run modal, and the API Trace live diagnostic grid with Base64 & CSR decoding modals).
 
 **Key capabilities:**
 * Automatically generates signed session cookies to capture both guest and authenticated administrative screens.

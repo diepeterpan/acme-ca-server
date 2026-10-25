@@ -31,6 +31,9 @@ To re-generate or update these captures at any time, run:
    - [14. Client Root CA Trust Verification Portal](#14-client-root-ca-trust-verification-portal)
    - [15. Data Management & Automated Retention](#15-data-management--automated-retention)
    - [15b. Data Retention Dry-Run & Simulation Modal](#15b-data-retention-dry-run--simulation-modal)
+   - [16. API Trace Live Diagnostic Grid](#16-api-trace-live-diagnostic-grid)
+   - [16b. API Trace Payload & Base64 Decoding Modal](#16b-api-trace-payload--base64-decoding-modal)
+   - [16c. API Trace X.509 CSR Decoding Modal](#16c-api-trace-x509-csr-decoding-modal)
 
 ---
 
@@ -305,6 +308,43 @@ Interactive simulation dialog triggered by clicking **Dry Run Audit** or **Run C
 - **Smart View Refresh**: Automatically refreshes the main Data Management history log and table metrics upon dialog closure if any sweeps were executed.
 
 ![Data Retention Dry-Run & Simulation Modal](screenshots/15b_data_management_modal.png)
+
+---
+
+### 16. API Trace Live Diagnostic Grid
+The **API Trace** diagnostic hub (`/api-trace`) provides comprehensive observability into every inbound ACME protocol interaction, CA/CRL distribution download, and directory request:
+- **Live Activity Streaming**: Integrated 5-second polling engine with animated live status pulse dot (`Live (5s)`) displaying incoming requests in real-time.
+- **Granular Protocol Columns**: Timestamp with timezone indicator, HTTP method badge (`POST`, `GET`, `HEAD`), HTTP response status code, full endpoint URI path, client IP address, target host header, and round-trip execution latency in milliseconds.
+- **Instant Search & Counters**: Filter traces in real-time across endpoints, client IPs, HTTP methods, and target hostnames with active match counters (`Showing X of Y`).
+- **Safe Tracing Switch**: Dedicated toggle control to turn API tracing on or off with an irreversible confirmation modal on disable to clear logs.
+
+![API Trace Live Diagnostic Grid](screenshots/16_api_trace.png)
+
+---
+
+### 16b. API Trace Payload & Base64 Decoding Modal
+Clicking **View** on any logged API trace opens the high-fidelity inspection dialog with dedicated tabs for **Received (Request)** and **Sent (Response)**:
+- **Headers & Payloads**: Inspect raw request headers, request bodies, response headers, and response bodies in scrollable code blocks with 1-click clipboard copy.
+- **In-Place Base64 Decoding**: Clicking **[Decode Base64]** unwraps standard ACME JWS signatures (`application/jose+json`) and parses Base64URL-encoded protected headers and payload contents directly into human-readable formatted JSON objects.
+- **Bi-Directional Toggle**: The button transitions to **[Show Raw]**, enabling seamless switching back and forth between raw and decoded views without reloading.
+
+![API Trace Payload & Base64 Decoding Modal](screenshots/16b_api_trace_payload_modal.png)
+
+---
+
+### 16c. API Trace X.509 CSR Decoding Modal
+When inspecting order finalization requests (`POST /acme/orders/{id}/finalize`), the payload embeds a binary DER Certificate Signing Request (CSR):
+- **Dynamic Action Button**: The **[Decode CSR]** button automatically appears when a `"csr"` field is detected in the payload.
+- **Cryptographic Deep Inspection**: Powered by server-side Python `cryptography.x509` parsing, it extracts the complete X.509 CSR certificate structure:
+  - **Subject Attributes**: Common Name (`CN`), Organization (`O`), Country (`C`), etc.
+  - **Subject Alternative Names (SANs)**: Validated DNS names and IP addresses.
+  - **Public Key Specifications**: Key algorithm and bit length (e.g. `RSA 2048-bit`, `ECDSA (secp256r1)`).
+  - **Signature Verification**: Signature algorithm name and validity check indicator.
+  - **PEM Export**: Formatted `-----BEGIN CERTIFICATE REQUEST-----` representation.
+- **Interactive Toggle**: Seamlessly switch between the decoded certificate details and the original encoded string via **[Hide CSR]**.
+
+![API Trace X.509 CSR Decoding Modal](screenshots/16c_api_trace_csr_modal.png)
+
 
 
 

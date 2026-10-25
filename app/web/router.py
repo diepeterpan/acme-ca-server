@@ -1,5 +1,6 @@
 # pylint: disable=too-many-lines,duplicate-code
 import asyncio
+import base64
 import ipaddress
 import json
 import secrets
@@ -18,7 +19,7 @@ from ca import fleet_trust as ca_fleet_trust
 from ca import service as ca_service
 from config import settings
 from cryptography import x509
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -2901,3 +2902,71 @@ async def api_trace_payload_get(trace_id: str):
     if 'timestamp' in trace and isinstance(trace['timestamp'], datetime):
         trace['timestamp'] = trace['timestamp'].isoformat()
     return JSONResponse(trace)
+
+
+@api.post('/api-trace/decode-csr')
+async def api_trace_decode_csr(req: Request):
+    """Decode an X.509 Certificate Signing Request (CSR) from Base64/Base64URL DER data."""
+    try:
+        body = await req.json()
+        raw_csr = body.get('csr', '') if isinstance(body, dict) else ''
+    except (json.JSONDecodeError, ValueError):
+        raw_csr = ''
+
+    if not raw_csr or not isinstance(raw_csr, str):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing or invalid csr parameter')
+
+    # Convert Base64 / Base64URL string to bytes
+    cleaned = raw_csr.strip()
+    b64 = cleaned.replace('-', '+').replace('_', '/')
+    pad = '=' * ((4 - len(b64) % 4) % 4)
+    try:
+        csr_der = base64.b64decode(b64 + pad)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Invalid base64 encoding: {exc}') from exc
+
+    try:
+        csr_obj = x509.load_der_x509_csr(csr_der)
+
+        subject = {}
+        for attr in csr_obj.subject:
+            attr_name = getattr(attr.oid, '_name', str(attr.oid))  # pylint: disable=protected-access
+            subject[attr_name] = attr.value
+
+        sans = []
+        try:
+            san_ext = csr_obj.extensions.get_extension_for_oid(x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+            if isinstance(san_ext.value, x509.SubjectAlternativeName):
+                for name in san_ext.value:
+                    sans.append(str(name.value))
+        except x509.ExtensionNotFound:
+            pass
+
+        pk = csr_obj.public_key()
+        if isinstance(pk, rsa.RSAPublicKey):
+            pk_info = f'RSA {pk.key_size}-bit'
+        elif isinstance(pk, ec.EllipticCurvePublicKey):
+            pk_info = f'ECDSA ({pk.curve.name})'
+        else:
+            pk_info = type(pk).__name__
+
+        sig_algo = getattr(csr_obj.signature_algorithm_oid, '_name', str(csr_obj.signature_algorithm_oid))  # pylint: disable=protected-access
+        pem = csr_obj.public_bytes(serialization.Encoding.PEM).decode('utf-8').strip()
+
+        return JSONResponse(
+            {
+                'subject': subject,
+                'common_name': subject.get('commonName', ''),
+                'sans': sans,
+                'public_key': pk_info,
+                'signature_algorithm': sig_algo,
+                'is_signature_valid': bool(csr_obj.is_signature_valid),
+                'csr_pem': pem,
+            }
+        )
+    except (ValueError, TypeError) as exc:
+        logger.warning('Failed to parse CSR in api_trace_decode_csr: %s', exc)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Could not parse X.509 CSR: {exc}') from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.warning('Unexpected error parsing CSR in api_trace_decode_csr: %s', exc)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Could not parse X.509 CSR: {exc}') from exc
