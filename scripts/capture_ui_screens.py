@@ -45,6 +45,12 @@ APP_DIR = REPO_DIR / 'app'
 TEMPLATES_DIR = APP_DIR / 'web' / 'templates'
 DEFAULT_OUTPUT_DIR = REPO_DIR / 'Documentation' / 'screenshots'
 
+# If not running inside a virtualenv, auto-re-execute using repository .venv if available
+if sys.prefix == getattr(sys, 'base_prefix', sys.prefix):
+    for venv_candidate in [REPO_DIR / '.venv' / 'bin' / 'python', REPO_DIR / 'venv' / 'bin' / 'python']:
+        if venv_candidate.is_file() and os.access(venv_candidate, os.X_OK):
+            os.execv(str(venv_candidate), [str(venv_candidate), *sys.argv])
+
 # Load environment configuration (.env)
 ENV_FILE = REPO_DIR / '.env'
 if ENV_FILE.exists():
