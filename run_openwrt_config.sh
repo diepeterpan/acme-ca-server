@@ -106,6 +106,7 @@ ACCOUNT_EMAIL=""
 CA_CERT_PATH=""
 DRY_RUN=false
 ASSUME_YES=false
+RENEW_ONLY=false
 
 if [[ -f "${CONFIG_FILE}" ]]; then
     # shellcheck disable=SC1090
@@ -138,6 +139,7 @@ Configures ACME client and dynamic dnsmasq DNS-01 validation on OpenWrt routers.
 Options:
   -d, --dry-run      Simulate all operations without modifying the OpenWrt router
   -y, --yes          Accept disclaimer and liability terms without interactive prompt
+  -r, --renew-only   Only deploy/protect renewal check script, cron schedule, and sysupgrade backup
   -h, --help         Show this help message and exit
   --host <HOST>      OpenWrt router IP or hostname (default: ${ROUTER_HOST})
   --user <USER>      OpenWrt SSH username (default: ${ROUTER_USER})
@@ -159,6 +161,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -y|--yes|--accept-terms)
             ASSUME_YES=true
+            shift
+            ;;
+        -r|--renew-only)
+            RENEW_ONLY=true
             shift
             ;;
         -h|--help)
@@ -304,6 +310,22 @@ remote_content_matches() {
     return 1
 }
 
+# Appends a line to a remote file if not already present.
+# Guarantees that the new line begins on a clean newline without creating extra blank lines.
+build_safe_append_cmd() {
+    local target_file="$1"
+    local line_to_add="$2"
+    echo "touch '${target_file}' && if ! grep -Fxq '${line_to_add}' '${target_file}' 2>/dev/null; then [ -s '${target_file}' ] && [ -n \"\$(tail -c 1 '${target_file}' 2>/dev/null)\" ] && echo >> '${target_file}'; echo '${line_to_add}' >> '${target_file}'; fi"
+}
+
+remote_append_line_if_missing() {
+    local target_file="$1"
+    local line_to_add="$2"
+    local cmd
+    cmd="$(build_safe_append_cmd "${target_file}" "${line_to_add}")"
+    ssh_exec "${cmd}" "mutating"
+}
+
 prompt_overwrite_or_skip() {
     local description="$1"
     local remote_path="$2"
@@ -376,6 +398,185 @@ prompt_reapply_or_skip() {
             ;;
     esac
 }
+
+# ------------------------------------------------------------------------------
+# Dedicated Renewal & Sysupgrade Protection Routine
+# ------------------------------------------------------------------------------
+deploy_and_protect_renewal_routine() {
+    log_step "Daily Renewal Check Script, Sysupgrade Protection & Cron Scheduling"
+
+    local renew_script_target="/usr/bin/acme-renew-check.sh"
+    local do_deploy_renew=true
+
+    # 1. Script Deployment Check
+    log_info "Checking ${renew_script_target} on OpenWrt..."
+    if remote_file_exists "${renew_script_target}"; then
+        local renew_identical=false
+        if remote_content_matches "${RENEW_SCRIPT_CONTENT}" "${renew_script_target}"; then
+            renew_identical=true
+            log_success "${renew_script_target} exists and its content is identical."
+        else
+            log_info "${renew_script_target} exists but differs from latest version."
+        fi
+
+        if ! prompt_overwrite_or_skip "Daily renewal script" "${renew_script_target}" "${renew_identical}"; then
+            do_deploy_renew=false
+            log_info "Renewal script upload bypassed by user."
+        fi
+    else
+        log_info "${renew_script_target} does not exist on router."
+    fi
+
+    if [[ "${do_deploy_renew}" == "true" ]]; then
+        local renew_preview="cat << 'EOF' > ${renew_script_target}
+# (Script contents with self-healing symlinks & acme.sh invocation)
+EOF
+chmod +x ${renew_script_target}"
+
+        if confirm_action "Deploy daily renewal script (${renew_script_target}) on OpenWrt" "${renew_preview}"; then
+            ssh_upload_string "${RENEW_SCRIPT_CONTENT}" "${renew_script_target}"
+            ssh_exec "chmod +x ${renew_script_target}" "mutating"
+            log_success "Daily renewal script deployed to ${renew_script_target}."
+        else
+            log_warn "Renewal script deployment skipped by user."
+        fi
+    fi
+
+    # 2. Sysupgrade Protection Check for acme-renew-check.sh
+    log_info "Checking sysupgrade backup protection for ${renew_script_target}..."
+    local sysupgrade_renew_exists
+    sysupgrade_renew_exists="$(ssh_exec "grep -Fx '${renew_script_target}' /etc/sysupgrade.conf 2>/dev/null && echo yes || echo no" "read_only" | tr -d '\r\n')"
+
+    if [[ "${sysupgrade_renew_exists}" == "yes" ]]; then
+        log_success "${renew_script_target} is already protected in /etc/sysupgrade.conf (bypassing step)."
+    else
+        local sysupgrade_preview
+        sysupgrade_preview="$(build_safe_append_cmd "/etc/sysupgrade.conf" "${renew_script_target}")"
+        if confirm_action "Add ${renew_script_target} to /etc/sysupgrade.conf for firmware upgrade protection" "${sysupgrade_preview}"; then
+            remote_append_line_if_missing "/etc/sysupgrade.conf" "${renew_script_target}"
+            log_success "Added ${renew_script_target} to /etc/sysupgrade.conf."
+        else
+            log_warn "Protection in /etc/sysupgrade.conf skipped by user."
+        fi
+    fi
+
+    # 3. Scheduled Task (Cron) Registration Check
+    log_info "Checking scheduled task in /etc/crontabs/root..."
+    local cron_job_exists
+    cron_job_exists="$(ssh_exec "grep -q 'acme-renew-check.sh' /etc/crontabs/root 2>/dev/null && echo yes || echo no" "read_only" | tr -d '\r\n')"
+
+    local do_config_cron=true
+    if [[ "${cron_job_exists}" == "yes" ]]; then
+        log_success "Daily cron schedule for acme-renew-check.sh already exists in /etc/crontabs/root."
+        if ! prompt_reapply_or_skip "Cron schedule for acme-renew-check.sh in /etc/crontabs/root"; then
+            do_config_cron=false
+            log_info "Cron configuration bypassed."
+        fi
+    else
+        log_info "Daily cron schedule for acme-renew-check.sh not found in /etc/crontabs/root."
+    fi
+
+    if [[ "${do_config_cron}" == "true" ]]; then
+        local cron_line="15 3 * * * ${renew_script_target}"
+        local cron_append_cmd
+        cron_append_cmd="$(build_safe_append_cmd "/etc/crontabs/root" "${cron_line}")"
+        local cron_preview="mkdir -p /etc/crontabs
+${cron_append_cmd}
+/etc/init.d/cron enable && /etc/init.d/cron restart"
+
+        if confirm_action "Register daily cron schedule (03:15) in /etc/crontabs/root and enable cron service" "${cron_preview}"; then
+            ssh_exec "mkdir -p /etc/crontabs" "mutating"
+            remote_append_line_if_missing "/etc/crontabs/root" "${cron_line}"
+            ssh_exec "/etc/init.d/cron enable && /etc/init.d/cron restart" "mutating"
+            log_success "Cron schedule registered (03:15 daily) and cron service active."
+        else
+            log_warn "Cron schedule registration skipped by user."
+        fi
+    fi
+}
+
+print_summary_and_exit() {
+    log_header "OpenWrt Configuration Summary"
+    cat << EOF
+  Router Host:        ${ROUTER_HOST}:${ROUTER_PORT} (${ROUTER_USER})
+  Renewal Check:      /usr/bin/acme-renew-check.sh (Cron: 03:15 daily)
+  Sysupgrade Backup:  /etc/sysupgrade.conf (/usr/bin/acme-renew-check.sh)
+  Session Log File:   ${LOG_FILE}
+EOF
+
+    echo -e "\n${BOLD}${GREEN}[✓] OpenWrt renewal maintenance workflow complete!${NC}\n"
+
+    read -r -p "View application session log now? [Y/n]: " view_log_resp
+    if [[ ! "${view_log_resp}" =~ ^[nN] ]]; then
+        if [[ -t 1 ]] && command -v less >/dev/null 2>&1; then
+            less -R "${LOG_FILE}"
+        else
+            cat "${LOG_FILE}"
+        fi
+    fi
+    exit 0
+}
+
+# ------------------------------------------------------------------------------
+# Renewal Check Script Content
+# ------------------------------------------------------------------------------
+RENEW_SCRIPT_CONTENT='#!/bin/sh
+# Daily ACME certificate renewal check script for OpenWrt
+LOG_TAG="acme-renew"
+logger -t "$LOG_TAG" "Starting daily ACME certificate renewal check..."
+
+# Ensure dynamic ACME challenge directory exists in RAM
+mkdir -p /tmp/acme 2>/dev/null || true
+
+# Self-Healing: Verify & recreate DNS API plugin symlinks
+DNS_PLUGIN="/etc/acme/dnsapi/dns_openwrt_dnsmasq.sh"
+if [ -f "$DNS_PLUGIN" ]; then
+    mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true
+    if [ ! -e /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+    if [ -d /usr/lib/acme/dnsapi ] && [ ! -e /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+    if [ ! -e /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh ]; then
+        ln -sf "$DNS_PLUGIN" /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
+    fi
+fi
+
+# Locate acme.sh binary across known OpenWrt paths
+ACME_BIN="/usr/lib/acme/client/acme.sh"
+if [ ! -x "$ACME_BIN" ] && [ -x /usr/lib/acme/acme.sh ]; then
+    ACME_BIN="/usr/lib/acme/acme.sh"
+fi
+if [ ! -x "$ACME_BIN" ]; then
+    ACME_BIN=$(command -v acme.sh 2>/dev/null)
+fi
+if [ ! -x "$ACME_BIN" ] && [ -x /usr/share/acme.sh/acme.sh ]; then
+    ACME_BIN="/usr/share/acme.sh/acme.sh"
+fi
+
+if [ -z "$ACME_BIN" ] || [ ! -x "$ACME_BIN" ]; then
+    logger -t "$LOG_TAG" "Error: acme.sh binary not found on system!"
+    exit 1
+fi
+
+# Self-Healing: Verify & recreate /usr/bin/acme.sh CLI wrapper symlink
+if [ ! -e /usr/bin/acme.sh ]; then
+    ln -s "$ACME_BIN" /usr/bin/acme.sh 2>/dev/null || true
+fi
+
+"$ACME_BIN" --cron --home /etc/acme >> /var/log/acme_renew.log 2>&1
+STATUS=$?
+
+if [ $STATUS -eq 0 ]; then
+    logger -t "$LOG_TAG" "ACME renewal check completed successfully."
+    if [ -x /etc/init.d/uhttpd ]; then
+        /etc/init.d/uhttpd reload
+    fi
+else
+    logger -t "$LOG_TAG" "Warning: ACME renewal check exited with code $STATUS"
+fi
+'
 
 # ------------------------------------------------------------------------------
 # Application Flow & Session Logging
@@ -470,6 +671,22 @@ if [[ -z "${OPENWRT_RELEASE}" ]]; then
 fi
 ROUTER_DESC="$(echo "${OPENWRT_RELEASE}" | grep -E "DISTRIB_DESCRIPTION=" | cut -d= -f2 | tr -d '"')"
 log_success "Connected successfully to: ${BOLD}${ROUTER_DESC:-OpenWrt}${NC}"
+
+# Early Prompt: Offer dedicated renewal script & sysupgrade protection workflow
+if [[ "${RENEW_ONLY}" != "true" ]]; then
+    echo ""
+    read -r -p "Deploy renewal script, protect against sysupgrade, and register scheduled task ONLY? [y/N]: " renew_only_resp
+    if [[ "${renew_only_resp}" =~ ^[yY] ]]; then
+        RENEW_ONLY=true
+        log_info "Renewal-only maintenance mode selected."
+    fi
+fi
+
+if [[ "${RENEW_ONLY}" == "true" ]]; then
+    log_header "OpenWrt Renewal Maintenance Workflow"
+    deploy_and_protect_renewal_routine
+    print_summary_and_exit
+fi
 
 # Step 2: OpenWrt ACME Dependency Check
 log_step "2. Checking OpenWrt ACME Packages"
@@ -701,20 +918,26 @@ if ! echo "${ROUTER_SSL_TEST}" | grep -q "newOrder" || [[ "${PROBE_SSL_OK}" == "
             fi
 
             if [[ "${DO_UPLOAD}" == "true" ]]; then
+                local ca_bundle_append_cmd
+                ca_bundle_append_cmd="([ -f /etc/ssl/certs/ca-certificates.crt ] && grep -qF \"\$(head -n 2 ${REMOTE_CA_TARGET} | tail -n 1)\" /etc/ssl/certs/ca-certificates.crt 2>/dev/null) || ([ -s /etc/ssl/certs/ca-certificates.crt ] && [ -n \"\$(tail -c 1 /etc/ssl/certs/ca-certificates.crt 2>/dev/null)\" ] && echo >> /etc/ssl/certs/ca-certificates.crt; cat '${REMOTE_CA_TARGET}' >> /etc/ssl/certs/ca-certificates.crt)"
+                local ca_sysupgrade_cmd
+                ca_sysupgrade_cmd="$(build_safe_append_cmd "/etc/sysupgrade.conf" "${REMOTE_CA_TARGET}")"
+
                 if confirm_action "Upload CA certificate (${CA_CERT_PATH}) to OpenWrt trust store (${REMOTE_CA_TARGET})" \
 "cat '${CA_CERT_PATH}' | ssh ... 'cat > ${REMOTE_CA_TARGET}'
-cat '${REMOTE_CA_TARGET}' >> /etc/ssl/certs/ca-certificates.crt
+chmod 644 ${REMOTE_CA_TARGET}
+${ca_bundle_append_cmd}
 openssl rehash /etc/ssl/certs/ || true
-grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf"; then
+${ca_sysupgrade_cmd}"; then
                     CA_PEM_CONTENT="$(cat "${CA_CERT_PATH}")"
                     ssh_upload_string "${CA_PEM_CONTENT}" "${REMOTE_CA_TARGET}"
-                    ssh_exec "chmod 644 ${REMOTE_CA_TARGET} && ([ -f /etc/ssl/certs/ca-certificates.crt ] && grep -qF \"\$(head -n 2 ${REMOTE_CA_TARGET} | tail -n 1)\" /etc/ssl/certs/ca-certificates.crt 2>/dev/null || cat ${REMOTE_CA_TARGET} >> /etc/ssl/certs/ca-certificates.crt) && (openssl rehash /etc/ssl/certs 2>/dev/null || true)" "mutating"
-                    ssh_exec "grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+                    ssh_exec "chmod 644 ${REMOTE_CA_TARGET} && ${ca_bundle_append_cmd} && (openssl rehash /etc/ssl/certs 2>/dev/null || true)" "mutating"
+                    remote_append_line_if_missing "/etc/sysupgrade.conf" "${REMOTE_CA_TARGET}"
                     log_success "Uploaded CA certificate, updated trust store, and registered in /etc/sysupgrade.conf."
                 fi
             else
                 # Ensure sysupgrade registration even if upload was skipped
-                ssh_exec "grep -q '${REMOTE_CA_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${REMOTE_CA_TARGET}' >> /etc/sysupgrade.conf" "mutating"
+                remote_append_line_if_missing "/etc/sysupgrade.conf" "${REMOTE_CA_TARGET}"
             fi
 
             # Retest reachability with strict SSL
@@ -852,6 +1075,8 @@ if [[ "${RC_LOCAL_HAS_ACME}" == "yes" ]]; then
 fi
 
 if [[ "${DO_CONFIG_RC_LOCAL}" == "true" ]]; then
+    local rc_sysupgrade_cmd
+    rc_sysupgrade_cmd="$(build_safe_append_cmd "/etc/sysupgrade.conf" "/etc/rc.local")"
     RC_LOCAL_CMDS="# Ensure /tmp/acme initialization in /etc/rc.local before exit 0
 if [ ! -f /etc/rc.local ]; then
     echo '#!/bin/sh' > /etc/rc.local
@@ -863,10 +1088,11 @@ else
     echo -e '\\n# Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\nexit 0' >> /etc/rc.local
 fi
 chmod +x /etc/rc.local
-grep -q '/etc/rc.local' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/rc.local' >> /etc/sysupgrade.conf"
+${rc_sysupgrade_cmd}"
 
     if confirm_action "Configure /tmp/acme initialization & dnsmasq restart in /etc/rc.local on boot" "${RC_LOCAL_CMDS}"; then
-        ssh_exec "if [ ! -f /etc/rc.local ]; then echo '#!/bin/sh' > /etc/rc.local; fi && sed -i '/# Ensure ACME challenge directory/,+2d' /etc/rc.local 2>/dev/null || true && if grep -q '^exit 0' /etc/rc.local 2>/dev/null; then sed -i '/^exit 0/i # Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\n' /etc/rc.local; else echo -e '\\n# Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\nexit 0' >> /etc/rc.local; fi && chmod +x /etc/rc.local && grep -q '/etc/rc.local' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/rc.local' >> /etc/sysupgrade.conf" "mutating"
+        ssh_exec "if [ ! -f /etc/rc.local ]; then echo '#!/bin/sh' > /etc/rc.local; fi && sed -i '/# Ensure ACME challenge directory/,+2d' /etc/rc.local 2>/dev/null || true && if grep -q '^exit 0' /etc/rc.local 2>/dev/null; then sed -i '/^exit 0/i # Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\n' /etc/rc.local; else echo -e '\\n# Ensure ACME challenge directory exists and restart dnsmasq\\nmkdir -p /tmp/acme\\n/etc/init.d/dnsmasq restart\\nexit 0' >> /etc/rc.local; fi && chmod +x /etc/rc.local" "mutating"
+        remote_append_line_if_missing "/etc/sysupgrade.conf" "/etc/rc.local"
         log_success "/etc/rc.local configured to create /tmp/acme and restart dnsmasq on boot."
     fi
 fi
@@ -941,6 +1167,8 @@ if remote_file_exists "${DNS_PLUGIN_TARGET}"; then
 fi
 
 if [[ "${DO_DEPLOY_PLUGIN}" == "true" ]]; then
+    local acme_sysupgrade_cmd
+    acme_sysupgrade_cmd="$(build_safe_append_cmd "/etc/sysupgrade.conf" "/etc/acme")"
     DEPLOY_PLUGIN_CMDS="mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi
 cat << 'EOF' > ${DNS_PLUGIN_TARGET}
 ...
@@ -949,7 +1177,7 @@ chmod +x ${DNS_PLUGIN_TARGET}
 ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh
 [ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh
 ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh
-grep -q '/etc/acme' /etc/sysupgrade.conf || echo '/etc/acme' >> /etc/sysupgrade.conf"
+${acme_sysupgrade_cmd}"
 
     if confirm_action "Deploy acme.sh DNS API plugin (${DNS_PLUGIN_TARGET}) and link into dnsapi directories" "${DEPLOY_PLUGIN_CMDS}"; then
         ssh_exec "mkdir -p /etc/acme/dnsapi /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true" "mutating"
@@ -958,12 +1186,13 @@ grep -q '/etc/acme' /etc/sysupgrade.conf || echo '/etc/acme' >> /etc/sysupgrade.
         ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
         ssh_exec "[ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
         ssh_exec "ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
-        ssh_exec "grep -q '/etc/acme' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/acme' >> /etc/sysupgrade.conf" "mutating"
+        remote_append_line_if_missing "/etc/sysupgrade.conf" "/etc/acme"
         log_success "acme.sh DNS API plugin deployed, symlinked to dnsapi paths, and /etc/acme registered in /etc/sysupgrade.conf."
     fi
 else
     # Ensure symlinks and sysupgrade entry exist even if file upload was skipped
-    ssh_exec "mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && [ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && grep -q '/etc/acme' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/acme' >> /etc/sysupgrade.conf" "mutating"
+    ssh_exec "mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && [ -d /usr/lib/acme/dnsapi ] && ln -sf ${DNS_PLUGIN_TARGET} /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true && ln -sf ${DNS_PLUGIN_TARGET} /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true" "mutating"
+    remote_append_line_if_missing "/etc/sysupgrade.conf" "/etc/acme"
     log_info "Plugin upload skipped; verified symlinks and backup registration."
 fi
 
@@ -1151,123 +1380,7 @@ else
 fi
 
 # Step 12: Schedule Daily Renewal Check on OpenWrt
-log_step "12. Scheduling Daily Renewal Check Script on OpenWrt"
-
-RENEW_SCRIPT_CONTENT='#!/bin/sh
-# Daily ACME certificate renewal check script for OpenWrt
-LOG_TAG="acme-renew"
-logger -t "$LOG_TAG" "Starting daily ACME certificate renewal check..."
-
-# Ensure dynamic ACME challenge directory exists in RAM
-mkdir -p /tmp/acme 2>/dev/null || true
-
-# Self-Healing: Verify & recreate DNS API plugin symlinks
-DNS_PLUGIN="/etc/acme/dnsapi/dns_openwrt_dnsmasq.sh"
-if [ -f "$DNS_PLUGIN" ]; then
-    mkdir -p /usr/lib/acme/client/dnsapi /root/.acme.sh/dnsapi 2>/dev/null || true
-    if [ ! -e /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh ]; then
-        ln -sf "$DNS_PLUGIN" /usr/lib/acme/client/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
-    fi
-    if [ -d /usr/lib/acme/dnsapi ] && [ ! -e /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh ]; then
-        ln -sf "$DNS_PLUGIN" /usr/lib/acme/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
-    fi
-    if [ ! -e /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh ]; then
-        ln -sf "$DNS_PLUGIN" /root/.acme.sh/dnsapi/dns_openwrt_dnsmasq.sh 2>/dev/null || true
-    fi
-fi
-
-# Locate acme.sh binary across known OpenWrt paths
-ACME_BIN="/usr/lib/acme/client/acme.sh"
-if [ ! -x "$ACME_BIN" ] && [ -x /usr/lib/acme/acme.sh ]; then
-    ACME_BIN="/usr/lib/acme/acme.sh"
-fi
-if [ ! -x "$ACME_BIN" ]; then
-    ACME_BIN=$(command -v acme.sh 2>/dev/null)
-fi
-if [ ! -x "$ACME_BIN" ] && [ -x /usr/share/acme.sh/acme.sh ]; then
-    ACME_BIN="/usr/share/acme.sh/acme.sh"
-fi
-
-if [ -z "$ACME_BIN" ] || [ ! -x "$ACME_BIN" ]; then
-    logger -t "$LOG_TAG" "Error: acme.sh binary not found on system!"
-    exit 1
-fi
-
-# Self-Healing: Verify & recreate /usr/bin/acme.sh CLI wrapper symlink
-if [ ! -e /usr/bin/acme.sh ]; then
-    ln -s "$ACME_BIN" /usr/bin/acme.sh 2>/dev/null || true
-fi
-
-"$ACME_BIN" --cron --home /etc/acme >> /var/log/acme_renew.log 2>&1
-STATUS=$?
-
-if [ $STATUS -eq 0 ]; then
-    logger -t "$LOG_TAG" "ACME renewal check completed successfully."
-    if [ -x /etc/init.d/uhttpd ]; then
-        /etc/init.d/uhttpd reload
-    fi
-else
-    logger -t "$LOG_TAG" "Warning: ACME renewal check exited with code $STATUS"
-fi
-'
-
-RENEW_SCRIPT_TARGET="/usr/bin/acme-renew-check.sh"
-DO_DEPLOY_RENEW=true
-
-if remote_file_exists "${RENEW_SCRIPT_TARGET}"; then
-    RENEW_IDENTICAL=false
-    if remote_content_matches "${RENEW_SCRIPT_CONTENT}" "${RENEW_SCRIPT_TARGET}"; then
-        RENEW_IDENTICAL=true
-    fi
-    if ! prompt_overwrite_or_skip "Daily renewal script" "${RENEW_SCRIPT_TARGET}" "${RENEW_IDENTICAL}"; then
-        DO_DEPLOY_RENEW=false
-    fi
-fi
-
-CRON_JOB_EXISTS="$(ssh_exec "grep -q 'acme-renew-check.sh' /etc/crontabs/root 2>/dev/null && echo yes || echo no" "read_only" | tr -d '\r\n')"
-DO_CONFIG_CRON=true
-if [[ "${CRON_JOB_EXISTS}" == "yes" ]]; then
-    if ! prompt_reapply_or_skip "Cron schedule for acme-renew-check.sh in /etc/crontabs/root"; then
-        DO_CONFIG_CRON=false
-    fi
-fi
-
-if [[ "${DO_DEPLOY_RENEW}" == "true" ]]; then
-    RENEW_UPLOAD_CMDS="cat << 'EOF' > ${RENEW_SCRIPT_TARGET}
-...
-EOF
-chmod +x ${RENEW_SCRIPT_TARGET}
-grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf"
-
-    if confirm_action "Deploy daily renewal script (${RENEW_SCRIPT_TARGET}) on OpenWrt" "${RENEW_UPLOAD_CMDS}"; then
-        ssh_upload_string "${RENEW_SCRIPT_CONTENT}" "${RENEW_SCRIPT_TARGET}"
-        ssh_exec "chmod +x ${RENEW_SCRIPT_TARGET}" "mutating"
-        ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf" "mutating"
-        log_success "Daily renewal script deployed and registered in /etc/sysupgrade.conf."
-    fi
-else
-    # Ensure sysupgrade registration is intact
-    ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/sysupgrade.conf 2>/dev/null || echo '${RENEW_SCRIPT_TARGET}' >> /etc/sysupgrade.conf" "mutating"
-    log_info "Daily renewal script upload skipped; ensured backup registration."
-fi
-
-if [[ "${DO_CONFIG_CRON}" == "true" ]]; then
-    CRON_SETUP_CMDS="mkdir -p /etc/crontabs
-touch /etc/crontabs/root
-grep -q '${RENEW_SCRIPT_TARGET}' /etc/crontabs/root || echo '15 3 * * * ${RENEW_SCRIPT_TARGET}' >> /etc/crontabs/root
-grep -q '/etc/crontabs/root' /etc/sysupgrade.conf || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf
-/etc/init.d/cron enable && /etc/init.d/cron restart"
-
-    if confirm_action "Configure daily cron schedule (03:15) in /etc/crontabs/root on OpenWrt" "${CRON_SETUP_CMDS}"; then
-        ssh_exec "mkdir -p /etc/crontabs && touch /etc/crontabs/root" "mutating"
-        ssh_exec "grep -q '${RENEW_SCRIPT_TARGET}' /etc/crontabs/root 2>/dev/null || echo '15 3 * * * ${RENEW_SCRIPT_TARGET}' >> /etc/crontabs/root" "mutating"
-        ssh_exec "grep -q '/etc/crontabs/root' /etc/sysupgrade.conf 2>/dev/null || echo '/etc/crontabs/root' >> /etc/sysupgrade.conf" "mutating"
-        ssh_exec "/etc/init.d/cron enable && /etc/init.d/cron restart" "mutating"
-        log_success "Cron schedule configured (03:15 daily) and service restarted."
-    fi
-else
-    log_info "Cron schedule update skipped."
-fi
+deploy_and_protect_renewal_routine
 
 # ------------------------------------------------------------------------------
 # Summary & Application Log Viewer
