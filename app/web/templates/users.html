@@ -542,12 +542,10 @@
                                 </button>
 
                                 {% if request.state.user is defined and request.state.user.username != u.username %}
-                                <form method="post" action="/users/{{ u.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete user \'{{ u.username }}\'?');">
-                                    <button type="submit" class="btn-action btn-action-danger" title="Delete User">
-                                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        Delete
-                                    </button>
-                                </form>
+                                <button type="button" class="btn-action btn-action-danger btn-delete-user" data-user-id="{{ u.id }}" data-username="{{ u.username }}" title="Delete User">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    Delete
+                                </button>
                                 {% endif %}
                             </div>
                         </td>
@@ -681,6 +679,41 @@
     </div>
 </div>
 
+<!-- Modal: Delete User Confirmation on Veil Backdrop -->
+<div class="modal-overlay" id="deleteUserModal">
+    <div class="modal-card" style="max-width: 440px;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <div style="width: 38px; height: 38px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626; flex-shrink: 0;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                </div>
+                <h2 class="modal-title" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--text-heading);">Delete User</h2>
+            </div>
+            <button type="button" class="modal-close-btn" id="closeDeleteUserModal" aria-label="Close">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <form method="post" id="deleteUserForm" action="">
+            <div style="padding: 0.5rem 0 1.25rem 0;">
+                <p style="margin: 0 0 0.85rem 0; font-size: 0.95rem; color: var(--text-body); line-height: 1.5;">
+                    Are you sure you want to delete user <strong id="deleteTargetUsername" style="color: var(--text-heading);"></strong>?
+                </p>
+                <div style="padding: 0.75rem 0.9rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 0.84rem; line-height: 1.45;">
+                    <strong>Irreversible:</strong> This user account will be permanently removed and cannot be used to log in.
+                </div>
+            </div>
+
+            <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.65rem;">
+                <button type="button" class="btn-secondary" id="cancelDeleteUser">Cancel</button>
+                <button type="submit" class="btn-submit" style="background: #dc2626; border-color: #dc2626; color: #ffffff; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);">Delete User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     // 1. Password complexity meter function
     function setupPasswordMeter(inputElem, meterElem) {
@@ -805,7 +838,40 @@
     closeEditEmailBtn.addEventListener('click', () => editEmailModal.classList.remove('active'));
     cancelEditEmailBtn.addEventListener('click', () => editEmailModal.classList.remove('active'));
 
-    // 5. Search / Filter Users
+    // 5. Delete User Modal Handlers
+    const deleteUserModal = document.getElementById('deleteUserModal');
+    const deleteUserForm = document.getElementById('deleteUserForm');
+    const deleteTargetUsername = document.getElementById('deleteTargetUsername');
+    const closeDeleteUserBtn = document.getElementById('closeDeleteUserModal');
+    const cancelDeleteUserBtn = document.getElementById('cancelDeleteUser');
+
+    document.querySelectorAll('.btn-delete-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const userId = btn.getAttribute('data-user-id');
+            const username = btn.getAttribute('data-username');
+
+            if (deleteTargetUsername) deleteTargetUsername.textContent = username;
+            if (deleteUserForm) deleteUserForm.action = `/users/${userId}/delete`;
+            if (deleteUserModal) deleteUserModal.classList.add('active');
+        });
+    });
+
+    if (closeDeleteUserBtn && deleteUserModal) {
+        closeDeleteUserBtn.addEventListener('click', () => deleteUserModal.classList.remove('active'));
+    }
+    if (cancelDeleteUserBtn && deleteUserModal) {
+        cancelDeleteUserBtn.addEventListener('click', () => deleteUserModal.classList.remove('active'));
+    }
+
+    if (deleteUserModal) {
+        deleteUserModal.addEventListener('click', (e) => {
+            if (e.target === deleteUserModal) {
+                deleteUserModal.classList.remove('active');
+            }
+        });
+    }
+
+    // 6. Search / Filter Users
     const searchInput = document.getElementById('userSearch');
     const tableRows = document.querySelectorAll('#usersTable tbody tr');
 
@@ -820,6 +886,16 @@
                 row.style.display = 'none';
             }
         });
+    });
+
+    // Close modals on Escape key
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (addUserModal) addUserModal.classList.remove('active');
+            if (resetPwdModal) resetPwdModal.classList.remove('active');
+            if (editEmailModal) editEmailModal.classList.remove('active');
+            if (deleteUserModal) deleteUserModal.classList.remove('active');
+        }
     });
 </script>
 {% endblock %}

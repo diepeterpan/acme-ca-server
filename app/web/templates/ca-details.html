@@ -1363,27 +1363,24 @@
                             </button>
 
                             {% if not item.active and not item.revoked_at and not item.is_expired %}
-                            <form method="POST" action="/ca/{{ item.serial_number }}/activate" style="margin: 0;" onsubmit="return confirm('Switch active CA to {{ item.common_name }} (Serial: {{ item.serial_number[:8] }})? Future certificate requests will be signed by this CA.');">
-                                <button type="submit" class="btn-action btn-action-activate" title="Make this the active issuing CA">
-                                    Set as Active
-                                </button>
-                            </form>
+                            <button type="button" class="btn-action btn-action-activate" title="Make this the active issuing CA"
+                                    onclick="openCaConfirmModal('activate', '{{ item.serial_number }}', '{{ item.common_name }}')">
+                                Set as Active
+                            </button>
                             {% endif %}
 
                             {% if not item.active and not item.revoked_at %}
-                            <form method="POST" action="/ca/{{ item.serial_number }}/retire" style="margin: 0;" onsubmit="return confirm('Retire CA {{ item.common_name }}? It will be permanently marked as decommissioned.');">
-                                <button type="submit" class="btn-action btn-action-retire" title="Retire / Decommission CA">
-                                    Retire
-                                </button>
-                            </form>
+                            <button type="button" class="btn-action btn-action-retire" title="Retire / Decommission CA"
+                                    onclick="openCaConfirmModal('retire', '{{ item.serial_number }}', '{{ item.common_name }}')">
+                                Retire
+                            </button>
                             {% endif %}
 
                             {% if not item.active %}
-                            <form method="POST" action="/ca/{{ item.serial_number }}/delete" style="margin: 0;" onsubmit="return confirm('Permanently delete CA {{ item.common_name }}? This action cannot be undone.');">
-                                <button type="submit" class="btn-action btn-action-delete" title="Delete CA">
-                                    Delete
-                                </button>
-                            </form>
+                            <button type="button" class="btn-action btn-action-delete" title="Delete CA"
+                                    onclick="openCaConfirmModal('delete', '{{ item.serial_number }}', '{{ item.common_name }}')">
+                                Delete
+                            </button>
                             {% endif %}
                         </div>
                     </td>
@@ -1901,6 +1898,28 @@
     </div>
 </div>
 
+<!-- CA Action Confirmation Modal (Activate, Retire, Delete) on Veil Backdrop -->
+<div id="caActionConfirmModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div id="caActionIconContainer"></div>
+                <h3 class="modal-title" id="caActionTitle" style="font-size: 1.2rem; font-weight: 700; color: var(--text-heading); margin: 0;">Confirm Action</h3>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeCaConfirmModal()">&times;</button>
+        </div>
+        <form method="POST" id="caActionConfirmForm" action="" style="margin: 0;">
+            <div class="modal-body" style="padding: 1.25rem 1.5rem;" id="caActionBody">
+                <!-- Injected dynamically by openCaConfirmModal -->
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-card);">
+                <button type="button" class="btn-secondary" onclick="closeCaConfirmModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="caActionSubmitBtn" style="font-weight: 600; font-size: 0.92rem; border: none; padding: 0.55rem 1.25rem; border-radius: 8px; cursor: pointer; color: #ffffff;">Confirm</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     // CA Strict evaluations lookup table
     const allCasStrictData = {
@@ -1997,16 +2016,114 @@
         if (modal) modal.style.display = 'none';
     }
 
+    // CA Action Confirmation Modal Handlers (Activate, Retire, Delete)
+    function openCaConfirmModal(action, serialNumber, commonName) {
+        const modal = document.getElementById('caActionConfirmModal');
+        const form = document.getElementById('caActionConfirmForm');
+        const iconContainer = document.getElementById('caActionIconContainer');
+        const titleEl = document.getElementById('caActionTitle');
+        const bodyEl = document.getElementById('caActionBody');
+        const submitBtn = document.getElementById('caActionSubmitBtn');
+
+        if (!modal || !form) return;
+
+        form.action = `/ca/${serialNumber}/${action}`;
+        const shortSerial = (serialNumber || '').substring(0, 8);
+        const safeName = commonName || 'this CA';
+
+        if (action === 'activate') {
+            titleEl.textContent = 'Switch Active Issuing CA';
+            iconContainer.innerHTML = `
+                <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #ecfdf5; display: flex; align-items: center; justify-content: center; color: #059669;">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                </div>
+            `;
+            bodyEl.innerHTML = `
+                <p style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-body); line-height: 1.5;">
+                    Switch active CA to <strong>${escapeHtml(safeName)}</strong> (Serial: <code style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;">${shortSerial}</code>)?
+                </p>
+                <div style="padding: 0.75rem 1rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-size: 0.85rem; line-height: 1.5;">
+                    <strong>Active Role:</strong> Future ACME certificate issuance and renewal requests will be signed by this Certificate Authority.
+                </div>
+            `;
+            submitBtn.textContent = 'Set as Active';
+            submitBtn.style.backgroundColor = '#059669';
+            submitBtn.style.boxShadow = '0 2px 6px rgba(5, 150, 105, 0.35)';
+        } else if (action === 'retire') {
+            titleEl.textContent = 'Retire Certificate Authority';
+            iconContainer.innerHTML = `
+                <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #fffbeb; display: flex; align-items: center; justify-content: center; color: #d97706;">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                </div>
+            `;
+            bodyEl.innerHTML = `
+                <p style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-body); line-height: 1.5;">
+                    Retire CA <strong>${escapeHtml(safeName)}</strong> (Serial: <code style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;">${shortSerial}</code>)?
+                </p>
+                <div style="padding: 0.75rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; color: #92400e; font-size: 0.85rem; line-height: 1.5;">
+                    <strong>Decommissioning:</strong> This CA will be permanently marked as retired. It will remain in trust repositories for verification but cannot be used for new issuance.
+                </div>
+            `;
+            submitBtn.textContent = 'Retire CA';
+            submitBtn.style.backgroundColor = '#d97706';
+            submitBtn.style.boxShadow = '0 2px 6px rgba(217, 119, 6, 0.35)';
+        } else if (action === 'delete') {
+            titleEl.textContent = 'Permanently Delete CA';
+            iconContainer.innerHTML = `
+                <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #fef2f2; display: flex; align-items: center; justify-content: center; color: #dc2626;">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                </div>
+            `;
+            bodyEl.innerHTML = `
+                <p style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-body); line-height: 1.5;">
+                    Permanently delete CA <strong>${escapeHtml(safeName)}</strong> (Serial: <code style="font-size: 0.86rem; background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px;">${shortSerial}</code>)?
+                </p>
+                <div style="padding: 0.75rem 1rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 0.85rem; line-height: 1.5;">
+                    <strong>Irreversible Action:</strong> This will delete this CA certificate and private key from storage. This action cannot be undone.
+                </div>
+            `;
+            submitBtn.textContent = 'Delete CA Permanently';
+            submitBtn.style.backgroundColor = '#dc2626';
+            submitBtn.style.boxShadow = '0 2px 6px rgba(220, 38, 38, 0.35)';
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeCaConfirmModal() {
+        const modal = document.getElementById('caActionConfirmModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.toString().replace(/[&<>"']/g, m => map[m]);
+    }
+
     // Close modal on Escape key or outside click
     window.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeCaStrictModal();
+            closeCaConfirmModal();
         }
     });
 
     document.getElementById('caStrictModal')?.addEventListener('click', function(e) {
         if (e.target === this) {
             closeCaStrictModal();
+        }
+    });
+
+    document.getElementById('caActionConfirmModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeCaConfirmModal();
         }
     });
 </script>
