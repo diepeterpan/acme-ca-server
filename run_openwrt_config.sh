@@ -996,38 +996,58 @@ ACCOUNT_EMAIL="${input_email:-$EMAIL_DEFAULT}"
 save_config
 log_success "Using ACME account email: ${BOLD}${ACCOUNT_EMAIL}${NC}"
 
-# Check if global ACME configuration already matches desired email and debug='1'
-DO_CONFIG_GLOBAL=true
-if [[ "${EXISTING_EMAIL}" == "${ACCOUNT_EMAIL}" && "${EXISTING_DEBUG}" == "1" ]]; then
-    if ! prompt_reapply_or_skip "Global ACME configuration (acme.${GLOBAL_TARGET}: account_email='${ACCOUNT_EMAIL}', debug='1')"; then
-        DO_CONFIG_GLOBAL=false
+# Check each property in global ACME configuration
+log_info "Auditing global ACME configuration (acme.${GLOBAL_TARGET})..."
+GLOBAL_FIX_CMDS=()
+
+# 1. account_email
+if [[ "${EXISTING_EMAIL}" == "${ACCOUNT_EMAIL}" ]]; then
+    log_success "  ✓ account_email: '${EXISTING_EMAIL}' (correct)"
+else
+    log_warn "  ✗ account_email: existing='${EXISTING_EMAIL:-<not set>}' -> proposed='${ACCOUNT_EMAIL}'"
+    FIX_EMAIL="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix account_email to '${ACCOUNT_EMAIL}'? [Y/n]: " prompt_fix_email
+        if [[ "${prompt_fix_email}" =~ ^[Nn] ]]; then
+            FIX_EMAIL="n"
+        fi
+    fi
+    if [[ "${FIX_EMAIL}" == "y" ]]; then
+        GLOBAL_FIX_CMDS+=("uci set acme.${GLOBAL_TARGET}.account_email='${ACCOUNT_EMAIL}'")
     fi
 fi
 
-if [[ "${DO_CONFIG_GLOBAL}" == "true" ]]; then
-    # Configure global acme section with account_email and debug='1'
-    if [[ "${GLOBAL_ACME_SECTION}" == "acme1" ]]; then
-        UCI_GLOBAL_CMDS="uci set acme.acme1.account_email='${ACCOUNT_EMAIL}'
-uci set acme.acme1.debug='1'
-uci commit acme"
-    elif [[ "${GLOBAL_ACME_SECTION}" == "acme" ]]; then
-        UCI_GLOBAL_CMDS="uci set acme.acme.account_email='${ACCOUNT_EMAIL}'
-uci set acme.acme.debug='1'
-uci commit acme"
-    else
-        UCI_GLOBAL_CMDS="if ! uci get acme.@acme[0] >/dev/null 2>&1; then
-    uci add acme acme
-fi
-uci set acme.@acme[0].account_email='${ACCOUNT_EMAIL}'
-uci set acme.@acme[0].debug='1'
-uci commit acme"
+# 2. debug
+if [[ "${EXISTING_DEBUG}" == "1" ]]; then
+    log_success "  ✓ debug: '1' (correct)"
+else
+    log_warn "  ✗ debug: existing='${EXISTING_DEBUG:-<not set>}' -> proposed='1'"
+    FIX_DEBUG="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix debug logging to '1'? [Y/n]: " prompt_fix_debug
+        if [[ "${prompt_fix_debug}" =~ ^[Nn] ]]; then
+            FIX_DEBUG="n"
+        fi
     fi
+    if [[ "${FIX_DEBUG}" == "y" ]]; then
+        GLOBAL_FIX_CMDS+=("uci set acme.${GLOBAL_TARGET}.debug='1'")
+    fi
+fi
 
-    log_info "OpenWrt ACME debug status currently: ${EXISTING_DEBUG:-not set (0)}"
-    if confirm_action "Update global ACME configuration acme.${GLOBAL_TARGET} (Set account_email and enable debug logging)" "${UCI_GLOBAL_CMDS}"; then
+if [[ ${#GLOBAL_FIX_CMDS[@]} -gt 0 ]]; then
+    # Ensure section exists if using anonymous @acme[0]
+    PREFIX_CMD=""
+    if [[ "${GLOBAL_TARGET}" == "@acme[0]" && -z "${GLOBAL_ACME_SECTION}" ]]; then
+        PREFIX_CMD="if ! uci get acme.@acme[0] >/dev/null 2>&1; then uci add acme acme; fi\n"
+    fi
+    UCI_GLOBAL_CMDS="$(printf "%b" "${PREFIX_CMD}")$(printf "%s\n" "${GLOBAL_FIX_CMDS[@]}")\nuci commit acme"
+
+    if confirm_action "Update global ACME configuration acme.${GLOBAL_TARGET}" "${UCI_GLOBAL_CMDS}"; then
         ssh_exec "${UCI_GLOBAL_CMDS}" "mutating"
-        log_success "Global ACME configuration (acme.${GLOBAL_TARGET}) committed with account_email='${ACCOUNT_EMAIL}' and debug='1'."
+        log_success "Global ACME configuration (acme.${GLOBAL_TARGET}) updated."
     fi
+else
+    log_success "Global ACME configuration (acme.${GLOBAL_TARGET}) is correctly configured."
 fi
 
 # Step 7: Setup Dynamic Config Directory for Dnsmasq
@@ -1208,37 +1228,172 @@ fi
 
 EXISTING_DOMAINS="$(ssh_exec "uci -q get acme.${CERT_SECTION}.domains || true" "read_only" | tr '\n' ' ' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
 TARGET_DOMAINS="$(echo "${DOMAINS_TO_REGISTER[*]}" | tr '\n' ' ' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//')"
+# Query existing properties from router for acme.${CERT_SECTION}
 EXISTING_ENABLED="$(ssh_exec "uci -q get acme.${CERT_SECTION}.enabled || true" "read_only" | tr -d '\r\n')"
 EXISTING_UHTTPD="$(ssh_exec "uci -q get acme.${CERT_SECTION}.use_uhttpd || true" "read_only" | tr -d '\r\n')"
 EXISTING_DNS="$(ssh_exec "uci -q get acme.${CERT_SECTION}.dns || true" "read_only" | tr -d '\r\n')"
+EXISTING_SLEEP="$(ssh_exec "uci -q get acme.${CERT_SECTION}.d_ns_sleep || true" "read_only" | tr -d '\r\n')"
+EXISTING_SERVER="$(ssh_exec "uci -q get acme.${CERT_SECTION}.acme_server || true" "read_only" | tr -d '\r\n')"
+EXISTING_STANDALONE="$(ssh_exec "uci -q get acme.${CERT_SECTION}.standalone || true" "read_only" | tr -d '\r\n')"
+EXISTING_WEBROOT="$(ssh_exec "uci -q get acme.${CERT_SECTION}.webroot || true" "read_only" | tr -d '\r\n')"
+EXISTING_SECTION_TYPE="$(ssh_exec "uci -q get acme.${CERT_SECTION} || true" "read_only" | tr -d '\r\n')"
 
-DO_CONFIG_CERT=true
-if [[ "${EXISTING_ENABLED}" == "1" && "${EXISTING_UHTTPD}" == "1" && "${EXISTING_DNS}" == "dns_openwrt_dnsmasq" && "${EXISTING_DOMAINS}" == "${TARGET_DOMAINS}" ]]; then
-    if ! prompt_reapply_or_skip "Certificate entry acme.${CERT_SECTION} (domains: [${TARGET_DOMAINS}], dns: dns_openwrt_dnsmasq)"; then
-        DO_CONFIG_CERT=false
+log_info "Auditing /etc/config/acme properties for cert section '${CERT_SECTION}'..."
+
+CERT_FIX_CMDS=()
+FIX_DOMAINS_NEEDED=false
+
+# 0. Ensure section type is 'cert'
+if [[ "${EXISTING_SECTION_TYPE}" != "cert" ]]; then
+    CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}=cert")
+fi
+
+# 1. enabled
+if [[ "${EXISTING_ENABLED}" == "1" ]]; then
+    log_success "  ✓ enabled: '1' (correct)"
+else
+    log_warn "  ✗ enabled: existing='${EXISTING_ENABLED:-<not set>}' -> proposed='1'"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix enabled to '1'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}.enabled='1'")
     fi
 fi
 
-if [[ "${DO_CONFIG_CERT}" == "true" ]]; then
-    UCI_ACME_CMDS="uci set acme.${CERT_SECTION}=cert
-uci set acme.${CERT_SECTION}.enabled='1'
-uci set acme.${CERT_SECTION}.use_uhttpd='1'
-uci -q delete acme.${CERT_SECTION}.domains || true"
+# 2. use_uhttpd
+if [[ "${EXISTING_UHTTPD}" == "1" ]]; then
+    log_success "  ✓ use_uhttpd: '1' (correct)"
+else
+    log_warn "  ✗ use_uhttpd: existing='${EXISTING_UHTTPD:-<not set>}' -> proposed='1'"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix use_uhttpd to '1'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}.use_uhttpd='1'")
+    fi
+fi
 
-    for d in "${DOMAINS_TO_REGISTER[@]}"; do
-        UCI_ACME_CMDS="${UCI_ACME_CMDS}
+# 3. dns challenge provider (must be dns_openwrt_dnsmasq for DNS-01 / wildcard)
+if [[ "${EXISTING_DNS}" == "dns_openwrt_dnsmasq" ]]; then
+    log_success "  ✓ dns: 'dns_openwrt_dnsmasq' (correct, DNS-01)"
+else
+    log_warn "  ✗ dns: existing='${EXISTING_DNS:-<not set>}' -> proposed='dns_openwrt_dnsmasq'"
+    log_info "    (Note: Wildcard certificates and local CA integration require DNS-01 via 'dns_openwrt_dnsmasq'; 'standalone' is HTTP-01 and cannot issue wildcards)"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix dns challenge provider to 'dns_openwrt_dnsmasq'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}.dns='dns_openwrt_dnsmasq'")
+    fi
+fi
+
+# 4. d_ns_sleep
+if [[ "${EXISTING_SLEEP}" == "5" ]]; then
+    log_success "  ✓ d_ns_sleep: '5' (correct)"
+else
+    log_warn "  ✗ d_ns_sleep: existing='${EXISTING_SLEEP:-<not set>}' -> proposed='5'"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix d_ns_sleep to '5'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}.d_ns_sleep='5'")
+    fi
+fi
+
+# 5. acme_server (Points to local private CA directory URL)
+if [[ "${EXISTING_SERVER}" == "${CA_URL}" ]]; then
+    log_success "  ✓ acme_server: '${EXISTING_SERVER}' (correct)"
+else
+    log_warn "  ✗ acme_server: existing='${EXISTING_SERVER:-<not set>}' -> proposed='${CA_URL}'"
+    log_info "    (Note: Setting acme_server ensures /etc/init.d/acme and LuCI use your private CA instead of defaulting to public Let's Encrypt)"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Fix acme_server to '${CA_URL}'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci set acme.${CERT_SECTION}.acme_server='${CA_URL}'")
+    fi
+fi
+
+# 6. domains list
+if [[ "${EXISTING_DOMAINS}" == "${TARGET_DOMAINS}" ]]; then
+    log_success "  ✓ domains: '${EXISTING_DOMAINS}' (correct)"
+else
+    log_warn "  ✗ domains: existing='${EXISTING_DOMAINS:-<not set>}' -> proposed='${TARGET_DOMAINS}'"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Update domains list to '[${TARGET_DOMAINS}]'? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        FIX_DOMAINS_NEEDED=true
+    fi
+fi
+
+# 7. Check for obsolete/conflicting HTTP-01 challenge properties: standalone
+if [[ -n "${EXISTING_STANDALONE}" ]]; then
+    log_warn "  ✗ standalone: existing='${EXISTING_STANDALONE}' -> proposed: <remove> (conflicts with DNS-01 wildcard certificates)"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Remove conflicting 'standalone' property? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci -q delete acme.${CERT_SECTION}.standalone || true")
+    fi
+fi
+
+# 8. Check for obsolete/conflicting HTTP-01 challenge properties: webroot
+if [[ -n "${EXISTING_WEBROOT}" ]]; then
+    log_warn "  ✗ webroot: existing='${EXISTING_WEBROOT}' -> proposed: <remove> (conflicts with DNS-01 wildcard certificates)"
+    FIX_PROP="y"
+    if [[ "${ASSUME_YES}" != "true" && "${DRY_RUN}" != "true" ]]; then
+        read -r -p "Remove conflicting 'webroot' property? [Y/n]: " prompt_val
+        if [[ "${prompt_val}" =~ ^[Nn] ]]; then FIX_PROP="n"; fi
+    fi
+    if [[ "${FIX_PROP}" == "y" ]]; then
+        CERT_FIX_CMDS+=("uci -q delete acme.${CERT_SECTION}.webroot || true")
+    fi
+fi
+
+# If any fixes are queued or domains need replacement, assemble UCI commands
+if [[ ${#CERT_FIX_CMDS[@]} -gt 0 || "${FIX_DOMAINS_NEEDED}" == "true" ]]; then
+    UCI_ACME_CMDS=""
+    if [[ ${#CERT_FIX_CMDS[@]} -gt 0 ]]; then
+        UCI_ACME_CMDS="$(printf "%s\n" "${CERT_FIX_CMDS[@]}")"
+    fi
+
+    if [[ "${FIX_DOMAINS_NEEDED}" == "true" ]]; then
+        if [[ -n "${UCI_ACME_CMDS}" ]]; then
+            UCI_ACME_CMDS="${UCI_ACME_CMDS}
+"
+        fi
+        UCI_ACME_CMDS="${UCI_ACME_CMDS}uci -q delete acme.${CERT_SECTION}.domains || true"
+        for d in "${DOMAINS_TO_REGISTER[@]}"; do
+            UCI_ACME_CMDS="${UCI_ACME_CMDS}
 uci add_list acme.${CERT_SECTION}.domains='${d}'"
-    done
+        done
+    fi
 
     UCI_ACME_CMDS="${UCI_ACME_CMDS}
-uci set acme.${CERT_SECTION}.dns='dns_openwrt_dnsmasq'
-uci set acme.${CERT_SECTION}.d_ns_sleep='5'
 uci commit acme"
 
-    if confirm_action "Configure certificate entry in /etc/config/acme" "${UCI_ACME_CMDS}"; then
+    if confirm_action "Update /etc/config/acme certificate section '${CERT_SECTION}'" "${UCI_ACME_CMDS}"; then
         ssh_exec "${UCI_ACME_CMDS}" "mutating"
-        log_success "/etc/config/acme configured with cert section '${CERT_SECTION}' (dns='dns_openwrt_dnsmasq')."
+        log_success "/etc/config/acme certificate section '${CERT_SECTION}' updated."
     fi
+else
+    log_success "All /etc/config/acme properties for cert section '${CERT_SECTION}' are correctly configured."
 fi
 
 # Step 10b: Pre-Flight DNS-01 Resolution Verification
